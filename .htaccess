@@ -1,0 +1,39 @@
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Forca HTTPS (a camera do navegador so funciona em contexto seguro)
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+    # Bloqueia tudo que nao deve ser servido pela web.
+    # O deploy e feito com git clone dentro do public_html, entao a pasta .git
+    # fica dentro do docroot e PRECISA ser bloqueada.
+    RewriteRule ^\.git(/|$)      - [F,L]
+    RewriteRule ^app(/|$)        - [F,L]
+    RewriteRule ^sql(/|$)        - [F,L]
+    RewriteRule ^\.env           - [F,L]
+    RewriteRule (^|/)\.          - [F,L]
+
+    # Front controller: arquivos e pastas reais sao servidos direto,
+    # o resto cai no index.php
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "same-origin"
+</IfModule>
+
+# Sem cache nos assets durante o desenvolvimento (trocar depois de estabilizar)
+<FilesMatch "\.(css|js)$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache, must-revalidate"
+    </IfModule>
+</FilesMatch>

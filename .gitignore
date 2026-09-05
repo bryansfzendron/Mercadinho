@@ -1,0 +1,23 @@
+# Credenciais: banco, token do n8n e token do setup. NUNCA versionar.
+/app/config.php
+
+# Logs e temporários do servidor
+/logs/
+*.log
+error_log
+php_errorlog
+
+# Lixo de sistema operacional / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
+
+# Nada de dependências ou dumps no repositório
+/vendor/
+*.zip
+*.sql.gz
+*.sql.bak
