@@ -4,6 +4,10 @@ DirectoryIndex index.php
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # A validacao do certificado SSL usa /.well-known/ em HTTP puro:
+    # tem que passar antes de qualquer redirecionamento ou bloqueio.
+    RewriteRule ^\.well-known/ - [L]
+
     # Forca HTTPS (a camera do navegador so funciona em contexto seguro)
     RewriteCond %{HTTPS} !=on
     RewriteCond %{HTTP:X-Forwarded-Proto} !https

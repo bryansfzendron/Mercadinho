@@ -22,11 +22,11 @@ function estabelecimento_resolver(?string $cnpj, ?string $nome, ?string $municip
             // Completa dados que faltavam de um cadastro anterior
             exec_sql(
                 'UPDATE estabelecimentos
-                    SET nome      = COALESCE(NULLIF(nome, ""), ?),
+                    SET nome      = COALESCE(NULLIF(nome, ?), ?),
                         municipio = COALESCE(municipio, ?),
                         uf        = COALESCE(uf, ?)
                   WHERE id = ?',
-                [$nome, $municipio ?: null, $uf ?: null, $id]
+                ['', $nome, $municipio ?: null, $uf ?: null, $id]
             );
             return (int) $id;
         }
@@ -188,10 +188,10 @@ function produto_historico(int $produto_id, int $usuario_id): array
            FROM itens i
            JOIN notas n ON n.id = i.nota_id
       LEFT JOIN estabelecimentos est ON est.id = n.estabelecimento_id
-          WHERE i.produto_id = ? AND n.usuario_id = ? AND n.status = "ok"
+          WHERE i.produto_id = ? AND n.usuario_id = ? AND n.status = ?
        ORDER BY n.emissao DESC, n.id DESC
           LIMIT 200',
-        [$produto_id, $usuario_id]
+        [$produto_id, $usuario_id, 'ok']
     );
 }
 

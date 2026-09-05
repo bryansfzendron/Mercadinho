@@ -81,17 +81,17 @@ function rota_inicio(array $u): void
     $resumo = q1(
         'SELECT COUNT(*) AS notas,
                 COALESCE(SUM(valor_total), 0) AS total
-           FROM notas WHERE usuario_id = ? AND status = "ok"',
-        [$u['id']]
+           FROM notas WHERE usuario_id = ? AND status = ?',
+        [$u['id'], 'ok']
     );
     $itens_total = (int) qv(
         'SELECT COUNT(*) FROM itens i JOIN notas n ON n.id = i.nota_id
-          WHERE n.usuario_id = ? AND n.status = "ok"',
-        [$u['id']]
+          WHERE n.usuario_id = ? AND n.status = ?',
+        [$u['id'], 'ok']
     );
     $pendentes = (int) qv(
-        'SELECT COUNT(*) FROM notas WHERE usuario_id = ? AND status IN ("pendente","processando")',
-        [$u['id']]
+        'SELECT COUNT(*) FROM notas WHERE usuario_id = ? AND status IN (?, ?)',
+        [$u['id'], 'pendente', 'processando']
     );
     $ultimas = q(
         'SELECT n.id, n.emissao, n.valor_total, n.status, est.nome AS loja
@@ -134,7 +134,8 @@ function rota_nota_detalhe(array $u, int $id): void
 function rota_produtos(array $u): void
 {
     $busca = trim((string) ($_GET['q'] ?? ''));
-    $params = [$u['id']];
+    // A ordem importa: o "?" do JOIN vem antes do "?" do WHERE.
+    $params = ['ok', $u['id']];
     $filtro = '';
     if ($busca !== '') {
         $filtro = ' AND (p.descricao_norm LIKE ? OR p.ean = ?)';
@@ -150,7 +151,7 @@ function rota_produtos(array $u): void
                 MAX(n.emissao)           AS ultima_compra
            FROM produtos p
            JOIN itens i ON i.produto_id = p.id
-           JOIN notas n ON n.id = i.nota_id AND n.status = "ok"
+           JOIN notas n ON n.id = i.nota_id AND n.status = ?
           WHERE n.usuario_id = ?' . $filtro . '
        GROUP BY p.id, p.ean, p.descricao, p.unidade
        ORDER BY ultima_compra DESC

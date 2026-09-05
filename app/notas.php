@@ -68,7 +68,7 @@ function nota_disparar_n8n(int $nota_id, string $qr_url): array
 
     // Timeout aqui nao e falha: o n8n ja recebeu e segue processando sozinho.
     if ($errno === CURLE_OPERATION_TIMEDOUT) {
-        exec_sql('UPDATE notas SET status = "processando" WHERE id = ?', [$nota_id]);
+        exec_sql('UPDATE notas SET status = ? WHERE id = ?', ['processando', $nota_id]);
         return ['ok' => true, 'erro' => null];
     }
     if ($errno !== 0) {
@@ -82,15 +82,15 @@ function nota_disparar_n8n(int $nota_id, string $qr_url): array
         return ['ok' => false, 'erro' => $msg];
     }
 
-    exec_sql('UPDATE notas SET status = "processando" WHERE id = ?', [$nota_id]);
+    exec_sql('UPDATE notas SET status = ? WHERE id = ?', ['processando', $nota_id]);
     return ['ok' => true, 'erro' => null];
 }
 
 function nota_erro(int $nota_id, string $msg): void
 {
     exec_sql(
-        'UPDATE notas SET status = "erro", erro_msg = ?, processado_em = NOW() WHERE id = ?',
-        [mb_substr($msg, 0, 500), $nota_id]
+        'UPDATE notas SET status = ?, erro_msg = ?, processado_em = NOW() WHERE id = ?',
+        ['erro', mb_substr($msg, 0, 500), $nota_id]
     );
 }
 
@@ -162,7 +162,7 @@ function nota_processar_callback(array $p): array
                     valor_total        = :vtotal,
                     url_consulta       = :url,
                     html_gz            = COALESCE(:html, html_gz),
-                    status             = "ok",
+                    status             = :status,
                     erro_msg           = NULL,
                     processado_em      = NOW()
               WHERE id = :id'
@@ -178,6 +178,7 @@ function nota_processar_callback(array $p): array
         $st->bindValue(':vtotal', num_br($cab['valor_total_nota'] ?? $cab['valor_total'] ?? null));
         $st->bindValue(':url',    (string) ($cab['url_consulta'] ?? '') ?: null);
         $st->bindValue(':html',   $html_gz, $html_gz === null ? PDO::PARAM_NULL : PDO::PARAM_LOB);
+        $st->bindValue(':status', 'ok');
         $st->bindValue(':id',     $nota_id, PDO::PARAM_INT);
         $st->execute();
 
