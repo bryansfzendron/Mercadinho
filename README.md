@@ -405,6 +405,22 @@ O custo entra em três camadas, porque elas se comportam de forma diferente:
 As taxas e os valores fixos ficam na tabela `custos_parametros`, editáveis no fim da própria
 tela — taxa de maquininha muda com o faturamento e com o fim da promoção.
 
+## Cores
+
+A paleta segue a da [Alpha3](https://alpha3consultoria.com.br): dourado `#eab308` sobre
+neutro escuro `#1c1917`. Os tokens estão no topo do `assets/app.css` e têm nome de papel,
+não de cor (`--marca`, `--marca-forte`, `--sobre-marca`), justamente para uma troca de
+paleta não deixar comentários mentindo.
+
+Dois detalhes que não são estéticos:
+
+- **O texto dourado não é o mesmo dourado do preenchimento.** `#eab308` em fundo claro dá
+  contraste de 1,9:1 e é ilegível, então texto e ícone usam `--marca` (`#a16207`) e só o
+  preenchimento usa `--marca-forte`. Sobre o preenchimento dourado a tinta é escura
+  (`--sobre-marca`), nunca branca.
+- **Lucro continua verde e prejuízo vermelho** (`--positivo` / `--vermelho`). Sinal
+  financeiro não é marca: com tudo dourado, o relatório perde a leitura de um relance.
+
 ## A seção Loja
 
 O item **Loja R$** do menu de baixo tem três telas, num submenu no feitio do segmented

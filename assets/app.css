@@ -1,30 +1,48 @@
 :root {
-    --fundo: #f6f7f5;
+    --fundo: #faf9f7;
     --cartao: #ffffff;
-    --texto: #1b2019;
-    --suave: #6b7280;
-    --borda: #e2e5df;
-    --verde: #15803d;
-    --verde-escuro: #14532d;
+    --texto: #1c1917;
+    --suave: #78716c;
+    --borda: #e7e5e4;
+    /* Dourado da Alpha3 (#eab308) com neutro escuro no lugar do verde.
+       Ouro puro nao serve para texto em fundo claro (contraste 1,9:1), entao
+       o texto usa o tom escuro e o preenchimento usa o ouro. */
+    --marca: #a16207;
+    --marca-forte: #eab308;
+    --marca-escura: #1c1917;
+    /* Tinta sobre o preenchimento dourado: preto, nao branco. */
+    --sobre-marca: #1c1917;
+    /* Sinal financeiro nao e marca: lucro continua verde e prejuizo vermelho,
+       senao o relatorio perde a leitura de um relance. */
+    --positivo: #15803d;
+    --tinta-positiva: rgba(21, 128, 61, .12);
     --vermelho: #b91c1c;
-    --ambar: #b45309;
+    --ambar: #c2410c;
     --raio: 12px;
-    --tinta-verde: rgba(21, 128, 61, .12);
+    --tinta-marca: rgba(234, 179, 8, .16);
+    /* Superficie que precisa subir um degrau do cartao (pilula ativa). */
+    --elevado: #ffffff;
     --tinta-vermelha: rgba(185, 28, 28, .1);
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --fundo: #12140f;
-        --cartao: #1c1f19;
-        --texto: #e8ebe4;
-        --suave: #9aa295;
-        --borda: #2e332a;
-        --verde: #4ade80;
-        --verde-escuro: #14532d;
+        --fundo: #121110;
+        --cartao: #1c1a19;
+        --texto: #e7e5e4;
+        --suave: #a8a29e;
+        --borda: #302c2a;
+        /* No escuro o ouro ja tem contraste de sobra e pode ser o texto. */
+        --marca: #fbbf24;
+        --marca-forte: #eab308;
+        --marca-escura: #1c1917;
+        --sobre-marca: #1c1917;
+        --positivo: #4ade80;
+        --tinta-positiva: rgba(74, 222, 128, .16);
         --vermelho: #f87171;
-        --ambar: #fbbf24;
-        --tinta-verde: rgba(74, 222, 128, .16);
+        --ambar: #fb923c;
+        --tinta-marca: rgba(234, 179, 8, .2);
+        --elevado: #2c2825;
         --tinta-vermelha: rgba(248, 113, 113, .14);
     }
 }
@@ -43,7 +61,7 @@ body {
     padding-bottom: 78px;
 }
 
-a { color: var(--verde); text-decoration: none; }
+a { color: var(--marca); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 h1 { font-size: 1.45rem; margin: 0 0 .6rem; }
@@ -53,14 +71,14 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 .topo {
     display: flex; justify-content: space-between; align-items: center;
     padding: .75rem 1rem;
-    background: var(--verde-escuro); color: #fff;
+    background: var(--marca-escura); color: #fff;
     position: sticky; top: 0; z-index: 10;
 }
-.marca { color: #fff; font-weight: 700; letter-spacing: .3px; }
+.marca { color: var(--marca-forte); font-weight: 700; letter-spacing: .3px; }
 .marca:hover { text-decoration: none; }
 .topo-dir { display: flex; gap: .75rem; align-items: center; font-size: .85rem; }
 .quem { opacity: .85; }
-.sair { color: #bbf7d0; }
+.sair { color: #fde68a; }
 
 .conteudo { padding: 1rem; max-width: 720px; margin: 0 auto; }
 
@@ -76,7 +94,7 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
     color: var(--suave); font-size: .68rem; text-decoration: none;
 }
 .barra a span { display: block; font-size: 1.15rem; line-height: 1.3; }
-.barra a.ativo { color: var(--verde); font-weight: 600; }
+.barra a.ativo { color: var(--marca); font-weight: 600; }
 
 /* ---------- blocos ---------- */
 .cartao {
@@ -121,7 +139,7 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 .erro-msg { font-size: .75rem; color: var(--vermelho); margin-top: .3rem; }
 
 .selo { font-size: .68rem; padding: .1rem .45rem; border-radius: 99px; border: 1px solid var(--borda); }
-.selo-ok { color: var(--verde); border-color: currentColor; }
+.selo-ok { color: var(--positivo); border-color: currentColor; }
 .selo-erro { color: var(--vermelho); border-color: currentColor; }
 .selo-pendente, .selo-processando { color: var(--ambar); border-color: currentColor; }
 .selo-manual { color: var(--suave); }
@@ -134,14 +152,14 @@ input, select, textarea {
     background: var(--fundo); border: 1px solid var(--borda);
     border-radius: 12px; font-family: inherit;
 }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); outline-offset: 1px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); outline-offset: 1px; }
 
 /* Botoes no feitio do iOS: canto bem arredondado, texto de 17px em semibold,
    e resposta ao toque por opacidade. No iPhone nao existe hover — o realce
    cinza do toque atrapalhava mais do que ajudava. */
 .botao {
     display: inline-block; width: 100%; padding: .85rem 1.1rem;
-    background: var(--verde-escuro); color: #fff;
+    background: var(--marca-forte); color: var(--sobre-marca);
     font-size: 17px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25;
     border: none; border-radius: 14px; cursor: pointer; text-align: center;
     -webkit-tap-highlight-color: transparent;
@@ -153,7 +171,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 
 /* Secundario: o "tinted button" do iOS — fundo suave da propria cor, sem
    contorno. Fica mais leve ao lado do botao cheio. */
-.botao-alt { background: var(--tinta-verde); color: var(--verde); border: none; }
+.botao-alt { background: var(--tinta-marca); color: var(--marca); border: none; }
 .botao-grande { padding: 1rem 1.1rem; font-size: 17px; }
 .acoes-topo { display: grid; gap: .5rem; margin-bottom: 1rem; }
 .acoes { margin: .75rem 0; }
@@ -207,8 +225,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
     position: absolute; inset: 0;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: .55rem; padding: 1.2rem; text-align: center;
-    color: #cfd6cb; font-size: .9rem;
-    background: radial-gradient(120% 90% at 50% 0%, #1d2420 0%, #06080a 70%);
+    color: #d6d3d1; font-size: .9rem;
+    background: radial-gradient(120% 90% at 50% 0%, #241f1d 0%, #0a0807 70%);
 }
 .camera-caixa.ligada .camera-espera { display: none; }
 .camera-espera svg { width: 44px; height: 44px; opacity: .55; }
@@ -237,16 +255,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 /* Linha que varre a mira */
 .mira i {
     position: absolute; left: 6%; right: 6%; height: 2px; top: 8%;
-    background: linear-gradient(90deg, transparent, #6ee7a0, transparent);
-    box-shadow: 0 0 10px rgba(110, 231, 160, .7);
+    background: linear-gradient(90deg, transparent, #fbbf24, transparent);
+    box-shadow: 0 0 10px rgba(251, 191, 36, .7);
     animation: varrer 2.4s ease-in-out infinite;
 }
 @keyframes varrer { 0%, 100% { top: 8%; } 50% { top: 90%; } }
 
-/* Flash verde quando le */
+/* Flash quando le */
 .camera-caixa.leu::after {
     content: ''; position: absolute; inset: 0; z-index: 2;
-    background: rgba(110, 231, 160, .45);
+    background: rgba(234, 179, 8, .45);
     animation: piscar .45s ease-out forwards;
 }
 @keyframes piscar { to { opacity: 0; } }
@@ -271,16 +289,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 .camera-acoes { display: flex; gap: .5rem; }
 .camera-acoes .botao { flex: 1; }
 .camera-acoes .botao-icone { flex: 0 0 auto; width: auto; padding-left: 1rem; padding-right: 1rem; }
-.botao-ligado { background: var(--verde); color: #fff; border-color: var(--verde); }
+.botao-ligado { background: var(--marca); color: #fff; border-color: var(--marca); }
 
 /* ---------- avisos ---------- */
 .aviso { padding: .7rem .85rem; border-radius: var(--raio); margin-bottom: .8rem; font-size: .9rem; border: 1px solid; }
-.aviso-ok   { color: var(--verde);    border-color: currentColor; background: rgba(21,128,61,.08); }
+.aviso-ok   { color: var(--marca);    border-color: currentColor; background: rgba(21,128,61,.08); }
 .aviso-erro { color: var(--vermelho); border-color: currentColor; background: rgba(185,28,28,.08); }
 .aviso-info { color: var(--ambar);    border-color: currentColor; background: rgba(180,83,9,.08); }
 
 .estado { min-height: 1.5rem; font-size: .9rem; margin: .5rem 0; }
-.estado-ok { color: var(--verde); }
+.estado-ok { color: var(--marca); }
 .estado-erro { color: var(--vermelho); }
 
 .colar { margin: 1rem 0; font-size: .9rem; }
@@ -293,7 +311,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 .margem {
     display: flex; align-items: center; gap: .85rem;
     margin: .7rem 0 0; padding: .7rem .9rem; border-radius: 14px;
-    border: none; background: var(--tinta-verde); color: var(--verde);
+    border: none; background: var(--tinta-positiva); color: var(--positivo);
 }
 .margem-ruim { background: var(--tinta-vermelha); color: var(--vermelho); }
 
@@ -324,7 +342,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 }
 .aba:hover { text-decoration: none; }
 .aba.ativo {
-    background: var(--cartao); font-weight: 600;
+    background: var(--elevado); font-weight: 600;
     box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
 }
 
@@ -337,15 +355,15 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
     -webkit-tap-highlight-color: transparent;
 }
 .chip:hover { text-decoration: none; }
-.chip.ativo { background: var(--tinta-verde); border-color: transparent; color: var(--verde); font-weight: 600; }
+.chip.ativo { background: var(--tinta-marca); border-color: transparent; color: var(--marca); font-weight: 600; }
 
 /* Barra de progresso da meta. */
 .meta-barra {
     height: 10px; border-radius: 99px; background: rgba(127, 127, 127, .15);
     overflow: hidden; margin: .45rem 0 .3rem;
 }
-.meta-barra > span { display: block; height: 100%; background: var(--verde); border-radius: 99px; }
-.meta-barra.batida > span { background: var(--verde); }
+.meta-barra > span { display: block; height: 100%; background: var(--positivo); border-radius: 99px; }
+.meta-barra.batida > span { background: var(--positivo); }
 .meta-topo { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
 .meta-valor { font-size: 1.25rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .meta-alvo { font-size: .8rem; color: var(--suave); font-variant-numeric: tabular-nums; }
@@ -353,7 +371,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 /* O padding do cartao da lista quando o item nao e um link. */
 .linha-cartao { padding: .7rem .85rem; }
 .negativo { color: var(--suave); font-weight: 500; }
-.lucro-bom { color: var(--verde); font-weight: 600; }
+.lucro-bom { color: var(--positivo); font-weight: 600; }
 .lucro-ruim { color: var(--vermelho); font-weight: 600; }
 /* Custo que veio do percentual padrao, nao de nota fiscal. */
 .estimado {
@@ -367,7 +385,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
     width: 36px; height: 36px; margin-top: env(safe-area-inset-top);
     display: flex; align-items: center; justify-content: center;
     border-radius: 50%;
-    background: var(--cartao); color: var(--verde);
+    background: var(--cartao); color: var(--marca);
     border: 1px solid var(--borda);
     box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
     transform: translate(-50%, 0); opacity: 0;
@@ -375,7 +393,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
     transition: opacity .2s ease, transform .2s ease;
 }
 .puxar svg { width: 19px; height: 19px; }
-.puxar-pronto { color: #fff; background: var(--verde); border-color: var(--verde); }
+.puxar-pronto { color: #fff; background: var(--marca); border-color: var(--marca); }
 .puxar-girando { animation: puxar-gira .7s linear infinite; }
 @keyframes puxar-gira {
     from { transform: translate(-50%, 70px) rotate(0deg); }
