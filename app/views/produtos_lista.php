@@ -1,8 +1,13 @@
 <?php /** @var array $produtos @var string $busca @var array $loja */ ?>
 <h1>Produtos</h1>
 
+<div class="acoes-topo">
+    <a class="botao botao-grande" href="/bipar">||| Bipar produto</a>
+</div>
+
 <form method="get" action="/produtos" class="linha-form">
-    <input type="text" name="q" value="<?= e($busca) ?>" placeholder="buscar por nome ou código">
+    <input type="text" name="q" value="<?= e($busca) ?>" placeholder="buscar por nome ou código"
+           autocomplete="off" autocorrect="off" spellcheck="false">
     <button type="submit" class="botao botao-alt">Buscar</button>
 </form>
 

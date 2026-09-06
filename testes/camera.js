@@ -3,6 +3,7 @@
  *  - a camera abre sozinha quando a permissao ja esta dada;
  *  - getUserMedia e chamado UMA vez (nada de pedir permissao a cada troca);
  *  - o caminho ZXing (sem BarcodeDetector, como no iOS) tambem sobe;
+ *  - o teclado nao sobe sozinho: foco em campo sem toque e desfeito;
  *  - nenhum erro no console.
  * No fim tira as fotos das telas.
  */
@@ -52,6 +53,9 @@ async function abrir(navegador, rota, opcoes = {}) {
 
 (async () => {
     const navegador = await chromium.launch({
+        // Sem o Chromium do playwright baixado, da para usar o Chrome/Edge da
+        // maquina: NAVEGADOR=chrome node testes/camera.js
+        channel: process.env.NAVEGADOR || undefined,
         args: [
             '--use-fake-device-for-media-stream',
             '--use-fake-ui-for-media-stream',
@@ -128,6 +132,38 @@ async function abrir(navegador, rota, opcoes = {}) {
             await pag.locator('.mira').evaluate(el => el.classList.contains('mira-larga')));
         await pag.screenshot({ path: require('path').join(__dirname, 'telas', 'tela-bipar.png') });
         checar('bipar: sem erro no console', erros.length === 0, erros.join(' | '));
+        await ctx.close();
+    }
+
+    // ---- 3b. teclado: so sobe se o dedo pediu ----
+    {
+        const { ctx, pag, erros } = await abrir(navegador, '/bipar');
+        await pag.waitForSelector('.camera-caixa.ligada', { timeout: 8000 }).catch(() => {});
+
+        checar('teclado: campo nao nasce focado',
+            await pag.evaluate(() => document.activeElement !== document.getElementById('ean')));
+
+        // O que o iOS faz sozinho quando o video entra e o layout muda.
+        await pag.evaluate(() => document.getElementById('ean').focus());
+        await pag.waitForTimeout(60);
+        checar('teclado: foco sem toque e desfeito',
+            await pag.evaluate(() => document.activeElement !== document.getElementById('ean')));
+
+        // Ligar/desligar a camera nao pode deixar foco em campo.
+        await pag.locator('#btn-camera').click();
+        await pag.waitForTimeout(150);
+        await pag.locator('#btn-camera').click();
+        await pag.waitForTimeout(400);
+        checar('teclado: ligar a camera nao foca o campo',
+            await pag.evaluate(() => document.activeElement !== document.getElementById('ean')));
+
+        // Quem toca no campo continua digitando normalmente.
+        await pag.locator('#ean').tap();
+        await pag.waitForTimeout(150);
+        checar('teclado: toque no campo mantem o foco',
+            await pag.evaluate(() => document.activeElement === document.getElementById('ean')));
+
+        checar('teclado: sem erro no console', erros.length === 0, erros.join(' | '));
         await ctx.close();
     }
 

@@ -9,6 +9,8 @@
     --vermelho: #b91c1c;
     --ambar: #b45309;
     --raio: 12px;
+    --tinta-verde: rgba(21, 128, 61, .12);
+    --tinta-vermelha: rgba(185, 28, 28, .1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,6 +24,8 @@
         --verde-escuro: #14532d;
         --vermelho: #f87171;
         --ambar: #fbbf24;
+        --tinta-verde: rgba(74, 222, 128, .16);
+        --tinta-vermelha: rgba(248, 113, 113, .14);
     }
 }
 
@@ -128,22 +132,33 @@ input, select, textarea {
     display: block; width: 100%; margin-top: .2rem;
     padding: .6rem .7rem; font-size: 1rem; color: var(--texto);
     background: var(--fundo); border: 1px solid var(--borda);
-    border-radius: 9px; font-family: inherit;
+    border-radius: 12px; font-family: inherit;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); outline-offset: 1px; }
 
+/* Botoes no feitio do iOS: canto bem arredondado, texto de 17px em semibold,
+   e resposta ao toque por opacidade. No iPhone nao existe hover — o realce
+   cinza do toque atrapalhava mais do que ajudava. */
 .botao {
-    display: inline-block; width: 100%; padding: .75rem 1rem;
-    background: var(--verde-escuro); color: #fff; font-size: 1rem; font-weight: 600;
-    border: none; border-radius: 9px; cursor: pointer; text-align: center;
+    display: inline-block; width: 100%; padding: .85rem 1.1rem;
+    background: var(--verde-escuro); color: #fff;
+    font-size: 17px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25;
+    border: none; border-radius: 14px; cursor: pointer; text-align: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity .15s ease, transform .15s ease;
 }
-.botao:hover { text-decoration: none; filter: brightness(1.15); }
-.botao-alt { background: transparent; color: var(--verde); border: 1px solid var(--verde); }
-.botao-grande { padding: 1rem; font-size: 1.05rem; }
+.botao:active { opacity: .72; transform: scale(.975); }
+.botao:hover { text-decoration: none; }
+@media (hover: hover) { .botao:hover { filter: brightness(1.08); } }
+
+/* Secundario: o "tinted button" do iOS — fundo suave da propria cor, sem
+   contorno. Fica mais leve ao lado do botao cheio. */
+.botao-alt { background: var(--tinta-verde); color: var(--verde); border: none; }
+.botao-grande { padding: 1rem 1.1rem; font-size: 17px; }
 .acoes-topo { display: grid; gap: .5rem; margin-bottom: 1rem; }
 .acoes { margin: .75rem 0; }
 
-.botao-perigo { background: transparent; color: var(--vermelho); border: 1px solid currentColor; margin-top: .5rem; }
+.botao-perigo { background: var(--tinta-vermelha); color: var(--vermelho); border: none; margin-top: .5rem; }
 .link-perigo {
     background: none; border: none; color: var(--vermelho);
     font-size: .78rem; cursor: pointer; padding: .35rem .85rem .6rem; font-family: inherit;
@@ -151,9 +166,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 .acao-linha { margin-top: -.35rem; }
 .riscado { color: var(--suave); font-weight: 400; }
 
-.linha-form { display: flex; gap: .5rem; align-items: flex-start; margin-bottom: 1rem; }
+.linha-form { display: flex; gap: .5rem; align-items: stretch; margin-bottom: 1rem; }
 .linha-form input { margin-top: 0; }
-.linha-form .botao { width: auto; white-space: nowrap; }
+/* Ao lado do campo o botao acompanha a altura dele, senao fica um degrau. */
+.linha-form .botao { width: auto; white-space: nowrap; padding: 0 1rem; font-size: 1rem; }
 
 .duas { display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: end; }
 .duas .botao { width: auto; margin-bottom: .7rem; }

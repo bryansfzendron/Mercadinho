@@ -2,9 +2,9 @@
 declare(strict_types=1);
 
 /*
- * O menu de baixo tem que acender UM item por rota — e as telas de dentro de
- * Notas (escanear e lancamento manual) acendem "Notas", ja que "Nota" deixou
- * de ser item proprio.
+ * O menu de baixo tem que acender UM item por rota. As telas de dentro
+ * acendem o item a que pertencem: escanear e lancamento manual acendem
+ * "Notas", bipar acende "Produtos" — nenhuma das duas tem item proprio.
  *
  * Renderiza o layout de verdade, sem banco: as duas funcoes que dependem de
  * sessao/MySQL sao substituidas por versoes de teste.
@@ -61,7 +61,7 @@ $rotas = [
     '/manual'      => '/notas',
     '/notas'       => '/notas',
     '/notas/12'    => '/notas',
-    '/bipar'       => '/bipar',
+    '/bipar'       => '/produtos',
     '/produtos'    => '/produtos',
     '/produtos/3'  => '/produtos',
     '/loja'        => '/loja',
@@ -71,14 +71,15 @@ foreach ($rotas as $rota => $esperado) {
     checar("menu em $rota", ativos($rota), [$esperado]);
 }
 
-// O item "Nota" separado nao existe mais.
+// Os itens "Nota" e "Bipar" separados nao existem mais.
 $_SERVER['REQUEST_URI'] = '/notas';
 $conteudo = ''; $titulo = 'teste';
 ob_start(); require APP . '/views/layout.php'; $html = ob_get_clean();
 preg_match_all('#<nav class="barra">(.*?)</nav>#s', $html, $m);
 $menu = $m[1][0] ?? '';
-checar('menu tem 5 itens', substr_count($menu, '<a href='), 5);
+checar('menu tem 4 itens', substr_count($menu, '<a href='), 4);
 checar('nao ha item so de escanear', strpos($menu, 'href="/escanear"'), false);
+checar('nao ha item so de bipar', strpos($menu, 'href="/bipar"'), false);
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

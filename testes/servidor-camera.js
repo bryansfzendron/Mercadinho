@@ -17,9 +17,12 @@ function vista(arquivo) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Teste</title><link rel="stylesheet" href="/assets/app.css?v=2"></head>
 <body><main class="conteudo">${html}</main>
+<script src="/assets/sem-teclado.js?v=2" defer></script>
 <script src="/assets/puxar-atualizar.js?v=1" defer></script>
-<nav class="barra"><a href="/escanear" class="ativo"><span>&#9635;</span>Nota</a>
-<a href="/bipar"><span>|||</span>Bipar</a></nav></body></html>`;
+<nav class="barra"><a href="/"><span>&#8962;</span>In&iacute;cio</a>
+<a href="/notas" class="ativo"><span>&#8801;</span>Notas</a>
+<a href="/produtos"><span>&#9776;</span>Produtos</a>
+<a href="/loja"><span>R$</span>Loja</a></nav></body></html>`;
 }
 
 const TIPOS = { '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png' };
@@ -56,6 +59,10 @@ http.createServer((req, res) => {
             res.writeHead(200, { 'Content-Type': TIPOS[path.extname(arq)] || 'text/plain' });
             return res.end(fs.readFileSync(arq));
         }
+    }
+    // O navegador pede estes dois sozinho; 404 aqui viraria "erro no console".
+    if (url === '/favicon.ico' || url === '/manifest.json') {
+        return res.writeHead(204).end();
     }
     // API falsa, para o fluxo nao morrer em rede
     if (url === '/api/produto') {

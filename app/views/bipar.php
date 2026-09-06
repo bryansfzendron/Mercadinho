@@ -1,3 +1,4 @@
+<a class="voltar" href="/produtos">‹ Produtos</a>
 <h1>Bipar produto</h1>
 <p class="ajuda">Aponte para o <strong>código de barras</strong> do produto na prateleira.</p>
 
