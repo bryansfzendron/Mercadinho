@@ -65,6 +65,10 @@ ESTOQUE_1[0] = itemEstoque(1, { productBarCode: '', productCode: 'OM789100031550
 ESTOQUE_1[1] = itemEstoque(2, { productId: 9999, productCode: 'OM7896007811021', productBarCode: '7896007811021' });
 // Um item que nao esta no planograma de jeito nenhum: fica sem preco.
 ESTOQUE_1[2] = itemEstoque(3, { productId: 8888, productCode: '1112223334445', productBarCode: '1112223334445' });
+// Item SEM productCode nenhum (acontece de verdade: "Triunfo tortini sabor
+// morango 90g" no PDV Italia). A via do codigo nao existe para ele, entao so
+// o productId salva — e o EAN tem que vir do productBarCode.
+ESTOQUE_1[4] = itemEstoque(5, { productCode: null, productBarCode: '7896058257663' });
 
 const PLANO_1 = [];
 for (let i = 1; i <= 501; i++) {
@@ -151,6 +155,11 @@ const ENTRADA = {
     const porCodigo = p1.itens.find((i) => i.produto_id_externo === 9999);
     checar('preco casado pelo codigo sem OM', porCodigo.preco, 42);
     checar('ean do casado por codigo', porCodigo.ean, '7896007811021');
+
+    const semCodigo = p1.itens.find((i) => i.produto_id_externo === 5);
+    checar('sem productCode ainda acha preco pelo productId', semCodigo.preco, 15);
+    checar('sem productCode usa o productBarCode como ean', semCodigo.ean, '7896058257663');
+    checar('sem productCode nao inventa codigo', semCodigo.codigo, '');
 
     const orfao = p1.itens.find((i) => i.produto_id_externo === 8888);
     checar('sem planograma fica sem preco', orfao.preco, null);
