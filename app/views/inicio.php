@@ -2,6 +2,7 @@
 <div class="acoes-topo">
     <a class="botao botao-grande" href="/escanear">▣ Escanear nota</a>
     <a class="botao botao-grande botao-alt" href="/bipar">||| Bipar produto</a>
+    <a class="botao botao-alt" href="/manual">+ Lançar nota manualmente</a>
 </div>
 
 <?php if ($pendentes > 0): ?>
@@ -68,6 +69,8 @@
     </ul>
 <?php endif; ?>
 
+<p class="centro"><a href="/loja">Ver todos os produtos da loja</a></p>
+
 <div class="acoes">
     <button type="button" id="btn-sync-loja" class="botao botao-alt">Atualizar preços e estoque</button>
     <p class="ajuda" id="sync-estado"></p>
@@ -98,5 +101,3 @@
     });
 })();
 </script>
-
-<p class="centro"><a href="/manual">+ Lançar nota manualmente</a></p>

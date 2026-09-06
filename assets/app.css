@@ -279,3 +279,34 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 .margem-boa  { color: var(--verde);    background: rgba(21,128,61,.08); }
 .margem-ruim { color: var(--vermelho); background: rgba(185,28,28,.08); }
 .zerado { color: var(--vermelho); }
+
+/* ---------- puxar para atualizar (so no app instalado) ---------- */
+.puxar {
+    position: fixed; top: 8px; left: 50%; z-index: 30;
+    width: 36px; height: 36px; margin-top: env(safe-area-inset-top);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: var(--cartao); color: var(--verde);
+    border: 1px solid var(--borda);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
+    transform: translate(-50%, 0); opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+}
+.puxar svg { width: 19px; height: 19px; }
+.puxar-pronto { color: #fff; background: var(--verde); border-color: var(--verde); }
+.puxar-girando { animation: puxar-gira .7s linear infinite; }
+@keyframes puxar-gira {
+    from { transform: translate(-50%, 70px) rotate(0deg); }
+    to   { transform: translate(-50%, 70px) rotate(360deg); }
+}
+
+/* ---------- filtros da tela da loja ---------- */
+.filtros { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .3rem; }
+.filtros label { margin-bottom: .3rem; }
+.filtros select { margin-top: .2rem; }
+.caixa-marcar {
+    display: flex; align-items: center; gap: .45rem;
+    font-size: .85rem; color: var(--texto); margin-bottom: 1rem;
+}
+.caixa-marcar input { width: auto; margin: 0; }

@@ -21,6 +21,7 @@ function despachar(string $rota): void
     if ($rota === '/bipar')     { ver('bipar', [], 'Bipar produto'); }
     if ($rota === '/notas')     { rota_notas($u); return; }
     if ($rota === '/produtos')  { rota_produtos($u); return; }
+    if ($rota === '/loja')      { rota_loja($u); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
 
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
@@ -180,6 +181,25 @@ function rota_produtos(array $u): void
     ver('produtos_lista', compact('produtos', 'busca'), 'Produtos');
 }
 
+/** Catalogo da loja: tudo que veio do TouchPay, nao so o que voce ja comprou. */
+function rota_loja(array $u): void
+{
+    $busca   = trim((string) ($_GET['q'] ?? ''));
+    $pdv_id  = (int) ($_GET['pdv'] ?? 0);
+    $ordem   = (string) ($_GET['ordem'] ?? 'nome');
+    $so_com  = ($_GET['estoque'] ?? '') === '1';
+
+    $itens  = loja_listar($busca, $pdv_id, $ordem, $so_com);
+    $totais = loja_totais($busca, $pdv_id, $so_com);
+    $pdvs   = loja_resumo();
+
+    ver(
+        'loja_lista',
+        compact('itens', 'totais', 'pdvs', 'busca', 'pdv_id', 'ordem', 'so_com'),
+        'Loja'
+    );
+}
+
 function rota_produto_detalhe(array $u, int $id): void
 {
     $produto = q1('SELECT * FROM produtos WHERE id = ?', [$id]);
@@ -193,7 +213,10 @@ function rota_produto_detalhe(array $u, int $id): void
         ver('erro', ['codigo' => 404, 'mensagem' => 'Voce nao tem compras desse produto'], 'Nao encontrado');
     }
     $stats = produto_estatisticas($historico);
-    ver('produto_detalhe', compact('produto', 'historico', 'stats'), $produto['descricao']);
+    // Mesma informacao que a tela de bipar mostra: por quanto a loja vende e
+    // quanto tem em estoque agora.
+    $loja = loja_por_ean($produto['ean'], $id);
+    ver('produto_detalhe', compact('produto', 'historico', 'stats', 'loja'), $produto['descricao']);
 }
 
 function rota_produto_vincular_ean(array $u, int $id): void

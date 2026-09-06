@@ -302,6 +302,81 @@ function loja_por_ean(?string $ean_bruto, ?int $produto_id = null): array
     );
 }
 
+/**
+ * Catalogo da loja: tudo que o TouchPay mandou, com filtro e ordem.
+ *
+ * @param string $ordem  nome | preco | preco_desc | estoque | estoque_desc | categoria
+ */
+function loja_listar(
+    string $busca = '',
+    int $pdv_id = 0,
+    string $ordem = 'nome',
+    bool $so_com_estoque = false,
+    int $limite = 400
+): array {
+    $onde = ['1 = 1'];
+    $args = [];
+
+    if ($busca !== '') {
+        $ean = ean_normalizado($busca);
+        $onde[] = '(li.descricao LIKE ? OR li.ean = ? OR li.codigo LIKE ? OR li.categoria LIKE ?)';
+        $args[] = '%' . $busca . '%';
+        $args[] = $ean ?? '__nada__';
+        $args[] = '%' . $busca . '%';
+        $args[] = '%' . $busca . '%';
+    }
+    if ($pdv_id > 0) {
+        $onde[] = 'li.pdv_id = ?';
+        $args[] = $pdv_id;
+    }
+    if ($so_com_estoque) {
+        $onde[] = 'li.estoque > 0';
+    }
+
+    // Lista fixa: nada aqui pode vir do usuario direto para dentro do SQL.
+    $ordens = [
+        'nome'         => 'li.descricao ASC',
+        'preco'        => 'li.preco_venda IS NULL, li.preco_venda ASC',
+        'preco_desc'   => 'li.preco_venda IS NULL, li.preco_venda DESC',
+        'estoque'      => 'li.estoque ASC, li.descricao ASC',
+        'estoque_desc' => 'li.estoque DESC, li.descricao ASC',
+        'categoria'    => 'li.categoria ASC, li.descricao ASC',
+    ];
+    $por = $ordens[$ordem] ?? $ordens['nome'];
+
+    return q(
+        'SELECT li.id, li.produto_id, li.ean, li.codigo, li.descricao, li.categoria,
+                li.preco_venda, li.estoque, li.reservado, li.custo_medio, li.unidade,
+                li.imagem, li.atualizado_em,
+                p.id AS pdv_id, p.nome AS pdv
+           FROM loja_itens li
+           JOIN loja_pdvs p ON p.id = li.pdv_id
+          WHERE ' . implode(' AND ', $onde) . '
+       ORDER BY ' . $por . '
+          LIMIT ' . (int) $limite,
+        $args
+    );
+}
+
+/** Totais do catalogo da loja, com os mesmos filtros da listagem. */
+function loja_totais(string $busca = '', int $pdv_id = 0, bool $so_com_estoque = false): array
+{
+    $todos = loja_listar($busca, $pdv_id, 'nome', $so_com_estoque, 100000);
+    $valor = 0.0;
+    $comEstoque = 0;
+    foreach ($todos as $l) {
+        if ((float) $l['estoque'] > 0) {
+            $comEstoque++;
+            $valor += (float) $l['estoque'] * (float) ($l['preco_venda'] ?? 0);
+        }
+    }
+    return [
+        'itens'        => count($todos),
+        'com_estoque'  => $comEstoque,
+        'valor_venda'  => $valor,
+    ];
+}
+
 /** Resumo para a tela inicial: quantos PDVs, itens e quando foi a ultima carga. */
 function loja_resumo(): array
 {

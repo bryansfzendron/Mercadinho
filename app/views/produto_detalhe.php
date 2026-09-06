@@ -1,4 +1,18 @@
-<?php /** @var array $produto @var array $historico @var array $stats */ ?>
+<?php
+/** @var array $produto @var array $historico @var array $stats @var array $loja */
+
+// Maior preco de venda entre os pontos de venda que tem o produto no
+// planograma. E o que a margem compara com o ultimo valor pago.
+$precos = [];
+foreach ($loja as $l) {
+    if ($l['preco_venda'] !== null) {
+        $precos[] = (float) $l['preco_venda'];
+    }
+}
+$venda  = $precos ? max($precos) : null;
+$pago   = (float) $stats['ultimo'];
+$margem = $venda !== null && $pago > 0 ? $venda - $pago : null;
+?>
 <a class="voltar" href="/produtos">‹ Produtos</a>
 
 <div class="cartao">
@@ -13,6 +27,15 @@
     </div>
     <p class="ajuda">Valores por <?= e($produto['unidade'] ?: 'unidade') ?>, já com os descontos da nota abatidos.</p>
 
+    <?php if ($margem !== null): ?>
+        <p class="margem <?= $margem >= 0 ? 'margem-boa' : 'margem-ruim' ?>">
+            Vende por <strong><?= moeda($venda) ?></strong>,
+            você pagou <strong><?= moeda($pago) ?></strong> ·
+            <?= $margem >= 0 ? '+' : '' ?><?= moeda($margem) ?>
+            (<?= $margem >= 0 ? '+' : '' ?><?= number_format(($margem / $pago) * 100, 0, ',', '.') ?>%)
+        </p>
+    <?php endif; ?>
+
     <?php if (!$produto['ean']): ?>
         <form method="post" action="/produtos/<?= (int) $produto['id'] ?>/ean" class="linha-form">
             <?= csrf_campo() ?>
@@ -25,6 +48,38 @@
         </p>
     <?php endif; ?>
 </div>
+
+<?php if ($loja): ?>
+    <h2>Na loja agora</h2>
+    <ul class="lista">
+        <?php foreach ($loja as $l): ?>
+            <li><div style="padding:.7rem .85rem">
+                <div class="linha-topo">
+                    <span class="forte"><?= e($l['pdv']) ?></span>
+                    <span class="valor">
+                        <?= $l['preco_venda'] === null ? '—' : moeda($l['preco_venda']) ?>
+                    </span>
+                </div>
+                <div class="linha-baixo">
+                    <span>
+                        <?php if ((float) $l['estoque'] > 0): ?>
+                            <?= qtd_fmt($l['estoque']) ?> em estoque
+                        <?php else: ?>
+                            <span class="zerado">sem estoque</span>
+                        <?php endif; ?>
+                        <?php if ((float) $l['reservado'] > 0): ?>
+                            · <?= qtd_fmt($l['reservado']) ?> reservado
+                        <?php endif; ?>
+                    </span>
+                    <span><?= data_fmt($l['atualizado_em'], true) ?></span>
+                </div>
+                <?php if ($l['descricao'] !== $produto['descricao']): ?>
+                    <div class="linha-baixo"><span class="ajuda"><?= e($l['descricao']) ?></span></div>
+                <?php endif; ?>
+            </div></li>
+        <?php endforeach; ?>
+    </ul>
+<?php endif; ?>
 
 <h2><?= count($historico) ?> compra(s)</h2>
 <ul class="lista">

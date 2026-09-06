@@ -17,6 +17,7 @@ function vista(arquivo) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Teste</title><link rel="stylesheet" href="/assets/app.css?v=2"></head>
 <body><main class="conteudo">${html}</main>
+<script src="/assets/puxar-atualizar.js?v=1" defer></script>
 <nav class="barra"><a href="/escanear" class="ativo"><span>&#9635;</span>Nota</a>
 <a href="/bipar"><span>|||</span>Bipar</a></nav></body></html>`;
 }
@@ -33,6 +34,14 @@ http.createServer((req, res) => {
     if (url === '/bipar') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         return res.end(vista('bipar.php'));
+    }
+    // Tela da loja: HTML pre-renderizado pelo renderiza-loja.php (sem MySQL).
+    if (url === '/loja') {
+        const arq = path.join(__dirname, 'telas', 'loja-render.html');
+        if (fs.existsSync(arq)) {
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            return res.end(fs.readFileSync(arq));
+        }
     }
     if (url.startsWith('/assets/')) {
         const arq = path.join(RAIZ, url);

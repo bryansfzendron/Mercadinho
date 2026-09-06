@@ -347,6 +347,14 @@ node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 ```
 
+Os que precisam de navegador (`npm i playwright && npx playwright install chromium`,
+com `node testes/servidor-camera.js &` ligado):
+
+```bash
+node testes/camera.js       # câmera, permissão e o visual das telas de leitura
+node testes/puxar.js        # o gesto de puxar para atualizar no app instalado
+```
+
 ## Limites conhecidos
 
 - **Só NFC-e de São Paulo.** Cada estado tem portal próprio.

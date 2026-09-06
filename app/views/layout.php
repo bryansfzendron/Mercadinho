@@ -10,7 +10,7 @@ $flashes = flash_pegar();
 <meta name="theme-color" content="#14532d">
 <title><?= e($titulo) ?> · Mercadinho</title>
 <link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/assets/app.css?v=3">
+<link rel="stylesheet" href="/assets/app.css?v=5">
 </head>
 <body>
 
@@ -38,8 +38,11 @@ $flashes = flash_pegar();
     <a href="/bipar"     class="<?= $rota === '/bipar' ? 'ativo' : '' ?>"><span>|||</span>Bipar</a>
     <a href="/notas"     class="<?= str_starts_with($rota, '/notas') ? 'ativo' : '' ?>"><span>≡</span>Notas</a>
     <a href="/produtos"  class="<?= str_starts_with($rota, '/produtos') ? 'ativo' : '' ?>"><span>☰</span>Produtos</a>
+    <a href="/loja"      class="<?= $rota === '/loja' ? 'ativo' : '' ?>"><span>R$</span>Loja</a>
 </nav>
 <?php endif; ?>
 
+<script src="/assets/sem-teclado.js?v=1" defer></script>
+<script src="/assets/puxar-atualizar.js?v=1" defer></script>
 </body>
 </html>
