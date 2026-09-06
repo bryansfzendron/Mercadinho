@@ -441,6 +441,11 @@ continua trazendo os dados, as telas é que ignoram. É por isso que toda leitur
 `loja_itens` passa por `loja_pdvs` — sem o JOIN, o preço de venda de um PDV alheio
 apareceria ao bipar.
 
+**Reconferir um período.** O sync automático só volta 3 dias da última venda gravada, então
+um buraco no meio do mês — de um lote perdido, por exemplo — é inalcançável por mais que se
+clique em "buscar vendas novas". O botão *Reconferir este período no TouchPay*, na aba
+Vendas, rebusca exatamente a janela filtrada. Regravar não duplica.
+
 **Lote perdido não passa mais calado.** O POST de volta usa `neverError`, então um 401
 (token diferente entre app e disparo) ou um 500 no meio da carga era engolido e o
 relatório nascia faltando venda. O último node do fluxo confere o status de cada lote e,

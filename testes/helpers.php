@@ -73,6 +73,15 @@ checar('sem chave',    chave_do_qrcode('https://exemplo.com'), null);
 
 // ---- formatacao ----
 checar('moeda',   moeda(1234.5), 'R$ 1.234,50');
+// Data de filtro: so AAAA-MM-DD que existe. O resto nao chega ao SQL.
+checar('data iso',            data_iso('2026-09-06'), '2026-09-06');
+checar('data iso com espaco', data_iso(' 2026-09-06 '), '2026-09-06');
+checar('dia que nao existe',  data_iso('2026-02-30'), null);
+checar('mes que nao existe',  data_iso('2026-13-01'), null);
+checar('formato errado',      data_iso('06/09/2026'), null);
+checar('data vazia',          data_iso(''), null);
+checar('data nula',           data_iso(null), null);
+checar('injecao nao passa',   data_iso("2026-09-06' OR '1"), null);
 checar('fator',        fator_fmt(1.94, 1.0),  '1,94');
 checar('fator arredonda', fator_fmt(3.99, 2.06), '1,94');
 checar('fator abaixo do custo', fator_fmt(0.85, 1.0), '0,85');

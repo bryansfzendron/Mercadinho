@@ -577,8 +577,18 @@ function rota_vendas_sincronizar(array $u): void
 {
     exigir_csrf();
     $corpo = corpo_json();
-    $dias  = (int) ($corpo['dias'] ?? 0);
 
+    // Janela explicita: e o unico jeito de alcancar um buraco no meio do mes.
+    // O sync automatico so volta 3 dias da ultima venda, entao lote perdido la
+    // atras ficaria inalcancavel por mais que se clique em "buscar novas".
+    $de  = data_iso($corpo['de'] ?? null);
+    $ate = data_iso($corpo['ate'] ?? null);
+    if ($de !== null && $ate !== null) {
+        $r = vendas_disparar_sync($de, $ate);
+        json_resposta($r, $r['ok'] ? 200 : 422);
+    }
+
+    $dias = (int) ($corpo['dias'] ?? 0);
     $r = $dias > 0
         ? vendas_disparar_sync(date('Y-m-d', strtotime('-' . $dias . ' days')), date('Y-m-d'))
         : vendas_disparar_sync();

@@ -46,6 +46,16 @@ function num_br($v): float
     return is_numeric($s) ? (float) $s : 0.0;
 }
 
+/** Data AAAA-MM-DD que existe de verdade, ou null. Nada mais entra em filtro. */
+function data_iso($v): ?string
+{
+    $texto = trim((string) $v);
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $texto, $m)) {
+        return null;
+    }
+    return checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $texto : null;
+}
+
 /** Tenta interpretar uma data em varios formatos e devolve 'Y-m-d H:i:s' ou null. */
 function data_mysql($v): ?string
 {
