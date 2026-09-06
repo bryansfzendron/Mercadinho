@@ -139,6 +139,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 .acoes-topo { display: grid; gap: .5rem; margin-bottom: 1rem; }
 .acoes { margin: .75rem 0; }
 
+.botao-perigo { background: transparent; color: var(--vermelho); border: 1px solid currentColor; margin-top: .5rem; }
+.link-perigo {
+    background: none; border: none; color: var(--vermelho);
+    font-size: .78rem; cursor: pointer; padding: .35rem .85rem .6rem; font-family: inherit;
+}
+.acao-linha { margin-top: -.35rem; }
+.riscado { color: var(--suave); font-weight: 400; }
+
 .linha-form { display: flex; gap: .5rem; align-items: flex-start; margin-bottom: 1rem; }
 .linha-form input { margin-top: 0; }
 .linha-form .botao { width: auto; white-space: nowrap; }

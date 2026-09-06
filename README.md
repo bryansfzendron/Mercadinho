@@ -180,6 +180,18 @@ O app manda no webhook:
 `nota_id`, `callback_url` e `token` atravessam o fluxo inteiro a partir do
 `Normalizar Entrada`, e voltam no callback.
 
+**O `/api/callback` aceita dois formatos**, então não importa se o seu fluxo monta o
+payload aninhado ou no formato de planilha:
+
+| Formato | Como se parece |
+|---|---|
+| aninhado | `{nota_id, token, status, nota:{...}, itens:[{...}]}` |
+| achatado | uma linha por item, com as 27 colunas de cabeçalho repetidas em cada uma — dentro de `itens`/`dados`/`data`, ou como lista na raiz do corpo |
+
+No formato achatado o cabeçalho (`emitente`, `cnpj`, `municipio`, `valor_total_nota`…)
+é lido da primeira linha, e `nota_id`/`token` podem vir no envelope ou repetidos nas
+linhas. O corpo também pode vir embrulhado em `body`.
+
 O `Devolver ao Mercadinho` posta em `{{ $json.callback_url }}`:
 
 ```json
@@ -228,6 +240,29 @@ o mesmo node posta:
 Se `guardar_html` estiver ligado no `config.php`, o payload leva junto o HTML bruto da
 Consulta Completa no campo `html`. O app comprime com gzip (~150 KB por nota) e guarda,
 para reprocessar sem precisar bipar o cupom de novo caso o parser mude.
+
+## Descontos e o preço que o app mostra
+
+A nota traz `desconto_item` por produto. O app guarda os dois valores:
+
+- `valor_total` / `valor_unitario` — o que estava marcado na nota
+- `valor_total_liquido` / `valor_unitario_liquido` — **o que foi pago de fato**
+
+Todo o histórico, as estatísticas (último/menor/maior/média) e o resultado do bipe usam
+o **líquido**, porque a pergunta do app é "quanto paguei", não "quanto estava marcado".
+Na tela da nota o valor cheio aparece riscado ao lado quando houve desconto.
+
+Quando a nota não informa o total de um item, ele é reconstruído de
+`quantidade × valor_unitario`; quando não informa o total da nota, usa-se a soma dos
+líquidos.
+
+## Testes
+
+```bash
+php testes/helpers.php      # número BR, data, EAN, chave do QR, formatação
+php testes/callback.php     # os formatos aceitos no callback e o cálculo do líquido
+node n8n/teste-parser.js    # o parser do Code node contra HTML sintético
+```
 
 ## Limites conhecidos
 

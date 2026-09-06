@@ -99,9 +99,14 @@ CREATE TABLE IF NOT EXISTS itens (
     cfop               VARCHAR(6)    NULL,
     quantidade         DECIMAL(14,4) NOT NULL DEFAULT 0,
     unidade            VARCHAR(10)   NULL,
+    -- Valores "de tabela", como vem na nota
     valor_unitario     DECIMAL(14,4) NOT NULL DEFAULT 0,
     valor_total        DECIMAL(14,2) NOT NULL DEFAULT 0,
     desconto           DECIMAL(14,2) NOT NULL DEFAULT 0,
+    -- Valores efetivamente pagos, ja descontados. E o que o historico usa:
+    -- a pergunta do app e "quanto paguei", nao "quanto estava marcado".
+    valor_total_liquido    DECIMAL(14,2) NOT NULL DEFAULT 0,
+    valor_unitario_liquido DECIMAL(14,4) NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     KEY ix_itens_nota (nota_id),
     KEY ix_itens_produto (produto_id),

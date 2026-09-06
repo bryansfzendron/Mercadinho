@@ -21,6 +21,19 @@
     <?php if ($nota['status'] === 'erro' && $nota['erro_msg']): ?>
         <div class="aviso aviso-erro"><?= e($nota['erro_msg']) ?></div>
     <?php endif; ?>
+
+    <?php if (in_array($nota['status'], ['pendente', 'processando'], true)): ?>
+        <div class="aviso aviso-info">
+            Esta nota está <?= e($nota['status']) ?> desde <?= data_fmt($nota['criado_em'], true) ?>.
+            Se travou, remova para poder escanear o cupom de novo.
+        </div>
+    <?php endif; ?>
+
+    <form method="post" action="/notas/<?= (int) $nota['id'] ?>/excluir"
+          onsubmit="return confirm('Remover esta nota e todos os seus itens?');">
+        <?= csrf_campo() ?>
+        <button type="submit" class="botao botao-perigo">Remover nota</button>
+    </form>
 </div>
 
 <h2><?= count($nota['itens']) ?> itens</h2>
@@ -30,14 +43,19 @@
             <a href="<?= $i['produto_id'] ? '/produtos/' . (int) $i['produto_id'] : '#' ?>">
                 <div class="linha-topo">
                     <span class="forte"><?= e($i['descricao_original']) ?></span>
-                    <span class="valor"><?= moeda($i['valor_total']) ?></span>
+                    <span class="valor">
+                        <?php if ((float) $i['desconto'] > 0): ?>
+                            <s class="riscado"><?= moeda($i['valor_total']) ?></s>
+                        <?php endif; ?>
+                        <?= moeda($i['valor_total_liquido']) ?>
+                    </span>
                 </div>
                 <div class="linha-baixo">
                     <span>
                         <?= qtd_fmt($i['quantidade']) ?> <?= e($i['unidade'] ?: 'un') ?>
-                        × <?= moeda($i['valor_unitario']) ?>
+                        × <?= moeda($i['valor_unitario_liquido']) ?>
                         <?php if ((float) $i['desconto'] > 0): ?>
-                            · desc. <?= moeda($i['desconto']) ?>
+                            · desconto <?= moeda($i['desconto']) ?>
                         <?php endif; ?>
                     </span>
                     <span class="mono">

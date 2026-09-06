@@ -94,12 +94,74 @@ function nota_erro(int $nota_id, string $msg): void
     );
 }
 
+/** Colunas de cabecalho que, no formato achatado, se repetem em cada linha. */
+const COLUNAS_CABECALHO = [
+    'chave', 'emitente', 'cnpj', 'inscricao_estadual', 'municipio', 'uf',
+    'modelo', 'serie', 'numero_nota', 'numero', 'emissao',
+    'valor_total_produtos', 'desconto_total_nota', 'valor_total_nota',
+    'url_consulta', 'consultado_em',
+];
+
+/**
+ * Aceita os dois formatos que o n8n pode mandar:
+ *
+ *  a) aninhado   {nota_id, token, status, nota:{...}, itens:[{...}]}
+ *  b) achatado   uma linha por item, com as colunas de cabecalho repetidas
+ *                (o mesmo formato que ia para o Google Sheets) — seja em
+ *                "itens"/"dados"/"data", seja como lista na raiz do corpo.
+ *
+ * @return array{nota_id:int, token:string, status:string, erro:string, cab:array, itens:array, html:?string}
+ */
+function callback_normalizar(array $p): array
+{
+    // O n8n as vezes embrulha o corpo em "body".
+    if (isset($p['body']) && is_array($p['body'])) {
+        $p = $p['body'];
+    }
+    // Corpo veio como lista de linhas, sem envelope.
+    if (array_is_list($p)) {
+        $p = ['itens' => $p];
+    }
+
+    $linhas = [];
+    foreach (['itens', 'dados', 'data', 'rows', 'items'] as $chave) {
+        if (!empty($p[$chave]) && is_array($p[$chave])) {
+            $linhas = array_values(array_filter($p[$chave], 'is_array'));
+            break;
+        }
+    }
+
+    $cab = is_array($p['nota'] ?? null) ? $p['nota'] : [];
+
+    // Formato achatado: o cabecalho esta repetido dentro das linhas.
+    if (!$cab && $linhas) {
+        $primeira = $linhas[0];
+        foreach (COLUNAS_CABECALHO as $coluna) {
+            if (isset($primeira[$coluna]) && $primeira[$coluna] !== '') {
+                $cab[$coluna] = $primeira[$coluna];
+            }
+        }
+    }
+
+    // nota_id e token podem vir no envelope ou repetidos nas linhas.
+    $nota_id = (int) ($p['nota_id'] ?? ($linhas[0]['nota_id'] ?? 0));
+    $token   = (string) ($p['token'] ?? ($linhas[0]['token'] ?? ''));
+
+    return [
+        'nota_id' => $nota_id,
+        'token'   => $token,
+        'status'  => (string) ($p['status'] ?? 'ok'),
+        'erro'    => (string) ($p['erro'] ?? ''),
+        'cab'     => $cab,
+        'itens'   => $linhas,
+        'html'    => isset($p['html']) && is_string($p['html']) ? $p['html'] : null,
+    ];
+}
+
 /**
  * Grava o resultado que o n8n devolveu.
  *
- * Payload esperado:
- *   nota_id, token, status ("ok"|"erro"), erro?, nota{...}, itens[...], html?
- *
+ * @param array $p payload ja normalizado por callback_normalizar()
  * @return array{ok:bool, itens:int, mensagem:string}
  */
 function nota_processar_callback(array $p): array
@@ -115,12 +177,12 @@ function nota_processar_callback(array $p): array
     }
 
     if (($p['status'] ?? 'ok') === 'erro') {
-        nota_erro($nota_id, (string) ($p['erro'] ?? 'erro no n8n'));
+        nota_erro($nota_id, (string) ($p['erro'] ?: 'erro no n8n'));
         return ['ok' => true, 'itens' => 0, 'mensagem' => 'erro registrado'];
     }
 
-    $cab   = is_array($p['nota'] ?? null) ? $p['nota'] : [];
-    $itens = is_array($p['itens'] ?? null) ? $p['itens'] : [];
+    $cab   = $p['cab'];
+    $itens = $p['itens'];
 
     if (!$itens) {
         nota_erro($nota_id, 'o n8n nao devolveu nenhum item');
@@ -141,7 +203,7 @@ function nota_processar_callback(array $p): array
         $chave = strlen($chave) === 44 ? $chave : null;
 
         $html_gz = null;
-        if (cfg('guardar_html', false) && !empty($p['html']) && is_string($p['html'])) {
+        if (cfg('guardar_html', false) && !empty($p['html'])) {
             $html_gz = gzencode($p['html'], 6);
             // MEDIUMBLOB comporta 16 MB; se estourar, e melhor nao gravar nada.
             if ($html_gz !== false && strlen($html_gz) > 15 * 1024 * 1024) {
@@ -186,6 +248,7 @@ function nota_processar_callback(array $p): array
         exec_sql('DELETE FROM itens WHERE nota_id = ?', [$nota_id]);
 
         $gravados = 0;
+        $soma_liquida = 0.0;
         foreach ($itens as $it) {
             if (!is_array($it)) {
                 continue;
@@ -197,6 +260,17 @@ function nota_processar_callback(array $p): array
                 'unidade'   => $it['unidade'] ?? null,
             ], $estab_id);
 
+            $quantidade = num_br($it['quantidade'] ?? 0);
+            $unitario   = num_br($it['valor_unitario'] ?? 0);
+            $bruto      = num_br($it['valor_total_item'] ?? $it['valor_total'] ?? 0);
+            $desconto   = num_br($it['desconto_item'] ?? $it['desconto'] ?? 0);
+
+            // A nota nem sempre traz o total do item; quando falta, reconstroi.
+            if ($bruto <= 0 && $quantidade > 0 && $unitario > 0) {
+                $bruto = round($quantidade * $unitario, 2);
+            }
+            $liquido = round(max(0, $bruto - $desconto), 2);
+
             inserir('itens', [
                 'nota_id'            => $nota_id,
                 'produto_id'         => $produto_id,
@@ -207,13 +281,21 @@ function nota_processar_callback(array $p): array
                 'ncm'                => mb_substr(so_digitos($it['ncm'] ?? ''), 0, 10) ?: null,
                 'cest'               => mb_substr(so_digitos($it['cest'] ?? ''), 0, 10) ?: null,
                 'cfop'               => mb_substr(so_digitos($it['cfop'] ?? ''), 0, 6) ?: null,
-                'quantidade'         => num_br($it['quantidade'] ?? 0),
+                'quantidade'         => $quantidade,
                 'unidade'            => mb_substr(trim((string) ($it['unidade'] ?? '')), 0, 10) ?: null,
-                'valor_unitario'     => num_br($it['valor_unitario'] ?? 0),
-                'valor_total'        => num_br($it['valor_total_item'] ?? $it['valor_total'] ?? 0),
-                'desconto'           => num_br($it['desconto_item'] ?? $it['desconto'] ?? 0),
+                'valor_unitario'     => $unitario,
+                'valor_total'        => $bruto,
+                'desconto'           => $desconto,
+                'valor_total_liquido'    => $liquido,
+                'valor_unitario_liquido' => $quantidade > 0 ? round($liquido / $quantidade, 4) : $liquido,
             ]);
             $gravados++;
+            $soma_liquida += $liquido;
+        }
+
+        // Quando a nota nao informou o total, usa a soma dos itens ja descontados.
+        if (num_br($cab['valor_total_nota'] ?? $cab['valor_total'] ?? null) <= 0) {
+            exec_sql('UPDATE notas SET valor_total = ? WHERE id = ?', [$soma_liquida, $nota_id]);
         }
 
         $pdo->commit();
@@ -225,6 +307,28 @@ function nota_processar_callback(array $p): array
         nota_erro($nota_id, 'falha ao gravar: ' . $e->getMessage());
         return ['ok' => false, 'itens' => 0, 'mensagem' => $e->getMessage()];
     }
+}
+
+/** Apaga a nota e seus itens (a FK cuida dos itens). Respeita o dono. */
+function nota_excluir(int $nota_id, int $usuario_id): bool
+{
+    return exec_sql(
+        'DELETE FROM notas WHERE id = ? AND usuario_id = ?',
+        [$nota_id, $usuario_id]
+    ) > 0;
+}
+
+/**
+ * Devolve uma nota travada para "pendente", para poder disparar de novo.
+ * So mexe no que nao terminou: uma nota "ok" nunca e reaberta por engano.
+ */
+function nota_reabrir(int $nota_id, int $usuario_id): bool
+{
+    return exec_sql(
+        'UPDATE notas SET status = ?, erro_msg = NULL, processado_em = NULL
+          WHERE id = ? AND usuario_id = ? AND status <> ?',
+        ['pendente', $nota_id, $usuario_id, 'ok']
+    ) > 0;
 }
 
 /** Cabecalho + itens de uma nota, respeitando o dono. */

@@ -11,6 +11,7 @@
         <div class="numero"><strong><?= moeda($stats['max']) ?></strong><span>maior</span></div>
         <div class="numero"><strong><?= moeda($stats['media']) ?></strong><span>média</span></div>
     </div>
+    <p class="ajuda">Valores por <?= e($produto['unidade'] ?: 'unidade') ?>, já com os descontos da nota abatidos.</p>
 
     <?php if (!$produto['ean']): ?>
         <form method="post" action="/produtos/<?= (int) $produto['id'] ?>/ean" class="linha-form">
@@ -32,13 +33,16 @@
             <a href="/notas/<?= (int) $h['nota_id'] ?>">
                 <div class="linha-topo">
                     <span class="forte"><?= e($h['loja'] ?? 'Sem loja') ?></span>
-                    <span class="valor"><?= moeda($h['valor_unitario']) ?></span>
+                    <span class="valor"><?= moeda($h['valor_unitario_liquido']) ?></span>
                 </div>
                 <div class="linha-baixo">
                     <span>
                         <?= data_fmt($h['emissao']) ?> ·
                         <?= qtd_fmt($h['quantidade']) ?> <?= e($h['unidade'] ?: 'un') ?>
-                        = <?= moeda($h['valor_total']) ?>
+                        = <?= moeda($h['valor_total_liquido']) ?>
+                        <?php if ((float) $h['desconto'] > 0): ?>
+                            <span class="riscado">(de <?= moeda($h['valor_total']) ?>)</span>
+                        <?php endif; ?>
                     </span>
                     <?php if ($h['origem'] === 'manual'): ?>
                         <span class="selo selo-manual">manual</span>

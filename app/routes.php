@@ -33,6 +33,10 @@ function despachar(string $rota): void
         rota_nota_detalhe($u, (int) $mm[1]);
         return;
     }
+    if (preg_match('#^/notas/(\d+)/excluir$#', $rota, $mm) && $m === 'POST') {
+        rota_nota_excluir($u, (int) $mm[1]);
+        return;
+    }
     if (preg_match('#^/produtos/(\d+)$#', $rota, $mm)) {
         rota_produto_detalhe($u, (int) $mm[1]);
         return;
@@ -131,6 +135,17 @@ function rota_nota_detalhe(array $u, int $id): void
     ver('nota_detalhe', compact('nota'), 'Nota');
 }
 
+function rota_nota_excluir(array $u, int $id): void
+{
+    exigir_csrf();
+    if (nota_excluir($id, (int) $u['id'])) {
+        flash('ok', 'Nota removida. Pode escanear o cupom de novo.');
+    } else {
+        flash('erro', 'Nao encontrei essa nota.');
+    }
+    redirecionar('/notas');
+}
+
 function rota_produtos(array $u): void
 {
     $busca = trim((string) ($_GET['q'] ?? ''));
@@ -145,10 +160,10 @@ function rota_produtos(array $u): void
 
     $produtos = q(
         'SELECT p.id, p.ean, p.descricao, p.unidade,
-                COUNT(i.id)              AS compras,
-                MIN(i.valor_unitario)    AS menor,
-                MAX(i.valor_unitario)    AS maior,
-                MAX(n.emissao)           AS ultima_compra
+                COUNT(i.id)                       AS compras,
+                MIN(i.valor_unitario_liquido)     AS menor,
+                MAX(i.valor_unitario_liquido)     AS maior,
+                MAX(n.emissao)                    AS ultima_compra
            FROM produtos p
            JOIN itens i ON i.produto_id = p.id
            JOIN notas n ON n.id = i.nota_id AND n.status = ?
@@ -279,6 +294,9 @@ function rota_manual(array $u, string $m): void
                 'unidade'            => mb_substr(trim((string) ($it['unidade'] ?? '')), 0, 10) ?: null,
                 'valor_unitario'     => $vu,
                 'valor_total'        => $vtot,
+                // Lancamento manual: o valor digitado ja e o que foi pago.
+                'valor_total_liquido'    => $vtot,
+                'valor_unitario_liquido' => $vu,
             ]);
         }
 
@@ -321,7 +339,24 @@ function rota_api_nota_nova(array $u): void
     }
 
     $r = nota_criar_pendente((int) $u['id'], $qr);
+
     if ($r['duplicada']) {
+        $existente = q1('SELECT status FROM notas WHERE id = ?', [$r['nota_id']]);
+
+        // Nota que travou em "processando" (ou deu erro) nao pode bloquear
+        // uma nova tentativa: reabre e dispara de novo.
+        if ($existente && $existente['status'] !== 'ok') {
+            nota_reabrir($r['nota_id'], (int) $u['id']);
+            $d = nota_disparar_n8n($r['nota_id'], $qr);
+            json_resposta([
+                'nota_id'    => $r['nota_id'],
+                'duplicada'  => false,
+                'reprocessa' => true,
+                'ok'         => $d['ok'],
+                'erro'       => $d['erro'],
+            ], $d['ok'] ? 202 : 502);
+        }
+
         json_resposta([
             'nota_id'   => $r['nota_id'],
             'duplicada' => true,
@@ -397,9 +432,12 @@ function rota_api_produto(array $u): void
 /** Callback do n8n. Autenticado pelo token compartilhado. */
 function rota_callback(): void
 {
-    $p = corpo_json();
+    // Normaliza antes de autenticar: no formato achatado o token vem
+    // repetido dentro das linhas, nao no envelope.
+    $p = callback_normalizar(corpo_json());
+
     $esperado = (string) cfg('n8n_token');
-    $recebido = (string) ($p['token'] ?? ($_SERVER['HTTP_X_TOKEN'] ?? ''));
+    $recebido = $p['token'] !== '' ? $p['token'] : (string) ($_SERVER['HTTP_X_TOKEN'] ?? '');
 
     if ($esperado === '' || $esperado === 'TROQUE-ME' || !hash_equals($esperado, $recebido)) {
         json_resposta(['erro' => 'token invalido'], 401);

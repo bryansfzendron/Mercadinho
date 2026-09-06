@@ -19,14 +19,20 @@ function estabelecimento_resolver(?string $cnpj, ?string $nome, ?string $municip
     if ($cnpj !== null) {
         $id = qv('SELECT id FROM estabelecimentos WHERE cnpj = ?', [$cnpj]);
         if ($id) {
-            // Completa dados que faltavam de um cadastro anterior
+            // Completa dados que faltavam de um cadastro anterior. O nome so e
+            // sobrescrito quando o atual e vazio ou o provisorio "CNPJ 123...",
+            // gravado antes de a nota trazer a razao social.
+            $atual = (string) qv('SELECT nome FROM estabelecimentos WHERE id = ?', [$id]);
+            $provisorio = $atual === '' || str_starts_with($atual, 'CNPJ ');
+            if ($nome !== '' && !str_starts_with($nome, 'CNPJ ') && $provisorio) {
+                exec_sql('UPDATE estabelecimentos SET nome = ? WHERE id = ?', [mb_substr($nome, 0, 190), $id]);
+            }
             exec_sql(
                 'UPDATE estabelecimentos
-                    SET nome      = COALESCE(NULLIF(nome, ?), ?),
-                        municipio = COALESCE(municipio, ?),
+                    SET municipio = COALESCE(municipio, ?),
                         uf        = COALESCE(uf, ?)
                   WHERE id = ?',
-                ['', $nome, $municipio ?: null, $uf ?: null, $id]
+                [$municipio ?: null, $uf ?: null, $id]
             );
             return (int) $id;
         }
@@ -182,6 +188,7 @@ function produto_historico(int $produto_id, int $usuario_id): array
 {
     return q(
         'SELECT i.quantidade, i.unidade, i.valor_unitario, i.valor_total, i.desconto,
+                i.valor_unitario_liquido, i.valor_total_liquido,
                 i.descricao_original,
                 n.id AS nota_id, n.emissao, n.origem,
                 est.nome AS loja, est.municipio, est.uf
@@ -195,12 +202,15 @@ function produto_historico(int $produto_id, int $usuario_id): array
     );
 }
 
-/** Estatisticas do historico: menor, maior, ultimo e media do valor unitario. */
+/**
+ * Estatisticas do historico sobre o valor unitario **liquido** — o que foi
+ * de fato pago, ja com o desconto do item abatido.
+ */
 function produto_estatisticas(array $historico): array
 {
     $precos = [];
     foreach ($historico as $h) {
-        $p = (float) $h['valor_unitario'];
+        $p = (float) $h['valor_unitario_liquido'];
         if ($p > 0) {
             $precos[] = $p;
         }

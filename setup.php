@@ -32,6 +32,42 @@ function listar_tabelas(): array
     return $nomes;
 }
 
+/**
+ * Colunas acrescentadas depois da primeira versao. O schema.sql cria tabela
+ * nova ja completa; aqui e o caminho de quem instalou antes.
+ */
+function migracoes(): array
+{
+    return [
+        'itens' => [
+            'valor_total_liquido'    => 'DECIMAL(14,2) NOT NULL DEFAULT 0 AFTER desconto',
+            'valor_unitario_liquido' => 'DECIMAL(14,4) NOT NULL DEFAULT 0 AFTER valor_total_liquido',
+        ],
+    ];
+}
+
+function coluna_existe(string $tabela, string $coluna): bool
+{
+    return (int) qv(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        [$tabela, $coluna]
+    ) > 0;
+}
+
+function migracoes_pendentes(): array
+{
+    $faltando = [];
+    foreach (migracoes() as $tabela => $colunas) {
+        foreach ($colunas as $coluna => $definicao) {
+            if (!coluna_existe($tabela, $coluna)) {
+                $faltando[] = [$tabela, $coluna, $definicao];
+            }
+        }
+    }
+    return $faltando;
+}
+
 function linha(string $rotulo, bool $ok, string $detalhe = '', bool $aviso = false): void
 {
     $classe = $ok ? 'ok' : ($aviso ? 'aviso' : 'falha');
@@ -185,6 +221,43 @@ if ($db_ok) {
     if ($faltando) {
         echo '<form method="post"><input type="hidden" name="acao" value="schema">'
            . '<button type="submit">Criar as tabelas que faltam</button></form>';
+    }
+
+    // ---- migracoes de coluna (instalacoes anteriores) ----
+    if (!$faltando) {
+        if (($_POST['acao'] ?? '') === 'migrar') {
+            try {
+                foreach (migracoes_pendentes() as [$tabela, $coluna, $definicao]) {
+                    db()->exec('ALTER TABLE ' . $tabela . ' ADD COLUMN ' . $coluna . ' ' . $definicao);
+                    echo '<p class="bom">Coluna ' . htmlspecialchars($tabela . '.' . $coluna) . ' criada.</p>';
+                }
+                // Preenche o liquido dos itens que ja estavam gravados.
+                $n = exec_sql(
+                    'UPDATE itens
+                        SET valor_total_liquido = GREATEST(valor_total - desconto, 0),
+                            valor_unitario_liquido = CASE WHEN quantidade > 0
+                                THEN GREATEST(valor_total - desconto, 0) / quantidade
+                                ELSE GREATEST(valor_total - desconto, 0) END
+                      WHERE valor_total_liquido = 0 AND valor_total > 0'
+                );
+                echo '<p class="bom">' . $n . ' item(ns) recalculado(s) com o desconto abatido.</p>';
+            } catch (Throwable $e) {
+                echo '<div class="caixa"><p class="erro">' . htmlspecialchars($e->getMessage()) . '</p></div>';
+            }
+        }
+
+        $pendentes = migracoes_pendentes();
+        echo '<h2>Migrações</h2><table>';
+        foreach (migracoes() as $tabela => $colunas) {
+            foreach ($colunas as $coluna => $_) {
+                linha('Coluna ' . $tabela . '.' . $coluna, coluna_existe($tabela, $coluna));
+            }
+        }
+        echo '</table>';
+        if ($pendentes) {
+            echo '<form method="post"><input type="hidden" name="acao" value="migrar">'
+               . '<button type="submit">Aplicar migrações e recalcular os líquidos</button></form>';
+        }
     }
 
     // ---- primeiro usuario ----

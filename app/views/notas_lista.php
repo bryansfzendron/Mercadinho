@@ -22,6 +22,13 @@
                         <div class="erro-msg"><?= e($n['erro_msg']) ?></div>
                     <?php endif; ?>
                 </a>
+                <?php if ($n['status'] !== 'ok'): ?>
+                    <form method="post" action="/notas/<?= (int) $n['id'] ?>/excluir" class="acao-linha"
+                          onsubmit="return confirm('Remover esta nota?');">
+                        <?= csrf_campo() ?>
+                        <button type="submit" class="link-perigo">remover</button>
+                    </form>
+                <?php endif; ?>
             </li>
         <?php endforeach; ?>
     </ul>

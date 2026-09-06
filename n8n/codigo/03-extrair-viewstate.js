@@ -1,7 +1,10 @@
 // A Consulta Resumida responde 302, mas o corpo ja traz o formulario com os
 // tokens do ASP.NET. Por isso o node anterior nao segue o redirecionamento.
 const resposta = $input.first().json;
-const anterior = $('Extrair Cookies').first().json;
+// Os dados da viagem vem sempre do Normalizar Entrada, nunca do node anterior:
+// assim editar um node do meio nao derruba o callback_url la na frente.
+const entrada = $('Normalizar Entrada').first().json;
+const cookies = $('Extrair Cookies').first().json.cookies;
 const html = String(resposta.body || '');
 
 function decodificarAtributo(valor) {
@@ -36,7 +39,8 @@ if (!viewstate) {
 
 return [{
     json: {
-        ...anterior,
+        ...entrada,
+        cookies,
         viewstate,
         // 2CB5E186 e o gerador observado nessa pagina; serve de reserva.
         gerador: gerador || '2CB5E186',

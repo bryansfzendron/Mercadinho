@@ -92,6 +92,9 @@
                 enviando = false;
                 return;
             }
+            if (d.reprocessa) {
+                msg('Essa nota tinha travado. Reprocessando...');
+            }
             acompanhar(d.nota_id);
         } catch (e) {
             msg('Falha de rede: ' + e.message, 'erro');
