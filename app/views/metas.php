@@ -71,24 +71,31 @@ cartao_meta($luc, 'Lucro do mês', 'meta_lucro');
             Zero desliga a meta e deixa só a projeção. O lucro sai do mesmo cálculo da aba
             Vendas: já com mercadoria, maquininha, condomínio, franquia e os fixos do mês.
         </p>
-
-        <?php if (count($pdvs) > 1): ?>
-            <h2>Pontos de venda</h2>
-            <p class="ajuda">
-                Desmarcar tira o ponto de venda do app inteiro — catálogo, bipe, vendas e
-                metas. Serve para o PDV que está na mesma conta do TouchPay mas não é seu:
-                o sync continua trazendo, as telas é que ignoram.
-            </p>
-            <input type="hidden" name="pdvs_enviados" value="1">
-            <?php foreach ($pdvs as $pdv): ?>
-                <label class="caixa-marcar">
-                    <input type="checkbox" name="pdvs[]" value="<?= (int) $pdv['id'] ?>"
-                           <?= (int) $pdv['ativo'] === 1 ? 'checked' : '' ?>>
-                    <?= e($pdv['nome']) ?>
-                    <span class="ajuda"><?= (int) $pdv['itens'] ?> itens</span>
-                </label>
-            <?php endforeach; ?>
-        <?php endif; ?>
         <button type="submit" class="botao">Salvar metas</button>
+    </form>
+</div>
+
+<div class="cartao">
+    <h2 class="sem-topo">Pontos de venda</h2>
+    <p class="ajuda">
+        Desmarcar tira o ponto de venda do app inteiro — catálogo, bipe, vendas e metas.
+        Serve para o PDV que está na mesma conta do TouchPay mas não é seu: o sync continua
+        trazendo, as telas é que ignoram. Ele continua listado aqui para você poder ligar
+        de volta quando quiser.
+    </p>
+    <form method="post" action="/metas">
+        <?= csrf_campo() ?>
+        <input type="hidden" name="pdvs_enviados" value="1">
+        <?php foreach ($pdvs as $pdv): ?>
+            <label class="caixa-marcar">
+                <input type="checkbox" name="pdvs[]" value="<?= (int) $pdv['id'] ?>"
+                       <?= (int) $pdv['ativo'] === 1 ? 'checked' : '' ?>>
+                <span><?= e($pdv['nome']) ?></span>
+                <span class="ajuda">
+                    <?= (int) $pdv['itens'] ?> itens<?= (int) $pdv['ativo'] === 1 ? '' : ' · fora do app' ?>
+                </span>
+            </label>
+        <?php endforeach; ?>
+        <button type="submit" class="botao botao-alt">Salvar pontos de venda</button>
     </form>
 </div>

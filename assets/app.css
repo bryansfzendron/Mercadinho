@@ -409,7 +409,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .filtros label { margin-bottom: .3rem; }
 .filtros select { margin-top: .2rem; }
 .caixa-marcar {
-    display: flex; align-items: center; gap: .45rem;
-    font-size: .85rem; color: var(--texto); margin-bottom: 1rem;
+    display: flex; align-items: center; gap: .55rem;
+    font-size: .95rem; color: var(--texto); margin-bottom: .7rem;
+    /* Alvo de toque de dedo, nao de mouse: a linha inteira liga e desliga. */
+    padding: .5rem .1rem; min-height: 44px;
 }
-.caixa-marcar input { width: auto; margin: 0; }
+.caixa-marcar input { width: auto; margin: 0; width: 22px; height: 22px; accent-color: var(--marca-forte); }
+.caixa-marcar .ajuda { margin-left: auto; }
