@@ -177,6 +177,25 @@ async function abrir(navegador, rota, opcoes = {}) {
         await ctx.close();
     }
 
+    // ---- 3c. fator baixo demais avisa ----
+    {
+        const { ctx, pag, erros } = await abrir(navegador, '/bipar');
+        // 11,20 / 10,00 = 1,12x: parece lucro e esta abaixo do piso de 1,1323x.
+        await pag.route('**/api/produto?*', (rota) => rota.continue({ url: 'http://localhost:8099/api/produto-apertado' }));
+        await pag.locator('#ean').fill('7891000315507');
+        await pag.locator('#form-manual button').click();
+        await pag.waitForSelector('.aviso', { timeout: 5000 });
+
+        const aviso = (await pag.locator('.aviso').innerText()).replace(/\s+/g, ' ');
+        checar('fator baixo: avisa que e prejuizo', /Prejuízo/.test(aviso), aviso);
+        checar('fator baixo: diz o piso', /1,13x/.test(aviso), aviso);
+        checar('fator baixo: leva para a lista', await pag.locator('.aviso a').getAttribute('href'), '/margens');
+        checar('fator baixo: aviso em vermelho',
+            await pag.locator('.aviso').evaluate(el => el.classList.contains('aviso-erro')));
+        checar('bipar apertado: sem erro no console', erros.length === 0, erros.join(' | '));
+        await ctx.close();
+    }
+
     // ---- 3b. teclado: so sobe se o dedo pediu ----
     {
         const { ctx, pag, erros } = await abrir(navegador, '/bipar');

@@ -27,7 +27,13 @@ $margem = $venda !== null && $pago > 0 ? $venda - $pago : null;
     </div>
     <p class="ajuda">Valores por <?= e($produto['unidade'] ?: 'unidade') ?>, já com os descontos da nota abatidos.</p>
 
-    <?php if ($margem !== null): $sinal = $margem >= 0 ? '+' : '−'; ?>
+    <?php if ($margem !== null): $sinal = $margem >= 0 ? '+' : '−';
+        // O fator sozinho engana: 1,13x parece lucro e nao e, depois do que
+        // sai de toda venda. O veredito vem dos cortes calculados.
+        $min = margens_minimos();
+        $diag = custo_diagnostico($venda, $pago, $min);
+        [$rot_v, $cls_v] = custo_veredito_rotulo($diag['veredito']);
+    ?>
         <div class="margem <?= $margem >= 0 ? 'margem-boa' : 'margem-ruim' ?>">
             <strong class="margem-fator"><?= fator_fmt($venda, $pago) ?><span>x</span></strong>
             <div class="margem-conta">
@@ -37,6 +43,21 @@ $margem = $venda !== null && $pago > 0 ? $venda - $pago : null;
                 <span class="margem-linha">vende <?= moeda($venda) ?> · pagou <?= moeda($pago) ?></span>
             </div>
         </div>
+
+        <?php if ($diag['veredito'] === 'prejuizo' || $diag['veredito'] === 'aperto'): ?>
+            <p class="aviso aviso-<?= $diag['veredito'] === 'prejuizo' ? 'erro' : 'info' ?>">
+                <strong><?= e($rot_v) ?>.</strong>
+                <?php if ($diag['veredito'] === 'prejuizo'): ?>
+                    Abaixo de <?= number_format($min['prejuizo'], 2, ',', '.') ?>x cada venda
+                    tira dinheiro do bolso: sobram <?= moeda($diag['sobra']) ?> por unidade
+                    depois da maquininha, do condomínio e da franquia.
+                <?php else: ?>
+                    Cobre o que sai de cada venda, mas não ajuda a pagar energia e sistema —
+                    para isso o fator precisa passar de <?= number_format($min['operacao'], 2, ',', '.') ?>x.
+                <?php endif; ?>
+                <a href="/margens">Ver todos assim</a>.
+            </p>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if (!$produto['ean']): ?>

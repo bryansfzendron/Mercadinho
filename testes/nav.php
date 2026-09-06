@@ -66,6 +66,7 @@ $rotas = [
     '/produtos'    => '/produtos',
     '/produtos/3'  => '/produtos',
     '/loja'        => '/loja',
+    '/margens'     => '/loja',
     '/vendas'      => '/loja',
     '/metas'       => '/loja',
 ];
@@ -87,6 +88,7 @@ ob_start(); require APP . '/views/layout.php'; $html = ob_get_clean();
 preg_match_all('#<nav class="barra">(.*?)</nav>#s', $html, $m);
 $menu = $m[1][0] ?? '';
 checar('menu tem 4 itens', substr_count($menu, '<a href='), 4);
+checar('nao ha item so de margens', strpos($menu, 'href="/margens"'), false);
 checar('nao ha item so de escanear', strpos($menu, 'href="/escanear"'), false);
 checar('nao ha item so de bipar', strpos($menu, 'href="/bipar"'), false);
 

@@ -84,7 +84,7 @@
     }
 
     /** A conta que interessa: vendo por X, paguei Y. */
-    function blocoMargem(loja, stats) {
+    function blocoMargem(loja, stats, min) {
         if (!loja || !loja.length || !stats || !stats.ultimo) return '';
         const comPreco = loja.filter(l => l.preco != null);
         if (!comPreco.length) return '';
@@ -101,7 +101,30 @@
             '<span class="margem-lucro">' + sinal + moeda(Math.abs(margem)) +
             ' <span class="margem-perc">' + sinal + perc.toFixed(0) + '%</span></span>' +
             '<span class="margem-linha">vende ' + moeda(venda) + ' · pagou ' + moeda(custo) + '</span>' +
-            '</div></div>';
+            '</div></div>' +
+            avisoDeFator(venda / custo, min);
+    }
+
+    /**
+     * O fator sozinho engana: 1,13x parece lucro e nao e, depois do que sai de
+     * toda venda. Os cortes vem calculados do servidor.
+     */
+    function avisoDeFator(fator, min) {
+        if (!min || !min.prejuizo) return '';
+        const num = (v) => v.toFixed(2).replace('.', ',');
+
+        if (fator < min.prejuizo) {
+            return '<p class="aviso aviso-erro"><strong>Prejuízo.</strong> Abaixo de ' +
+                num(min.prejuizo) + 'x cada venda tira dinheiro do bolso, depois da ' +
+                'maquininha, do condomínio e da franquia. <a href="/margens">Ver todos assim</a>.</p>';
+        }
+        if (min.operacao && fator < min.operacao) {
+            return '<p class="aviso aviso-info"><strong>Não paga a operação.</strong> Cobre o ' +
+                'que sai de cada venda, mas não ajuda com energia e sistema — para isso o ' +
+                'fator precisa passar de ' + num(min.operacao) + 'x. ' +
+                '<a href="/margens">Ver todos assim</a>.</p>';
+        }
+        return '';
     }
 
 
@@ -318,7 +341,7 @@
                 '<div class="numero"><strong>' + moeda(d.stats.max) + '</strong><span>maior</span></div>' +
                 '</div>' +
                 '<p class="ajuda">' + d.stats.n + ' compra(s) registradas</p>' +
-                blocoMargem(d.loja, d.stats) +
+                blocoMargem(d.loja, d.stats, d.minimos) +
                 '</div>' +
                 blocoVale(d) +
                 blocoLoja(d.loja) +

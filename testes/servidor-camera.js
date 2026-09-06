@@ -78,6 +78,22 @@ http.createServer((req, res) => {
             loja: [{ pdv: 'PDV Portaria', preco: 1.94, estoque: 6, reservado: 0, atualizado: 'hoje 09:12' }],
             // 1,68% de maquininha + 5% de condominio + 5% de franquia.
             custos: { pct: 11.68, condominio: 5, franquia: 5, tem_mix: true },
+            minimos: { pct_variavel: 11.68, pct_fixo: 3.05, prejuizo: 1.1323, operacao: 1.1729 },
+        }));
+    }
+    // Produto com preco baixo demais: o aviso de fator tem que aparecer.
+    if (url === '/api/produto-apertado') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+            encontrado: true,
+            ean: '7891000315507',
+            descricao: 'PAO DE FORMA VISCONTI 400G',
+            url: '/produtos/2',
+            stats: { ultimo: 10, min: 9.5, max: 10.5, n: 4 },
+            ultimas: [{ loja: 'HIGA', unitario: 10, data: 'ontem' }],
+            loja: [{ pdv: 'PDV Portaria', preco: 11.2, estoque: 3, reservado: 0, atualizado: 'hoje' }],
+            custos: { pct: 11.68, condominio: 5, franquia: 5, tem_mix: true },
+            minimos: { pct_variavel: 11.68, pct_fixo: 3.05, prejuizo: 1.1323, operacao: 1.1729 },
         }));
     }
     if (url === '/api/notas') {

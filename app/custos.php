@@ -173,3 +173,86 @@ function custos_variavel_atual(int $dias = 90): array
         'tem_mix'    => $por_forma !== [],
     ];
 }
+
+/**
+ * Os dois fatores de corte, tirados dos numeros dele e nao de regra de bolso.
+ *
+ * Vender por V um produto que custou C sobra `V - C - V*pct`. Isso zera quando
+ * C = V*(1-pct), ou seja quando o fator V/C chega em `1/(1-pct)`. Com 11,68%
+ * de maquininha, condominio e franquia, o piso e 1,132x — qualquer coisa
+ * abaixo disso da prejuizo em cada unidade vendida, por mais que o preco
+ * pareca o dobro do custo.
+ *
+ * O segundo corte poe o custo fixo do mes na conta como percentual do
+ * faturamento: com R$ 449 de energia e sistema sobre R$ 14,7 mil, sao mais
+ * 3,05%, e o fator saudavel sobe para 1,173x.
+ *
+ * @param float      $pct_variavel  maquininha + condominio + franquia
+ * @param float|null $pct_fixo      fixos do mes sobre o faturamento, se der para saber
+ */
+function custos_minimos(float $pct_variavel, ?float $pct_fixo = null): array
+{
+    $fator = static function (float $pct): ?float {
+        // Percentual em 100% ou mais nao tem fator que salve.
+        return $pct >= 100 ? null : 1 / (1 - $pct / 100);
+    };
+
+    return [
+        'pct_variavel' => $pct_variavel,
+        'pct_fixo'     => $pct_fixo,
+        'prejuizo'     => $fator($pct_variavel),
+        'operacao'     => $pct_fixo === null ? null : $fator($pct_variavel + $pct_fixo),
+    ];
+}
+
+/**
+ * Como esta a margem deste produto perto dos cortes.
+ *
+ * @return array{fator:?float, veredito:string, sobra:float, sobra_apos_fixo:?float}
+ */
+function custo_diagnostico(float $venda, ?float $custo, array $minimos): array
+{
+    if ($custo === null || $custo <= 0 || $venda <= 0) {
+        return ['fator' => null, 'veredito' => 'sem_custo', 'sobra' => 0.0, 'sobra_apos_fixo' => null];
+    }
+
+    $fator = $venda / $custo;
+    $sobra = $venda - $custo - $venda * $minimos['pct_variavel'] / 100;
+    $apos  = $minimos['pct_fixo'] === null ? null : $sobra - $venda * $minimos['pct_fixo'] / 100;
+
+    if ($minimos['prejuizo'] !== null && $fator < $minimos['prejuizo']) {
+        $veredito = 'prejuizo';
+    } elseif ($minimos['operacao'] !== null && $fator < $minimos['operacao']) {
+        $veredito = 'aperto';
+    } else {
+        $veredito = 'ok';
+    }
+
+    return ['fator' => $fator, 'veredito' => $veredito, 'sobra' => $sobra, 'sobra_apos_fixo' => $apos];
+}
+
+/** Rotulo e classe de cor de cada veredito, para as telas nao repetirem isso. */
+function custo_veredito_rotulo(string $veredito): array
+{
+    switch ($veredito) {
+        case 'prejuizo':  return ['Prejuízo', 'margem-ruim', 'selo-erro'];
+        case 'aperto':    return ['Não paga a operação', 'margem-aperto', 'selo-pendente'];
+        case 'sem_custo': return ['Sem custo de nota', 'margem-neutra', 'selo-manual'];
+        default:          return ['Saudável', 'margem-boa', 'selo-ok'];
+    }
+}
+
+/**
+ * O quanto os fixos do mes pesam sobre o faturamento, para virar o segundo
+ * corte. Sem faturamento nao da para saber, e a tela mostra so o primeiro.
+ */
+function custos_pct_fixo(?float $faturamento_mes, ?array $p = null): ?float
+{
+    if ($faturamento_mes === null || $faturamento_mes <= 0) {
+        return null;
+    }
+    // Os parametros vem de fora quando quem chama ja os tem em maos — e e o
+    // que deixa esta funcao testavel sem banco.
+    $p = $p ?? custos_parametros();
+    return ((float) $p['fixo_energia'] + (float) $p['fixo_sistema']) / $faturamento_mes * 100;
+}

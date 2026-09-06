@@ -297,9 +297,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 
 /* ---------- avisos ---------- */
 .aviso { padding: .7rem .85rem; border-radius: var(--raio); margin-bottom: .8rem; font-size: .9rem; border: 1px solid; }
-.aviso-ok   { color: var(--marca);    border-color: currentColor; background: rgba(21,128,61,.08); }
-.aviso-erro { color: var(--vermelho); border-color: currentColor; background: rgba(185,28,28,.08); }
-.aviso-info { color: var(--ambar);    border-color: currentColor; background: rgba(180,83,9,.08); }
+.aviso-ok   { color: var(--positivo); border-color: currentColor; background: var(--tinta-positiva); }
+.aviso-erro { color: var(--vermelho); border-color: currentColor; background: var(--tinta-vermelha); }
+.aviso-info { color: var(--ambar);    border-color: currentColor; background: rgba(194,65,12,.1); }
 
 .estado { min-height: 1.5rem; font-size: .9rem; margin: .5rem 0; }
 .estado-ok { color: var(--marca); }
@@ -318,6 +318,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     border: none; background: var(--tinta-positiva); color: var(--positivo);
 }
 .margem-ruim { background: var(--tinta-vermelha); color: var(--vermelho); }
+/* Entre o prejuizo e o saudavel: cobre o variavel, nao paga a operacao. */
+.margem-aperto { background: rgba(194, 65, 12, .12); color: var(--ambar); }
+.margem-neutra { background: rgba(127, 127, 127, .12); color: var(--suave); }
 
 .margem-fator {
     font-size: 1.75rem; font-weight: 600; letter-spacing: -.03em; line-height: 1;

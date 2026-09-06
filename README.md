@@ -381,6 +381,26 @@ Na tela inicial, *Importar 12 meses de vendas* faz a carga inicial (~12,5 mil tr
 13 páginas) e depois o botão vira *Buscar vendas novas*, que puxa só o que falta.
 O webhook novo precisa de `n8n_webhook_vendas` no `config.php`.
 
+## Os dois pisos de margem
+
+O fator sozinho engana: **1,13x parece lucro e não é**. Vender por V o que custou C sobra
+`V − C − V×pct`, e isso zera quando o fator chega em `1/(1−pct)`. Com 11,68% de maquininha,
+condomínio e franquia, o piso é **1,132x** — abaixo disso cada unidade vendida tira dinheiro
+do bolso.
+
+O segundo piso põe o custo fixo do mês na conta como percentual do faturamento (R$ 449 sobre
+~R$ 14,7 mil = 3,05%), e sobe para **1,173x**. Entre os dois, o produto cobre o que sai de
+cada venda mas não ajuda a pagar energia e sistema.
+
+Os dois números são calculados dos dados reais — mix de pagamento dos últimos 90 dias e
+faturamento do mês projetado —, não cravados no código. Quem quiser conferir: a aba
+**Margens** mostra os pisos no topo, com a conta.
+
+A aba lista os produtos **do pior fator para o melhor**, com filtro por veredito (prejuízo,
+no aperto, saudáveis, sem custo de nota). E o mesmo aviso aparece inline ao bipar e na tela
+do produto, com link para a lista — o alerta chega onde você já está olhando, e a auditoria
+tem tela própria.
+
 ## Vale a pena comprar por X?
 
 Ao bipar, além do histórico, a tela pergunta **quanto estão cobrando agora** e responde na

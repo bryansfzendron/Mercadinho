@@ -23,6 +23,7 @@ function despachar(string $rota): void
     if ($rota === '/notas')     { rota_notas($u); return; }
     if ($rota === '/produtos')  { rota_produtos($u); return; }
     if ($rota === '/loja')      { rota_loja($u); return; }
+    if ($rota === '/margens')   { rota_margens($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }
     if ($rota === '/metas')     { rota_metas($u); return; }
     if ($rota === '/config' || str_starts_with($rota, '/config/')) { rota_config($u, $m); return; }
@@ -465,6 +466,7 @@ function rota_api_produto(array $u): void
         // Para a conta de "vale a pena comprar por X" acontecer na hora, sem
         // uma ida ao servidor por tecla digitada.
         'custos'     => custos_variavel_atual(),
+        'minimos'    => margens_minimos(),
         'produto_id' => (int) $p['id'],
         'descricao'  => $p['descricao'],
         'ean'        => $p['ean'],
@@ -501,6 +503,22 @@ function rota_loja_sincronizar(array $u): void
     exigir_csrf();
     $r = loja_disparar_sync();
     json_resposta($r, $r['ok'] ? 200 : 422);
+}
+
+/** Quais produtos estao com o preco baixo demais para pagar a conta. */
+function rota_margens(array $u): void
+{
+    $filtro = (string) ($_GET['filtro'] ?? '');
+    if (!in_array($filtro, ['', 'prejuizo', 'aperto', 'ok', 'sem_custo'], true)) {
+        $filtro = '';
+    }
+    $busca = trim((string) ($_GET['q'] ?? ''));
+
+    $itens = margens_listar($filtro, $busca);
+    $conta = margens_contagem($busca);
+    $min   = margens_minimos();
+
+    ver('margens', compact('itens', 'conta', 'min', 'filtro', 'busca'), 'Margens');
 }
 
 /** Relatorio de vendas: filtros livres e o que sobra depois dos custos. */

@@ -189,5 +189,54 @@ checar('sem contagem nao inventa', custos_resultado([['forma' => 'Pix', 'total' 
 checar('agrupamentos tem produto e categoria',
     array_key_exists('produto', vendas_agrupamentos()) && array_key_exists('categoria', vendas_agrupamentos()), true);
 
+// ----------------------------------------------------------- pontos de corte
+// Com os numeros reais dele: 11,68% de variavel e R$ 449 sobre R$ 14.706.
+$min = custos_minimos(11.68, custos_pct_fixo(14706.0, $p));
+quase('fixo pesa 3,05% do faturamento', (float) $min['pct_fixo'], 3.0532, 0.001);
+quase('piso do prejuizo', (float) $min['prejuizo'], 1.1323, 0.001);
+quase('piso para pagar a operacao', (float) $min['operacao'], 1.1729, 0.001);
+
+// Sem faturamento nao da para saber o peso do fixo; fica so o primeiro corte.
+$semFat = custos_minimos(11.68, custos_pct_fixo(null, $p));
+checar('sem faturamento nao ha segundo corte', $semFat['operacao'], null);
+quase('mas o primeiro continua', (float) $semFat['prejuizo'], 1.1323, 0.001);
+checar('faturamento zero tambem', custos_pct_fixo(0.0, $p), null);
+
+// Percentual impossivel nao pode virar fator negativo.
+checar('percentual de 100% nao tem fator', custos_minimos(100.0)['prejuizo'], null);
+checar('percentual acima de 100% tambem', custos_minimos(140.0)['prejuizo'], null);
+
+// ----------------------------------------------------------- diagnostico
+// 1,49x, que ele achava baixo: sobra 18% depois de tudo.
+$bom = custo_diagnostico(10.0, 10 / 1.49, $min);
+checar('1,49x e saudavel', $bom['veredito'], 'ok');
+quase('sobra de 1,49x', $bom['sobra'], 2.116, 0.01);
+quase('sobra depois do fixo', (float) $bom['sobra_apos_fixo'], 1.811, 0.01);
+
+// 1,13x: parece lucro e nao e.
+checar('abaixo do piso e prejuizo', custo_diagnostico(10.0, 10 / 1.13, $min)['veredito'], 'prejuizo');
+// 1,15x: cobre o variavel mas nao ajuda no fixo.
+checar('entre os dois cortes e aperto', custo_diagnostico(10.0, 10 / 1.15, $min)['veredito'], 'aperto');
+// Em cima do corte de cima ja conta como saudavel.
+checar('no corte de cima ja e ok', custo_diagnostico(10.0, 10 / 1.18, $min)['veredito'], 'ok');
+
+// Produto sem custo de nota nao recebe veredito inventado.
+checar('sem custo nao julga', custo_diagnostico(10.0, null, $min)['veredito'], 'sem_custo');
+checar('custo zero nao julga', custo_diagnostico(10.0, 0.0, $min)['veredito'], 'sem_custo');
+checar('sem custo nao inventa fator', custo_diagnostico(10.0, null, $min)['fator'], null);
+checar('venda zero nao julga', custo_diagnostico(0.0, 5.0, $min)['veredito'], 'sem_custo');
+
+// Sem o segundo corte, o que sobraria em aperto vira ok — e o unico veredito
+// que da para sustentar sem saber o faturamento.
+checar('sem segundo corte, aperto vira ok',
+    custo_diagnostico(10.0, 10 / 1.15, $semFat)['veredito'], 'ok');
+checar('mas prejuizo continua prejuizo',
+    custo_diagnostico(10.0, 10 / 1.10, $semFat)['veredito'], 'prejuizo');
+checar('sem segundo corte nao ha sobra apos fixo',
+    custo_diagnostico(10.0, 5.0, $semFat)['sobra_apos_fixo'], null);
+
+checar('rotulo do prejuizo', custo_veredito_rotulo('prejuizo')[0], 'Prejuízo');
+checar('rotulo do saudavel', custo_veredito_rotulo('ok')[0], 'Saudável');
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

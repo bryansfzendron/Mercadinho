@@ -334,7 +334,12 @@ function abas(array $abas, string $atual): string
 /** Loja: catalogo, o que vendeu e para onde ele quer chegar. */
 function abas_loja(string $atual): string
 {
-    return abas(['/loja' => 'Catálogo', '/vendas' => 'Vendas', '/metas' => 'Metas'], $atual);
+    return abas([
+        '/loja'    => 'Catálogo',
+        '/margens' => 'Margens',
+        '/vendas'  => 'Vendas',
+        '/metas'   => 'Metas',
+    ], $atual);
 }
 
 /** Configuracoes: tudo que e botao e ajuste, longe das telas de numero. */

@@ -432,3 +432,93 @@ function loja_pdv_ativo(int $id, bool $ativo): void
 {
     exec_sql('UPDATE loja_pdvs SET ativo = ? WHERE id = ?', [$ativo ? 1 : 0, $id]);
 }
+
+/**
+ * O catalogo visto pela lente da margem: por quanto vende, quanto custou na
+ * ultima nota e se o fator paga a conta.
+ *
+ * Um produto por linha, nao um por PDV: o preco que interessa e o maior, que e
+ * o mesmo criterio do bipe e do relatorio.
+ */
+function margens_listar(string $filtro = '', string $busca = ''): array
+{
+    $onde = ['p.ativo = 1', 'li.preco_venda IS NOT NULL', 'li.preco_venda > 0'];
+    $args = [];
+
+    if ($busca !== '') {
+        $onde[] = '(li.descricao LIKE ? OR li.ean = ? OR li.codigo LIKE ? OR li.categoria LIKE ?)';
+        $ean = ean_normalizado($busca);
+        array_push($args, '%' . $busca . '%', $ean ?? '__nada__', '%' . $busca . '%', '%' . $busca . '%');
+    }
+
+    $linhas = q(
+        'SELECT COALESCE(li.ean, li.codigo, li.descricao) AS chave,
+                MIN(li.descricao)   AS descricao,
+                MIN(li.ean)         AS ean,
+                MIN(li.categoria)   AS categoria,
+                MAX(li.preco_venda) AS venda,
+                SUM(li.estoque)     AS estoque,
+                MAX(li.produto_id)  AS produto_id
+           FROM loja_itens li
+           JOIN loja_pdvs p ON p.id = li.pdv_id
+          WHERE ' . implode(' AND ', $onde) . '
+       GROUP BY chave
+          LIMIT 5000',
+        $args
+    );
+
+    $custos  = vendas_custo_por_produto(array_column($linhas, 'produto_id'));
+    $minimos = margens_minimos();
+
+    $itens = [];
+    foreach ($linhas as $l) {
+        $pid   = (int) $l['produto_id'];
+        $custo = $pid > 0 && isset($custos[$pid]) ? $custos[$pid] : null;
+        $d     = custo_diagnostico((float) $l['venda'], $custo, $minimos);
+
+        if ($filtro !== '' && $filtro !== $d['veredito']) {
+            continue;
+        }
+        $itens[] = $l + $d + ['custo' => $custo];
+    }
+
+    // Pior primeiro: e uma tela para achar problema, nao para admirar acerto.
+    // Quem nao tem custo vai para o fim, porque nao da para ordenar sem fator.
+    usort($itens, static function (array $a, array $b): int {
+        if ($a['fator'] === null || $b['fator'] === null) {
+            return ($a['fator'] === null ? 1 : 0) <=> ($b['fator'] === null ? 1 : 0);
+        }
+        return $a['fator'] <=> $b['fator'];
+    });
+
+    return $itens;
+}
+
+/** Os cortes com os numeros de hoje: mix de pagamento e faturamento do mes. */
+function margens_minimos(): array
+{
+    $p        = custos_parametros();
+    $variavel = custos_variavel_atual();
+    $mes      = custos_resultado(
+        vendas_por_forma(['de' => date('Y-m-01'), 'ate' => date('Y-m-d')]),
+        0.0,
+        (int) date('j'),
+        $p
+    );
+
+    // O faturamento do mes ate agora, projetado para o mes inteiro, e o que
+    // faz o rateio do fixo ser justo no dia 3 e no dia 28.
+    $projetado = (int) date('j') > 0 ? $mes['receita'] / (int) date('j') * (int) date('t') : null;
+
+    return custos_minimos($variavel['pct'], custos_pct_fixo($projetado, $p));
+}
+
+/** Quantos produtos em cada veredito, para os chips da tela. */
+function margens_contagem(string $busca = ''): array
+{
+    $conta = ['prejuizo' => 0, 'aperto' => 0, 'ok' => 0, 'sem_custo' => 0];
+    foreach (margens_listar('', $busca) as $i) {
+        $conta[$i['veredito']]++;
+    }
+    return $conta;
+}
