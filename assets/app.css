@@ -311,6 +311,44 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 .zerado { color: var(--vermelho); }
 
 /* ---------- relatorio de vendas ---------- */
+/* Submenu de uma secao: o segmented control do iOS. Trilho cinza, e o item
+   ativo e uma pilula branca com sombra fina por cima dele. */
+.abas {
+    display: flex; gap: .15rem; margin: 0 0 1rem;
+    background: rgba(127, 127, 127, .12); border-radius: 12px; padding: .2rem;
+}
+.aba {
+    flex: 1; text-align: center; padding: .45rem .5rem; border-radius: 9px;
+    color: var(--texto); font-size: .85rem; font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+}
+.aba:hover { text-decoration: none; }
+.aba.ativo {
+    background: var(--cartao); font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+
+/* Filtro rapido em pilulas. Rola na horizontal em vez de quebrar a linha. */
+.chips { display: flex; gap: .4rem; overflow-x: auto; margin-bottom: .7rem; padding-bottom: .2rem; }
+.chip {
+    flex: none; padding: .35rem .8rem; border-radius: 99px;
+    background: var(--cartao); border: 1px solid var(--borda);
+    color: var(--texto); font-size: .82rem; white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+}
+.chip:hover { text-decoration: none; }
+.chip.ativo { background: var(--tinta-verde); border-color: transparent; color: var(--verde); font-weight: 600; }
+
+/* Barra de progresso da meta. */
+.meta-barra {
+    height: 10px; border-radius: 99px; background: rgba(127, 127, 127, .15);
+    overflow: hidden; margin: .45rem 0 .3rem;
+}
+.meta-barra > span { display: block; height: 100%; background: var(--verde); border-radius: 99px; }
+.meta-barra.batida > span { background: var(--verde); }
+.meta-topo { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.meta-valor { font-size: 1.25rem; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.meta-alvo { font-size: .8rem; color: var(--suave); font-variant-numeric: tabular-nums; }
 .sem-topo { margin-top: 0; }
 /* O padding do cartao da lista quando o item nao e um link. */
 .linha-cartao { padding: .7rem .85rem; }

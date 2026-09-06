@@ -6,7 +6,7 @@
  * @var string $busca
  * @var int    $pdv_id
  * @var string $ordem
- * @var bool   $so_com
+ * @var string $estoque
  */
 $ordens = [
     'nome'         => 'nome',
@@ -18,12 +18,7 @@ $ordens = [
 ];
 ?>
 <h1>Loja</h1>
-
-<div class="acoes-topo">
-    <a class="botao botao-grande" href="/vendas">R$ Relatório de vendas</a>
-</div>
-
-<p class="ajuda">Tudo que está cadastrado nos pontos de venda, com o preço de venda e o estoque da última sincronização.</p>
+<?= abas_loja('/loja') ?>
 
 <?php if (!$pdvs): ?>
     <p class="vazio">
@@ -32,7 +27,36 @@ $ordens = [
     </p>
 <?php else: ?>
 
+<div class="numeros">
+    <div class="numero">
+        <strong><?= (int) $totais['itens'] ?></strong>
+        <span>itens</span>
+    </div>
+    <div class="numero">
+        <strong><?= (int) $totais['com_estoque'] ?></strong>
+        <span>com estoque</span>
+    </div>
+    <div class="numero">
+        <strong><?= moeda($totais['valor_venda']) ?></strong>
+        <span>na prateleira</span>
+    </div>
+</div>
+
+<?php
+// Os chips levam os outros filtros junto, senao trocar de estoque perde a
+// busca e o PDV escolhidos.
+$base = ['q' => $busca, 'pdv' => $pdv_id, 'ordem' => $ordem];
+$estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
+?>
+<div class="chips">
+    <?php foreach ($estoques as $chave => $rotulo): ?>
+        <a class="chip <?= $estoque === $chave ? 'ativo' : '' ?>"
+           href="/loja?<?= e(http_build_query($base + ['estoque' => $chave])) ?>"><?= e($rotulo) ?></a>
+    <?php endforeach; ?>
+</div>
+
 <form method="get" action="/loja">
+    <input type="hidden" name="estoque" value="<?= e($estoque) ?>">
     <div class="linha-form">
         <input type="text" name="q" value="<?= e($busca) ?>"
                placeholder="buscar por nome, código ou categoria"
@@ -64,31 +88,17 @@ $ordens = [
         </label>
     </div>
 
-    <label class="caixa-marcar">
-        <input type="checkbox" name="estoque" value="1" <?= $so_com ? 'checked' : '' ?>
-               onchange="this.form.submit()">
-        só com estoque
-    </label>
 </form>
-
-<div class="numeros">
-    <div class="numero">
-        <strong><?= (int) $totais['itens'] ?></strong>
-        <span>itens</span>
-    </div>
-    <div class="numero">
-        <strong><?= (int) $totais['com_estoque'] ?></strong>
-        <span>com estoque</span>
-    </div>
-    <div class="numero">
-        <strong><?= moeda($totais['valor_venda']) ?></strong>
-        <span>na prateleira</span>
-    </div>
-</div>
 
 <?php if (!$itens): ?>
     <p class="vazio">
-        <?= $busca !== '' ? 'Nada encontrado para essa busca.' : 'Nenhum item neste filtro.' ?>
+        <?php if ($busca !== ''): ?>
+            Nada encontrado para essa busca.
+        <?php elseif ($estoque === 'sem'): ?>
+            Nenhum item zerado neste filtro. A prateleira está inteira.
+        <?php else: ?>
+            Nenhum item neste filtro.
+        <?php endif; ?>
     </p>
 <?php else: ?>
     <?php if (count($itens) >= 400): ?>

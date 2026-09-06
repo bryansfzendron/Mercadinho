@@ -405,6 +405,19 @@ O custo entra em três camadas, porque elas se comportam de forma diferente:
 As taxas e os valores fixos ficam na tabela `custos_parametros`, editáveis no fim da própria
 tela — taxa de maquininha muda com o faturamento e com o fim da promoção.
 
+## A seção Loja
+
+O item **Loja R$** do menu de baixo tem três telas, num submenu no feitio do segmented
+control do iOS — o padrão de quem precisa de mais função do que cabe numa aba só:
+
+- **Catálogo** (`/loja`) — tudo que está nos PDVs. Filtro de estoque em pílulas
+  (todos / com estoque / sem estoque); "sem estoque" é a lista de reposição.
+- **Vendas** (`/vendas`) — o relatório acima, com atalhos de período (mês corrente,
+  mês passado, 30 dias, hoje).
+- **Metas** (`/metas`) — meta de faturamento e de lucro do mês, com barra de progresso,
+  ritmo diário, projeção de fechamento e quanto falta por dia. Zero desliga a meta e
+  deixa só a projeção. As metas moram na mesma tabela dos parâmetros de custo.
+
 ## Testes
 
 ```bash

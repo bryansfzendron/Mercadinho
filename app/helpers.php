@@ -305,3 +305,18 @@ function url(string $caminho = '/'): string
 {
     return rtrim((string) cfg('base_url', ''), '/') . $caminho;
 }
+
+/**
+ * Submenu da secao Loja. Tres telas dentro do mesmo item do menu de baixo,
+ * porque cabem juntas: catalogo, o que vendeu e para onde ele quer chegar.
+ */
+function abas_loja(string $atual): string
+{
+    $abas = ['/loja' => 'Catálogo', '/vendas' => 'Vendas', '/metas' => 'Metas'];
+    $html = '<nav class="abas">';
+    foreach ($abas as $href => $rotulo) {
+        $html .= '<a class="aba' . ($href === $atual ? ' ativo' : '') . '" href="' . $href . '">'
+               . e($rotulo) . '</a>';
+    }
+    return $html . '</nav>';
+}

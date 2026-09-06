@@ -1,6 +1,13 @@
 <?php /** @var array $r @var array $f @var array $pdvs @var array $formas */ ?>
-<a class="voltar" href="/loja">‹ Loja</a>
-<h1>Vendas</h1>
+<h1>Loja</h1>
+<?= abas_loja('/vendas') ?>
+
+<div class="chips">
+    <?php foreach (vendas_periodos() as $chave => [$rotulo, $de, $ate]): ?>
+        <a class="chip <?= $f['de'] === $de && $f['ate'] === $ate ? 'ativo' : '' ?>"
+           href="/vendas?<?= e(http_build_query(['de' => $de, 'ate' => $ate] + $f)) ?>"><?= e($rotulo) ?></a>
+    <?php endforeach; ?>
+</div>
 
 <form method="get" action="/vendas">
     <div class="filtros">
@@ -46,7 +53,10 @@
 <?php $res = $r['resultado']; ?>
 <div class="cartao">
     <h2 class="sem-topo">Resultado do período</h2>
-    <p class="meta"><?= (int) $res['dias'] ?> dia(s) · custos fixos rateados por dia</p>
+    <p class="meta">
+        <?= (int) $res['vendas'] ?> venda(s) em <?= (int) $res['dias'] ?> dia(s) ·
+        custos fixos rateados por dia
+    </p>
 
     <dl class="dados">
         <div><dt>Faturamento</dt><dd class="valor"><?= moeda($res['receita']) ?></dd></div>

@@ -14,6 +14,7 @@ define('APP', dirname(__DIR__) . '/app');
 require APP . '/helpers.php';
 require APP . '/custos.php';
 require APP . '/vendas.php';
+require APP . '/metas.php';
 
 $ok = 0; $falhou = 0;
 function checar(string $nome, $obtido, $esperado): void
@@ -137,6 +138,52 @@ checar('dias inclui as duas pontas', vendas_dias_do_periodo(['de' => '2026-09-01
 checar('um dia so', vendas_dias_do_periodo(['de' => '2026-09-06', 'ate' => '2026-09-06']), 1);
 checar('sem data usa o mes comercial', vendas_dias_do_periodo([]), 30);
 checar('data invertida usa o mes comercial', vendas_dias_do_periodo(['de' => '2026-09-30', 'ate' => '2026-09-01']), 30);
+
+// ------------------------------------------------------------------ metas
+// Dia 10 de um mes de 30, faturou 5000 e a meta e 15000.
+$m = meta_progresso(5000.0, 15000.0, 10, 30);
+quase('progresso em %', $m['pct'], 33.3333, 0.001);
+quase('ritmo por dia', $m['ritmo'], 500.0);
+quase('projecao do mes', $m['projecao'], 15000.0);
+quase('falta', $m['falta'], 10000.0);
+checar('dias restantes', $m['restam'], 20);
+quase('precisa por dia', $m['por_dia'], 500.0);
+checar('ainda nao bateu', $m['batida'], false);
+
+// Meta batida nao pode virar "falta" negativo.
+$b = meta_progresso(16000.0, 15000.0, 20, 30);
+checar('meta batida', $b['batida'], true);
+quase('nao falta nada', $b['falta'], 0.0);
+quase('por dia zera depois de bater', $b['por_dia'], 0.0);
+
+// Ultimo dia do mes: o que falta e para hoje, sem divisao por zero.
+$u = meta_progresso(9000.0, 10000.0, 30, 30);
+checar('sem dia restante', $u['restam'], 0);
+quase('o que falta e para hoje', $u['por_dia'], 1000.0);
+
+// Sem meta definida ainda projeta o mes.
+$sem = meta_progresso(3000.0, 0.0, 6, 30);
+checar('sem meta', $sem['tem_meta'], false);
+quase('sem meta a projecao vale', $sem['projecao'], 15000.0);
+quase('sem meta o percentual e zero', $sem['pct'], 0.0);
+
+// Primeiro dia do mes nao pode dividir por zero nem projetar de menos.
+$d1 = meta_progresso(400.0, 12000.0, 1, 30);
+quase('ritmo no primeiro dia', $d1['ritmo'], 400.0);
+quase('projecao no primeiro dia', $d1['projecao'], 12000.0);
+
+// Dia zero (defensivo) conta como um dia.
+quase('dia zero conta como um', meta_progresso(100.0, 0.0, 0, 30)['ritmo'], 100.0);
+// Mes menor que os dias corridos nao inverte a conta.
+checar('mes nunca menor que os dias corridos', meta_progresso(100.0, 0.0, 31, 28)['restam'], 0);
+
+checar('dias do mes de fevereiro', metas_dias('2026-02-10'), [10, 28]);
+checar('dias do mes de setembro', metas_dias('2026-09-06'), [6, 30]);
+
+// A contagem de vendas entra no resultado, para comparar com o TouchPay.
+$comN = custos_resultado([['forma' => 'Pix', 'total' => 100.0, 'n' => 7]], 0.0, 30, $p);
+checar('conta as vendas do periodo', $comN['vendas'], 7);
+checar('sem contagem nao inventa', custos_resultado([['forma' => 'Pix', 'total' => 100.0]], 0.0, 30, $p)['vendas'], 0);
 
 // ------------------------------------------------------------- parametros
 checar('agrupamentos tem produto e categoria',

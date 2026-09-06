@@ -636,3 +636,21 @@ function vendas_pdvs(): array
        GROUP BY p.id, p.nome ORDER BY p.nome'
     );
 }
+
+/**
+ * Atalhos de periodo. "Mes corrente" e o que da para comparar direto com o
+ * painel do TouchPay, que abre sempre no mes.
+ *
+ * @return array<string,array{0:string,1:string,2:string}> rotulo, de, ate
+ */
+function vendas_periodos(): array
+{
+    $hoje = date('Y-m-d');
+    return [
+        'mes'      => ['Mês corrente', date('Y-m-01'), $hoje],
+        'passado'  => ['Mês passado',  date('Y-m-01', strtotime('first day of last month')),
+                                       date('Y-m-t', strtotime('last day of last month'))],
+        'dias30'   => ['30 dias',      date('Y-m-d', strtotime('-29 days')), $hoje],
+        'hoje'     => ['Hoje',         $hoje, $hoje],
+    ];
+}

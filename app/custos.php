@@ -40,7 +40,7 @@ function custos_padrao(): array
 /** Parametros gravados, completados com os padroes. */
 function custos_parametros(): array
 {
-    $valores = custos_padrao();
+    $valores = custos_padrao() + metas_padrao();
     foreach (q('SELECT chave, valor FROM custos_parametros') as $linha) {
         $chave = (string) $linha['chave'];
         if (array_key_exists($chave, $valores)) {
@@ -50,10 +50,14 @@ function custos_parametros(): array
     return $valores;
 }
 
-/** Grava so o que existe em custos_padrao(), para nao virar depositario de lixo. */
+/**
+ * Grava so os parametros conhecidos, para a tabela nao virar depositario de
+ * lixo. As metas moram na mesma tabela: do ponto de vista do banco sao a
+ * mesma coisa, um numero que o dono ajusta na tela.
+ */
 function custos_salvar(array $novos): int
 {
-    $conhecidos = custos_padrao();
+    $conhecidos = custos_padrao() + metas_padrao();
     $agora = date('Y-m-d H:i:s');
     $n = 0;
     foreach ($novos as $chave => $valor) {
@@ -97,9 +101,11 @@ function custos_resultado(array $por_forma, float $cmv, int $dias, array $p): ar
 {
     $receita = 0.0;
     $taxa = 0.0;
+    $vendas = 0;
     foreach ($por_forma as $linha) {
         $total = (float) ($linha['total'] ?? 0);
         $receita += $total;
+        $vendas += (int) ($linha['n'] ?? 0);
         $taxa += $total * custo_taxa_da_forma($linha['forma'] ?? null, $p) / 100;
     }
 
@@ -119,6 +125,9 @@ function custos_resultado(array $por_forma, float $cmv, int $dias, array $p): ar
         'franquia'   => $franquia,
         'fixos'      => $fixos,
         'lucro'      => $lucro,
+        // Contagem junto do dinheiro: quando o numero diverge do painel do
+        // TouchPay, e ela que diz se faltou venda ou se foi valor.
+        'vendas'     => $vendas,
         'margem'     => $receita > 0 ? $lucro / $receita * 100 : 0.0,
         'dias'       => $dias,
     ];

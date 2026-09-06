@@ -67,6 +67,7 @@ $rotas = [
     '/produtos/3'  => '/produtos',
     '/loja'        => '/loja',
     '/vendas'      => '/loja',
+    '/metas'       => '/loja',
 ];
 
 foreach ($rotas as $rota => $esperado) {

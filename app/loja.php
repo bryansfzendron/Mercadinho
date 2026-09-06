@@ -327,7 +327,7 @@ function loja_listar(
     string $busca = '',
     int $pdv_id = 0,
     string $ordem = 'nome',
-    bool $so_com_estoque = false,
+    string $estoque = '',
     int $limite = 400
 ): array {
     $onde = ['1 = 1'];
@@ -345,8 +345,12 @@ function loja_listar(
         $onde[] = 'li.pdv_id = ?';
         $args[] = $pdv_id;
     }
-    if ($so_com_estoque) {
+    // Tres estados: tudo, so o que tem estoque, so o que zerou. O "sem
+    // estoque" e a lista de reposicao — por isso ele existe.
+    if ($estoque === 'com') {
         $onde[] = 'li.estoque > 0';
+    } elseif ($estoque === 'sem') {
+        $onde[] = 'li.estoque <= 0';
     }
 
     // Lista fixa: nada aqui pode vir do usuario direto para dentro do SQL.
@@ -375,9 +379,9 @@ function loja_listar(
 }
 
 /** Totais do catalogo da loja, com os mesmos filtros da listagem. */
-function loja_totais(string $busca = '', int $pdv_id = 0, bool $so_com_estoque = false): array
+function loja_totais(string $busca = '', int $pdv_id = 0, string $estoque = ''): array
 {
-    $todos = loja_listar($busca, $pdv_id, 'nome', $so_com_estoque, 100000);
+    $todos = loja_listar($busca, $pdv_id, 'nome', $estoque, 100000);
     $valor = 0.0;
     $comEstoque = 0;
     foreach ($todos as $l) {
@@ -389,6 +393,7 @@ function loja_totais(string $busca = '', int $pdv_id = 0, bool $so_com_estoque =
     return [
         'itens'        => count($todos),
         'com_estoque'  => $comEstoque,
+        'sem_estoque'  => count($todos) - $comEstoque,
         'valor_venda'  => $valor,
     ];
 }

@@ -66,3 +66,4 @@ require APP . '/notas.php';
 require APP . '/loja.php';
 require APP . '/vendas.php';
 require APP . '/custos.php';
+require APP . '/metas.php';

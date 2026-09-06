@@ -24,6 +24,7 @@ function despachar(string $rota): void
     if ($rota === '/produtos')  { rota_produtos($u); return; }
     if ($rota === '/loja')      { rota_loja($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }
+    if ($rota === '/metas')     { rota_metas($u, $m); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
 
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
@@ -195,15 +196,17 @@ function rota_loja(array $u): void
     $busca   = trim((string) ($_GET['q'] ?? ''));
     $pdv_id  = (int) ($_GET['pdv'] ?? 0);
     $ordem   = (string) ($_GET['ordem'] ?? 'nome');
-    $so_com  = ($_GET['estoque'] ?? '') === '1';
+    // "1" e o link antigo, de quando o filtro era so uma caixa de marcar.
+    $estoque = (string) ($_GET['estoque'] ?? '');
+    $estoque = $estoque === '1' ? 'com' : (in_array($estoque, ['com', 'sem'], true) ? $estoque : '');
 
-    $itens  = loja_listar($busca, $pdv_id, $ordem, $so_com);
-    $totais = loja_totais($busca, $pdv_id, $so_com);
+    $itens  = loja_listar($busca, $pdv_id, $ordem, $estoque);
+    $totais = loja_totais($busca, $pdv_id, $estoque);
     $pdvs   = loja_resumo();
 
     ver(
         'loja_lista',
-        compact('itens', 'totais', 'pdvs', 'busca', 'pdv_id', 'ordem', 'so_com'),
+        compact('itens', 'totais', 'pdvs', 'busca', 'pdv_id', 'ordem', 'estoque'),
         'Loja'
     );
 }
@@ -515,6 +518,33 @@ function rota_vendas(array $u): void
     ];
 
     ver('vendas_relatorio', compact('r', 'f', 'pdvs', 'formas'), 'Vendas');
+}
+
+/** Metas do mes: quanto entrou, quanto falta e se o ritmo chega la. */
+function rota_metas(array $u, string $metodo): void
+{
+    if ($metodo === 'POST') {
+        exigir_csrf();
+        custos_salvar($_POST);
+        flash('ok', 'Metas atualizadas.');
+        redirecionar('/metas');
+    }
+
+    // O mes corrente inteiro, do dia 1 ate hoje.
+    $r = vendas_relatorio(['de' => date('Y-m-01'), 'ate' => date('Y-m-d'), 'agrupar' => 'produto']);
+    $p = custos_parametros();
+    [$dia, $no_mes] = metas_dias();
+
+    $fat = meta_progresso($r['resultado']['receita'], (float) $p['meta_faturamento'], $dia, $no_mes)
+         + ['dia' => $dia, 'no_mes' => $no_mes];
+    $luc = meta_progresso($r['resultado']['lucro'], (float) $p['meta_lucro'], $dia, $no_mes)
+         + ['dia' => $dia, 'no_mes' => $no_mes];
+
+    $meses = [1 => 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+              'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    $mes = $meses[(int) date('n')] . ' de ' . date('Y');
+
+    ver('metas', compact('fat', 'luc', 'p', 'mes'), 'Metas');
 }
 
 /** Salva as taxas e os custos fixos editados na propria tela. */
