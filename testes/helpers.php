@@ -73,6 +73,9 @@ checar('sem chave',    chave_do_qrcode('https://exemplo.com'), null);
 
 // ---- formatacao ----
 checar('moeda',   moeda(1234.5), 'R$ 1.234,50');
+checar('fator',        fator_fmt(1.94, 1.0),  '1,94');
+checar('fator arredonda', fator_fmt(3.99, 2.06), '1,94');
+checar('fator abaixo do custo', fator_fmt(0.85, 1.0), '0,85');
 checar('qtd 2',   qtd_fmt(2.0), '2');
 checar('qtd 1,5', qtd_fmt(1.5), '1,5');
 checar('qtd 0,25', qtd_fmt(0.25), '0,25');

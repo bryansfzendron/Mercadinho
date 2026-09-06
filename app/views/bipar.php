@@ -85,12 +85,16 @@
         const custo = Number(stats.ultimo);
         if (!(custo > 0)) return '';
         const margem = venda - custo;
-        const perc = (margem / custo) * 100;
-        const classe = margem >= 0 ? 'margem-boa' : 'margem-ruim';
-        return '<p class="margem ' + classe + '">Vende por <strong>' + moeda(venda) +
-            '</strong>, você pagou <strong>' + moeda(custo) + '</strong> · ' +
-            (margem >= 0 ? '+' : '') + moeda(margem) +
-            ' (' + (perc >= 0 ? '+' : '') + perc.toFixed(0) + '%)</p>';
+        const sinal = margem >= 0 ? '+' : '−';
+        const perc = Math.abs(margem / custo) * 100;
+        const fator = (venda / custo).toFixed(2).replace('.', ',');
+        return '<div class="margem ' + (margem >= 0 ? 'margem-boa' : 'margem-ruim') + '">' +
+            '<strong class="margem-fator">' + fator + '<span>x</span></strong>' +
+            '<div class="margem-conta">' +
+            '<span class="margem-lucro">' + sinal + moeda(Math.abs(margem)) +
+            ' <span class="margem-perc">' + sinal + perc.toFixed(0) + '%</span></span>' +
+            '<span class="margem-linha">vende ' + moeda(venda) + ' · pagou ' + moeda(custo) + '</span>' +
+            '</div></div>';
     }
 
     function lembrar(ligada) {

@@ -27,13 +27,16 @@ $margem = $venda !== null && $pago > 0 ? $venda - $pago : null;
     </div>
     <p class="ajuda">Valores por <?= e($produto['unidade'] ?: 'unidade') ?>, já com os descontos da nota abatidos.</p>
 
-    <?php if ($margem !== null): ?>
-        <p class="margem <?= $margem >= 0 ? 'margem-boa' : 'margem-ruim' ?>">
-            Vende por <strong><?= moeda($venda) ?></strong>,
-            você pagou <strong><?= moeda($pago) ?></strong> ·
-            <?= $margem >= 0 ? '+' : '' ?><?= moeda($margem) ?>
-            (<?= $margem >= 0 ? '+' : '' ?><?= number_format(($margem / $pago) * 100, 0, ',', '.') ?>%)
-        </p>
+    <?php if ($margem !== null): $sinal = $margem >= 0 ? '+' : '−'; ?>
+        <div class="margem <?= $margem >= 0 ? 'margem-boa' : 'margem-ruim' ?>">
+            <strong class="margem-fator"><?= fator_fmt($venda, $pago) ?><span>x</span></strong>
+            <div class="margem-conta">
+                <span class="margem-lucro"><?= $sinal ?><?= moeda(abs($margem)) ?>
+                    <span class="margem-perc"><?= $sinal ?><?= number_format(abs($margem / $pago) * 100, 0, ',', '.') ?>%</span>
+                </span>
+                <span class="margem-linha">vende <?= moeda($venda) ?> · pagou <?= moeda($pago) ?></span>
+            </div>
+        </div>
     <?php endif; ?>
 
     <?php if (!$produto['ean']): ?>

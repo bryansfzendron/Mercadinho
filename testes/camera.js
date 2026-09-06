@@ -130,6 +130,17 @@ async function abrir(navegador, rota, opcoes = {}) {
             await pag.locator('.camera-caixa').evaluate(el => el.classList.contains('ligada')));
         checar('bipar: mira larga',
             await pag.locator('.mira').evaluate(el => el.classList.contains('mira-larga')));
+        // Resultado da busca: o cartao da margem mostra o fator, nao so o %.
+        await pag.locator('#ean').fill('7896036095461');
+        await pag.locator('#form-manual button').click();
+        await pag.waitForSelector('.margem', { timeout: 5000 });
+        const margem = (await pag.locator('.margem').innerText()).replace(/\s+/g, ' ');
+        checar('bipar: margem em fator', margem.includes('1,94') && margem.includes('x'), margem);
+        checar('bipar: margem tambem em %', margem.includes('+94%'), margem);
+        checar('bipar: margem com o lucro', margem.includes('+R$ 0,94'), margem);
+        checar('bipar: margem no verde',
+            await pag.locator('.margem').evaluate(el => el.classList.contains('margem-boa')));
+
         await pag.screenshot({ path: require('path').join(__dirname, 'telas', 'tela-bipar.png') });
         checar('bipar: sem erro no console', erros.length === 0, erros.join(' | '));
         await ctx.close();

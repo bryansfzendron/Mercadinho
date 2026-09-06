@@ -288,12 +288,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 .colar textarea { margin: .5rem 0; }
 
 /* ---------- espelho da loja (TouchPay) ---------- */
+/* Cartao da margem: o fator manda (1,94x = o preco cobre 1,94 vezes o custo)
+   e o resto explica em letra menor, no feitio das telas de numeros do iOS. */
 .margem {
-    margin: .6rem 0 0; padding: .5rem .7rem; border-radius: 9px;
-    font-size: .9rem; border: 1px solid currentColor;
+    display: flex; align-items: center; gap: .85rem;
+    margin: .7rem 0 0; padding: .7rem .9rem; border-radius: 14px;
+    border: none; background: var(--tinta-verde); color: var(--verde);
 }
-.margem-boa  { color: var(--verde);    background: rgba(21,128,61,.08); }
-.margem-ruim { color: var(--vermelho); background: rgba(185,28,28,.08); }
+.margem-ruim { background: var(--tinta-vermelha); color: var(--vermelho); }
+
+.margem-fator {
+    font-size: 1.75rem; font-weight: 600; letter-spacing: -.03em; line-height: 1;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* O "x" e unidade, nao numero: entra menor e mais leve, como nos widgets do iOS. */
+.margem-fator span { font-size: .95rem; font-weight: 500; opacity: .65; margin-left: 1px; }
+
+.margem-conta { display: flex; flex-direction: column; gap: .12rem; min-width: 0; }
+.margem-lucro { font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.margem-perc { font-size: .78rem; font-weight: 500; opacity: .7; }
+.margem-linha { font-size: .78rem; color: var(--suave); font-variant-numeric: tabular-nums; }
 .zerado { color: var(--vermelho); }
 
 /* ---------- puxar para atualizar (so no app instalado) ---------- */

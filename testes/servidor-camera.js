@@ -67,7 +67,16 @@ http.createServer((req, res) => {
     // API falsa, para o fluxo nao morrer em rede
     if (url === '/api/produto') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ encontrado: false, ean: '7891000315507', mensagem: 'Nunca comprado (teste).' }));
+        // Vende por 1,94 o que custou 1,00: fator 1,94x, +94%.
+        return res.end(JSON.stringify({
+            encontrado: true,
+            ean: '7896036095461',
+            descricao: 'CANELA FADINHA PO C/ACUCAR 20G',
+            url: '/produtos/1',
+            stats: { ultimo: 1, min: 0.92, max: 1.1, n: 3 },
+            ultimas: [{ loja: 'HIGA PRODUTOS', unitario: 1, data: 'ontem' }],
+            loja: [{ pdv: 'PDV Portaria', preco: 1.94, estoque: 6, reservado: 0, atualizado: 'hoje 09:12' }],
+        }));
     }
     if (url === '/api/notas') {
         res.writeHead(200, { 'Content-Type': 'application/json' });

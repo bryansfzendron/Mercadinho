@@ -154,6 +154,15 @@ function moeda($v): string
     return 'R$ ' . number_format((float) $v, 2, ',', '.');
 }
 
+/**
+ * Quantas vezes o preco de venda cobre o custo: 1,94 (a tela escreve o "x"
+ * em letra menor). Quem chama garante custo > 0 — sem custo nao ha fator.
+ */
+function fator_fmt(float $venda, float $custo): string
+{
+    return number_format($venda / $custo, 2, ',', '.');
+}
+
 function qtd_fmt($v): string
 {
     $f = (float) $v;
