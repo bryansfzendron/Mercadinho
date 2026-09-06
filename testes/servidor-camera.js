@@ -36,6 +36,13 @@ http.createServer((req, res) => {
         return res.end(vista('bipar.php'));
     }
     // Tela da loja: HTML pre-renderizado pelo renderiza-loja.php (sem MySQL).
+    if (url === '/notas') {
+        const arq = path.join(__dirname, 'telas', 'notas-render.html');
+        if (fs.existsSync(arq)) {
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            return res.end(fs.readFileSync(arq));
+        }
+    }
     if (url === '/loja') {
         const arq = path.join(__dirname, 'telas', 'loja-render.html');
         if (fs.existsSync(arq)) {

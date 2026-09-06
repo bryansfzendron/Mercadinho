@@ -34,9 +34,9 @@ $flashes = flash_pegar();
 <?php if ($usuario): ?>
 <nav class="barra">
     <a href="/"          class="<?= $rota === '/' ? 'ativo' : '' ?>"><span>⌂</span>Início</a>
-    <a href="/escanear"  class="<?= $rota === '/escanear' ? 'ativo' : '' ?>"><span>▣</span>Nota</a>
+    <?php // Escanear e uma tela de dentro de Notas: as duas acendem o mesmo item. ?>
+    <a href="/notas"     class="<?= str_starts_with($rota, '/notas') || in_array($rota, ['/escanear', '/manual'], true) ? 'ativo' : '' ?>"><span>≡</span>Notas</a>
     <a href="/bipar"     class="<?= $rota === '/bipar' ? 'ativo' : '' ?>"><span>|||</span>Bipar</a>
-    <a href="/notas"     class="<?= str_starts_with($rota, '/notas') ? 'ativo' : '' ?>"><span>≡</span>Notas</a>
     <a href="/produtos"  class="<?= str_starts_with($rota, '/produtos') ? 'ativo' : '' ?>"><span>☰</span>Produtos</a>
     <a href="/loja"      class="<?= $rota === '/loja' ? 'ativo' : '' ?>"><span>R$</span>Loja</a>
 </nav>

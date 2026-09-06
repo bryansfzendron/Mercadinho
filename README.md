@@ -343,6 +343,7 @@ elas viverem dentro do workflow. O botão *Atualizar preços e estoque* fica na 
 php testes/helpers.php      # número BR, data, EAN, chave do QR, formatação
 php testes/callback.php     # os formatos aceitos no callback e o cálculo do líquido
 php testes/loja.php         # normalização do callback do TouchPay e o prefixo OM
+php testes/nav.php          # o menu de baixo acende um item por rota
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 ```

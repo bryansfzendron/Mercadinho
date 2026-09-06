@@ -1,8 +1,13 @@
 <?php /** @var array $notas */ ?>
 <h1>Minhas notas</h1>
 
+<div class="acoes-topo">
+    <a class="botao botao-grande" href="/escanear">▣ Escanear nota</a>
+    <a class="botao botao-alt" href="/manual">+ Lançar nota manualmente</a>
+</div>
+
 <?php if (!$notas): ?>
-    <p class="vazio">Nenhuma nota ainda.</p>
+    <p class="vazio">Nenhuma nota ainda. Escaneie o QR Code de um cupom para começar.</p>
 <?php else: ?>
     <ul class="lista">
         <?php foreach ($notas as $n): ?>

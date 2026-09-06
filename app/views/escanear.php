@@ -1,3 +1,4 @@
+<a class="voltar" href="/notas">‹ Notas</a>
 <h1>Escanear nota</h1>
 <p class="ajuda">Aponte para o <strong>QR Code</strong> impresso no cupom fiscal.</p>
 
