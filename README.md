@@ -173,6 +173,33 @@ O HTML sintético do teste imita a estrutura real, conferida contra a nota 28048
 - linha de cabeçalho em `<label>`, a aba Cobrança que reusa `class="toggle box"`,
   entidade HTML dupla (`D&amp;#39;ORO`), item `SEM GTIN` e o caminho de erro.
 
+### Testando a câmera sem servidor
+
+As telas `/escanear` e `/bipar` rodam fora do PHP e do MySQL: `testes/servidor-camera.js`
+serve as views com as tags PHP trocadas por valores fixos, e `testes/camera.js` abre tudo
+num Chromium com **câmera falsa**. Ele confere que a câmera abre sozinha quando a permissão
+já está dada, que `getUserMedia` é chamado **uma única vez** (é o que evita o navegador
+perguntar de novo), que o caminho ZXing (sem `BarcodeDetector`, como no iOS) também sobe, e
+guarda screenshots em `testes/telas/`.
+
+```bash
+npm i playwright && npx playwright install chromium   # só na primeira vez
+node testes/servidor-camera.js &
+node testes/camera.js
+```
+
+### Sobre a permissão da câmera
+
+O navegador guarda a permissão por origem — mas o **Safari do iPhone pergunta a cada
+carregamento de página** enquanto o site não estiver marcado como permitido. Para parar de
+perguntar: **aA** na barra de endereço → *Configurações do Site* → *Câmera* → *Permitir*.
+Instalar pela *Adicionar à Tela de Início* também mantém a permissão (iOS 16.4+). No
+Chrome/Android basta permitir uma vez; se estiver perguntando sempre, o site provavelmente
+está sendo aberto dentro de um navegador embutido (WhatsApp, Instagram) em vez do Chrome.
+
+De qualquer forma o app faz a parte dele: abre o stream uma vez só, mantém a câmera viva
+entre uma leitura e outra, e volta a ligar sozinha na próxima visita.
+
 ### Contrato com o app
 
 O app manda no webhook:

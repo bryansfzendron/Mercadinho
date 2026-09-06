@@ -21,3 +21,8 @@ desktop.ini
 *.zip
 *.sql.gz
 *.sql.bak
+
+# Saida dos testes de camera (screenshots) e o Playwright local
+/testes/telas/
+/node_modules/
+package-lock.json

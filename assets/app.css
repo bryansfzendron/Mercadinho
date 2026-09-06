@@ -27,6 +27,10 @@
 
 * { box-sizing: border-box; }
 
+/* Regras de classe com "display" vencem o display:none do navegador para
+   [hidden]. Sem isto, esconder um .botao no JS nao esconde nada. */
+[hidden] { display: none !important; }
+
 body {
     margin: 0;
     background: var(--fundo);
@@ -164,16 +168,94 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 
 /* ---------- camera ---------- */
 .camera-caixa {
-    position: relative; background: #000; border-radius: var(--raio);
-    overflow: hidden; aspect-ratio: 4 / 3; margin-bottom: .75rem;
+    position: relative;
+    background: #06080a;
+    border-radius: 18px;
+    overflow: hidden;
+    aspect-ratio: 3 / 4;
+    max-height: 58vh;
+    margin: 0 auto .7rem;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, .16);
+    isolation: isolate;
 }
-.camera-caixa video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.camera-caixa.larga { aspect-ratio: 4 / 3; }
+.camera-caixa video {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    opacity: 0; transition: opacity .35s ease;
+}
+.camera-caixa.ligada video { opacity: 1; }
 .camera-caixa.oculto { display: none; }
-.mira {
-    position: absolute; inset: 22% 22%;
-    border: 3px solid rgba(255,255,255,.8); border-radius: 10px; pointer-events: none;
+
+/* Tela de espera enquanto a camera esta desligada */
+.camera-espera {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .55rem; padding: 1.2rem; text-align: center;
+    color: #cfd6cb; font-size: .9rem;
+    background: radial-gradient(120% 90% at 50% 0%, #1d2420 0%, #06080a 70%);
 }
-.mira-larga { inset: 35% 10%; }
+.camera-caixa.ligada .camera-espera { display: none; }
+.camera-espera svg { width: 44px; height: 44px; opacity: .55; }
+
+/* Mira: escurece tudo em volta e marca os quatro cantos */
+.mira {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 70%; aspect-ratio: 1 / 1;
+    border-radius: 16px; pointer-events: none;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .52);
+    opacity: 0; transition: opacity .35s ease;
+}
+.camera-caixa.ligada .mira { opacity: 1; }
+.mira-larga { width: 86%; aspect-ratio: 5 / 2; }
+
+.mira::before, .mira::after,
+.mira b::before, .mira b::after {
+    content: ''; position: absolute; width: 26px; height: 26px;
+    border: 3px solid #fff;
+}
+.mira::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; border-radius: 14px 0 0 0; }
+.mira::after { bottom: -2px; right: -2px; border-left: 0; border-top: 0; border-radius: 0 0 14px 0; }
+.mira b::before { top: -2px; right: -2px; border-left: 0; border-bottom: 0; border-radius: 0 14px 0 0; }
+.mira b::after { bottom: -2px; left: -2px; border-right: 0; border-top: 0; border-radius: 0 0 0 14px; }
+
+/* Linha que varre a mira */
+.mira i {
+    position: absolute; left: 6%; right: 6%; height: 2px; top: 8%;
+    background: linear-gradient(90deg, transparent, #6ee7a0, transparent);
+    box-shadow: 0 0 10px rgba(110, 231, 160, .7);
+    animation: varrer 2.4s ease-in-out infinite;
+}
+@keyframes varrer { 0%, 100% { top: 8%; } 50% { top: 90%; } }
+
+/* Flash verde quando le */
+.camera-caixa.leu::after {
+    content: ''; position: absolute; inset: 0; z-index: 2;
+    background: rgba(110, 231, 160, .45);
+    animation: piscar .45s ease-out forwards;
+}
+@keyframes piscar { to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .mira i { animation: none; top: 50%; }
+    .camera-caixa.leu::after { animation: none; opacity: 0; }
+    .camera-caixa video, .mira { transition: none; }
+}
+
+/* Dica flutuante dentro da camera */
+.camera-dica {
+    position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 3;
+    margin: 0; padding: .5rem .8rem;
+    background: rgba(6, 8, 10, .74);
+    color: #f2f5f0; font-size: .85rem; text-align: center;
+    border-radius: 999px;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.camera-dica:empty { display: none; }
+
+.camera-acoes { display: flex; gap: .5rem; }
+.camera-acoes .botao { flex: 1; }
+.camera-acoes .botao-icone { flex: 0 0 auto; width: auto; padding-left: 1rem; padding-right: 1rem; }
+.botao-ligado { background: var(--verde); color: #fff; border-color: var(--verde); }
 
 /* ---------- avisos ---------- */
 .aviso { padding: .7rem .85rem; border-radius: var(--raio); margin-bottom: .8rem; font-size: .9rem; border: 1px solid; }
