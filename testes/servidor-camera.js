@@ -76,6 +76,8 @@ http.createServer((req, res) => {
             stats: { ultimo: 1, min: 0.92, max: 1.1, n: 3 },
             ultimas: [{ loja: 'HIGA PRODUTOS', unitario: 1, data: 'ontem' }],
             loja: [{ pdv: 'PDV Portaria', preco: 1.94, estoque: 6, reservado: 0, atualizado: 'hoje 09:12' }],
+            // 1,68% de maquininha + 5% de condominio + 5% de franquia.
+            custos: { pct: 11.68, condominio: 5, franquia: 5, tem_mix: true },
         }));
     }
     if (url === '/api/notas') {

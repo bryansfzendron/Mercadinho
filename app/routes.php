@@ -445,6 +445,7 @@ function rota_api_produto(array $u): void
             'encontrado' => false,
             'ean'        => ean_normalizado($ean),
             'loja'       => loja_resposta_api($ean, null),
+            'custos'     => custos_variavel_atual(),
         ]);
     }
     $hist  = produto_historico((int) $p['id'], (int) $u['id']);
@@ -456,10 +457,14 @@ function rota_api_produto(array $u): void
             'ean'        => $p['ean'],
             'mensagem'   => 'Produto conhecido, mas voce ainda nao comprou.',
             'loja'       => $loja,
+            'custos'     => custos_variavel_atual(),
         ]);
     }
     json_resposta([
         'encontrado' => true,
+        // Para a conta de "vale a pena comprar por X" acontecer na hora, sem
+        // uma ida ao servidor por tecla digitada.
+        'custos'     => custos_variavel_atual(),
         'produto_id' => (int) $p['id'],
         'descricao'  => $p['descricao'],
         'ean'        => $p['ean'],

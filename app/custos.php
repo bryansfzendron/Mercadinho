@@ -150,3 +150,26 @@ function custos_pct_variavel(array $por_forma, array $p): float
     $taxa_media = $receita > 0 ? $taxa / $receita * 100 : 0.0;
     return $taxa_media + (float) $p['condominio_pct'] + (float) $p['franquia_pct'];
 }
+
+/**
+ * Os percentuais que acompanham o faturamento, medidos no mix de pagamento
+ * real dos ultimos meses. E o que falta descontar do preco de venda para
+ * saber se comprar por X vale a pena.
+ */
+function custos_variavel_atual(int $dias = 90): array
+{
+    $p = custos_parametros();
+    $por_forma = vendas_por_forma([
+        'de'  => date('Y-m-d', strtotime('-' . $dias . ' days')),
+        'ate' => date('Y-m-d'),
+    ]);
+
+    return [
+        'pct'        => custos_pct_variavel($por_forma, $p),
+        'condominio' => (float) $p['condominio_pct'],
+        'franquia'   => (float) $p['franquia_pct'],
+        // Sem venda no periodo nao da para saber o mix; a taxa fica de fora e
+        // a tela avisa, em vez de inventar uma media.
+        'tem_mix'    => $por_forma !== [],
+    ];
+}

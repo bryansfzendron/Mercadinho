@@ -141,6 +141,37 @@ async function abrir(navegador, rota, opcoes = {}) {
         checar('bipar: margem no verde',
             await pag.locator('.margem').evaluate(el => el.classList.contains('margem-boa')));
 
+        // "Vale a pena comprar por X?": a conta tem que descontar os 11,68%
+        // que saem de toda venda, senao diz que vale quando nao vale.
+        await pag.locator('#custo-agora').fill('1,00');
+        await pag.waitForTimeout(120);
+        const vale = (await pag.locator('#vale-resposta').innerText()).replace(/\s+/g, ' ');
+        checar('vale: veredito positivo', /Vale a pena/.test(vale), vale);
+        checar('vale: fator', /1,94x/.test(vale), vale);
+        // 1,94 - 1,00 - (1,94 x 11,68%) = 0,71
+        checar('vale: sobra ja sem os percentuais', /R\$ 0,71/.test(vale), vale);
+        checar('vale: compara com o ultimo pago', /vs\. os R\$ 1,00/.test(vale), vale);
+
+        // Custo que come toda a margem tem que dizer que nao vale.
+        await pag.locator('#custo-agora').fill('1,80');
+        await pag.waitForTimeout(120);
+        const ruim = (await pag.locator('#vale-resposta').innerText()).replace(/\s+/g, ' ');
+        checar('vale: custo alto nao vale', /Não vale/.test(ruim), ruim);
+        checar('vale: prejuizo se diz perde, nao sobra negativo',
+            /perde R\$ 0,09/.test(ruim) && !/-0,09/.test(ruim), ruim);
+        checar('vale: fica vermelho',
+            await pag.locator('#vale-resposta .margem').evaluate(el => el.classList.contains('margem-ruim')));
+
+        // Campo vazio nao pode mostrar resposta nenhuma.
+        await pag.locator('#custo-agora').fill('');
+        await pag.waitForTimeout(120);
+        checar('vale: sem valor nao responde',
+            (await pag.locator('#vale-resposta').innerText()).trim(), '');
+
+        // O teclado nao pode subir sozinho por causa do campo novo.
+        checar('vale: campo novo nao rouba o foco',
+            await pag.evaluate(() => document.activeElement !== document.getElementById('custo-agora')));
+
         await pag.screenshot({ path: require('path').join(__dirname, 'telas', 'tela-bipar.png') });
         checar('bipar: sem erro no console', erros.length === 0, erros.join(' | '));
         await ctx.close();

@@ -381,6 +381,24 @@ Na tela inicial, *Importar 12 meses de vendas* faz a carga inicial (~12,5 mil tr
 13 páginas) e depois o botão vira *Buscar vendas novas*, que puxa só o que falta.
 O webhook novo precisa de `n8n_webhook_vendas` no `config.php`.
 
+## Vale a pena comprar por X?
+
+Ao bipar, além do histórico, a tela pergunta **quanto estão cobrando agora** e responde na
+hora se compensa. A conta é:
+
+```
+sobra por unidade = preço de venda − custo digitado − preço de venda × (maquininha + condomínio + franquia)
+```
+
+Descontar os percentuais antes de comparar é o que evita a conta mentir para cima: um
+produto com fator 1,2x já dá prejuízo depois dos ~11,7% que saem de toda venda. **Custo
+fixo fica de fora de propósito** — energia e sistema não mudam por comprar mais uma
+unidade deste produto; eles pesam no resultado do mês, não na decisão de compra.
+
+O percentual vem do mix de pagamento real dos últimos 90 dias, não de média chutada. Além
+do veredito, a tela mostra o fator, quanto por cento do preço sobra e como o valor se
+compara com o último que você pagou naquele produto.
+
 ## O que sobra da venda
 
 A tela `/vendas` (link no topo da Loja) cruza o que o TouchPay vendeu com o que a NFC-e diz

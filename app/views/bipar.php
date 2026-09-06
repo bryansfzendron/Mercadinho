@@ -44,6 +44,13 @@
     let leitor = null;
     let luzAcesa = false;
 
+    /** O que o dedo digita vem com virgula; e as vezes com "R$" junto. */
+    function numero(v) {
+        const limpo = String(v || '').replace(/[^0-9,.]/g, '').replace(/\./g, '').replace(',', '.');
+        const n = parseFloat(limpo);
+        return isFinite(n) ? n : 0;
+    }
+
     function moeda(v) {
         return 'R$ ' + Number(v).toFixed(2).replace('.', ',');
     }
@@ -95,6 +102,108 @@
             ' <span class="margem-perc">' + sinal + perc.toFixed(0) + '%</span></span>' +
             '<span class="margem-linha">vende ' + moeda(venda) + ' · pagou ' + moeda(custo) + '</span>' +
             '</div></div>';
+    }
+
+
+    /** O maior preco de venda entre os PDVs, que e o que a conta usa. */
+    function precoDeVenda(loja) {
+        const comPreco = (loja || []).filter(l => l.preco != null);
+        return comPreco.length ? Math.max(...comPreco.map(l => l.preco)) : null;
+    }
+
+    /**
+     * Vale a pena comprar por esse preco?
+     *
+     * Desconta do preco de venda o que acompanha o faturamento (maquininha,
+     * condominio e franquia) antes de comparar com o custo. Sem isso a conta
+     * mente para cima: um produto com fator 1,2x ja da prejuizo depois dos
+     * ~11,7% que saem de toda venda.
+     *
+     * Custo fixo (energia, sistema) fica de fora de proposito: ele nao muda
+     * com a decisao de comprar mais uma unidade deste produto.
+     */
+    function valeAPena(custo, venda, pctVariavel, ultimoPago) {
+        if (!(custo > 0) || !(venda > 0)) return null;
+        const variavel = venda * (pctVariavel || 0) / 100;
+        const lucro = venda - custo - variavel;
+        return {
+            custo, venda, variavel, lucro,
+            fator: venda / custo,
+            margem: lucro / venda * 100,
+            // Empate conta como "no limite": lucro zero nao e negocio.
+            veredito: lucro > 0.005 ? 'vale' : (lucro < -0.005 ? 'nao' : 'limite'),
+            // Comparacao com o que ele costuma pagar, quando ha historico.
+            versusUltimo: ultimoPago > 0 ? (custo - ultimoPago) / ultimoPago * 100 : null,
+        };
+    }
+
+    /** O bloco de "quanto estao cobrando?" com a resposta embaixo. */
+    function blocoVale(d) {
+        const venda = precoDeVenda(d.loja);
+        if (venda == null) {
+            return '<div class="cartao"><h2 class="sem-topo">Vale a pena?</h2>' +
+                '<p class="ajuda">Este produto não tem preço de venda no planograma, ' +
+                'então não dá para dizer se compensa. Defina o preço no TouchPay e ' +
+                'sincronize.</p></div>';
+        }
+        const custos = d.custos || {};
+        return '<div class="cartao">' +
+            '<h2 class="sem-topo">Vale a pena?</h2>' +
+            '<p class="ajuda">Quanto estão cobrando por uma unidade agora?</p>' +
+            '<div class="linha-form">' +
+              '<input id="custo-agora" type="text" inputmode="decimal" placeholder="ex.: 3,89" ' +
+                     'autocomplete="off" autocorrect="off" spellcheck="false">' +
+              '<button type="button" id="btn-vale" class="botao">Calcular</button>' +
+            '</div>' +
+            '<div id="vale-resposta"></div>' +
+            '<p class="ajuda">Você vende por <strong>' + moeda(venda) + '</strong>. ' +
+            'A conta desconta ' + (custos.pct || 0).toFixed(2).replace('.', ',') + '% ' +
+            'que sai de toda venda (maquininha, condomínio e franquia)' +
+            (custos.tem_mix === false ? ', ainda sem a taxa da maquininha por falta de venda no período' : '') +
+            '. Energia e sistema ficam de fora: não mudam por comprar mais uma unidade.</p>' +
+            '</div>';
+    }
+
+    /** Liga o campo de "vale a pena" que o blocoVale acabou de desenhar. */
+    function ligarVale(d) {
+        const campo = document.getElementById('custo-agora');
+        const botao = document.getElementById('btn-vale');
+        const alvoR = document.getElementById('vale-resposta');
+        if (!campo || !botao || !alvoR) return;
+
+        const venda = precoDeVenda(d.loja);
+        const pct = (d.custos && d.custos.pct) || 0;
+        const ultimo = (d.stats && Number(d.stats.ultimo)) || 0;
+
+        function responder() {
+            const v = valeAPena(numero(campo.value), venda, pct, ultimo);
+            if (!v) { alvoR.innerHTML = ''; return; }
+
+            const classe = v.veredito === 'vale' ? 'margem-boa' : 'margem-ruim';
+            const titulo = v.veredito === 'vale' ? 'Vale a pena'
+                        : (v.veredito === 'limite' ? 'No limite' : 'Não vale');
+
+            // Prejuizo se diz "perde", nao "sobra R$ -0,09".
+            let linhas = (v.lucro >= 0 ? 'sobra ' : 'perde ') + moeda(Math.abs(v.lucro)) +
+                         ' por unidade · vende ' + moeda(v.venda);
+            if (v.versusUltimo != null) {
+                const sinal = v.versusUltimo >= 0 ? '+' : '−';
+                linhas += ' · ' + sinal + Math.abs(v.versusUltimo).toFixed(0) +
+                          '% vs. os ' + moeda(ultimo) + ' que você pagou';
+            }
+
+            alvoR.innerHTML =
+                '<div class="margem ' + classe + '">' +
+                '<strong class="margem-fator">' + v.fator.toFixed(2).replace('.', ',') + '<span>x</span></strong>' +
+                '<div class="margem-conta">' +
+                '<span class="margem-lucro">' + titulo +
+                ' <span class="margem-perc">' + v.margem.toFixed(0) + '% do preço</span></span>' +
+                '<span class="margem-linha">' + linhas + '</span>' +
+                '</div></div>';
+        }
+
+        botao.addEventListener('click', responder);
+        campo.addEventListener('input', responder);
     }
 
     function lembrar(ligada) {
@@ -187,7 +296,9 @@
                     '<p class="mono">' + esc(d.ean || ean) + '</p>' +
                     '<a class="botao" href="/manual?ean=' + encodeURIComponent(d.ean || ean) + '">Cadastrar compra</a>' +
                     '</div>' +
+                    blocoVale(d) +
                     blocoLoja(d.loja);
+                ligarVale(d);
                 return;
             }
 
@@ -209,10 +320,13 @@
                 '<p class="ajuda">' + d.stats.n + ' compra(s) registradas</p>' +
                 blocoMargem(d.loja, d.stats) +
                 '</div>' +
+                blocoVale(d) +
                 blocoLoja(d.loja) +
                 '<h2>Você pagou</h2>' +
                 '<ul class="lista">' + linhas + '</ul>' +
                 '<p class="centro"><a href="' + d.url + '">Ver histórico completo</a></p>';
+
+            ligarVale(d);
         } catch (e) {
             dica.textContent = leitor ? 'Aponte para o próximo produto' : '';
             alvo.innerHTML = '<div class="aviso aviso-erro">Falha na busca: ' + e.message + '</div>';

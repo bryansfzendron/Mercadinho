@@ -10,7 +10,7 @@ $flashes = flash_pegar();
 <meta name="theme-color" content="#1c1917">
 <title><?= e($titulo) ?> · Mercadinho</title>
 <link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/assets/app.css?v=14">
+<link rel="stylesheet" href="/assets/app.css?v=15">
 </head>
 <body>
 
