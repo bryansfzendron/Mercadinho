@@ -1,12 +1,26 @@
-<?php /** @var array $res @var array $res_ant @var array $variacao @var array $top @var array $formas_map @var array $r @var string $chave @var string $rotulo @var string $de @var string $ate @var array $periodos */ ?>
+<?php /** @var array $res @var array $res_ant @var array $variacao @var array $top @var array $formas_map @var array $r @var string $chave @var string $rotulo @var string $de @var string $ate @var array $periodos @var int $pdv_id @var array $pdvs */ ?>
 <div class="acoes-topo">
     <h1 style="margin:0">Dashboard</h1>
     <div class="chips" style="margin-top:.5rem">
         <?php foreach ($periodos as $k => [$lbl, $d, $a]): ?>
-            <a class="chip <?= $chave === $k ? 'ativo' : '' ?>" href="/dashboard?periodo=<?= e($k) ?>"><?= e($lbl) ?></a>
+            <a class="chip <?= $chave === $k ? 'ativo' : '' ?>" href="/dashboard?periodo=<?= e($k) ?><?= $pdv_id ? '&pdv_id=' . (int) $pdv_id : '' ?>"><?= e($lbl) ?></a>
         <?php endforeach; ?>
     </div>
 </div>
+
+<form method="get" action="/dashboard" style="margin-bottom:.75rem">
+    <label>Ponto de venda
+        <select name="pdv_id" onchange="this.form.submit()">
+            <option value="">todos</option>
+            <?php foreach ($pdvs as $p): ?>
+                <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>>
+                    <?= e($p['nome']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </label>
+    <input type="hidden" name="periodo" value="<?= e($chave) ?>">
+</form>
 
 <div class="numeros" style="gap:.5rem">
     <div class="numero kpi <?= ($variacao['receita'] ?? 0) >= 0 ? 'kpi-up' : 'kpi-down' ?>">

@@ -564,7 +564,12 @@ function rota_dashboard(array $u): void
     $periodo = $periodos[$chave] ?? $periodos['mes'];
     [$rotulo, $de, $ate] = $periodo;
 
+    $pdv_id = (int) ($_GET['pdv_id'] ?? 0);
+
     $f = ['de' => $de, 'ate' => $ate, 'agrupar' => 'produto'];
+    if ($pdv_id) {
+        $f['pdv_id'] = $pdv_id;
+    }
     $r = vendas_relatorio($f);
     $res = $r['resultado'];
 
@@ -572,7 +577,7 @@ function rota_dashboard(array $u): void
     $dias = (int) $res['dias'];
     $de_ant = date('Y-m-d', strtotime($de . ' -' . $dias . ' days'));
     $ate_ant = date('Y-m-d', strtotime($de . ' -1 day'));
-    $r_ant = vendas_relatorio(['de' => $de_ant, 'ate' => $ate_ant, 'agrupar' => 'produto']);
+    $r_ant = vendas_relatorio(['de' => $de_ant, 'ate' => $ate_ant, 'agrupar' => 'produto'] + ($pdv_id ? ['pdv_id' => $pdv_id] : []));
     $res_ant = $r_ant['resultado'];
 
     // Variações
@@ -593,7 +598,9 @@ function rota_dashboard(array $u): void
     // Formas de pagamento para mini cards
     $formas_map = ['Debit' => 'Débito', 'Credit' => 'Crédito', 'Pix' => 'Pix', 'Voucher' => 'Voucher'];
 
-    ver('dashboard', compact('res', 'res_ant', 'variacao', 'top', 'formas_map', 'r', 'chave', 'rotulo', 'de', 'ate', 'periodos'), 'Dashboard');
+    $pdvs = vendas_pdvs();
+
+    ver('dashboard', compact('res', 'res_ant', 'variacao', 'top', 'formas_map', 'r', 'chave', 'rotulo', 'de', 'ate', 'periodos', 'pdv_id', 'pdvs'), 'Dashboard');
 }
 
 /** Metas do mes: quanto entrou, quanto falta e se o ritmo chega la. */
@@ -601,21 +608,48 @@ function rota_metas(array $u): void
 {
     $p = custos_parametros();
 
-    // O mes corrente inteiro, do dia 1 ate hoje. Os PDVs desligados ja saem
-    // no filtro de dentro do relatorio.
-    $r = vendas_relatorio(['de' => date('Y-m-01'), 'ate' => date('Y-m-d'), 'agrupar' => 'produto']);
-    [$dia, $no_mes] = metas_dias();
+    // Filtro de mes (padrao: mes corrente)
+    $mes_ref = $_GET['mes'] ?? date('Y-m');
+    $de      = date('Y-m-01', strtotime($mes_ref . '-01'));
+    $ate     = date('Y-m-t', strtotime($mes_ref . '-01'));
+    $hoje    = date('Y-m-d');
+    if ($ate > $hoje) {
+        $ate = $hoje;
+    }
+
+    $pdv_id = (int) ($_GET['pdv_id'] ?? 0);
+
+    $f = ['de' => $de, 'ate' => $ate, 'agrupar' => 'produto'];
+    if ($pdv_id) {
+        $f['pdv_id'] = $pdv_id;
+    }
+    $r = vendas_relatorio($f);
+    [$dia, $no_mes] = metas_dias($ate);
 
     $fat = meta_progresso($r['resultado']['receita'], (float) $p['meta_faturamento'], $dia, $no_mes)
          + ['dia' => $dia, 'no_mes' => $no_mes];
     $luc = meta_progresso($r['resultado']['lucro'], (float) $p['meta_lucro'], $dia, $no_mes)
          + ['dia' => $dia, 'no_mes' => $no_mes];
 
+    // Breakdown diario para faturamento e lucro
+    $breakdown_fat = metas_breakdown_diario((float) $p['meta_faturamento'], $r['resultado']['receita'], $de, $ate, $pdv_id ?: null);
+    $breakdown_luc = metas_breakdown_diario((float) $p['meta_lucro'], $r['resultado']['lucro'], $de, $ate, $pdv_id ?: null);
+
     $meses = [1 => 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
               'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-    $mes = $meses[(int) date('n')] . ' de ' . date('Y');
+    $mes_num = (int) date('n', strtotime($mes_ref));
+    $mes = $meses[$mes_num] . ' de ' . date('Y', strtotime($mes_ref));
 
-    ver('metas', compact('fat', 'luc', 'p', 'mes'), 'Metas');
+    // Meses disponiveis para o select (ultimos 12 meses)
+    $meses_disponiveis = [];
+    for ($i = 0; $i < 12; $i++) {
+        $d = date('Y-m', strtotime("-$i months"));
+        $meses_disponiveis[$d] = $meses[(int) date('n', strtotime($d . '-01'))] . ' de ' . date('Y', strtotime($d . '-01'));
+    }
+
+    $pdvs = vendas_pdvs();
+
+    ver('metas', compact('fat', 'luc', 'p', 'mes', 'mes_ref', 'meses_disponiveis', 'breakdown_fat', 'breakdown_luc', 'pdv_id', 'pdvs', 'de', 'ate'), 'Metas');
 }
 
 /**
