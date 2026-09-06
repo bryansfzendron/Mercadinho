@@ -145,16 +145,32 @@
      * Custo fixo (energia, sistema) fica de fora de proposito: ele nao muda
      * com a decisao de comprar mais uma unidade deste produto.
      */
-    function valeAPena(custo, venda, pctVariavel, ultimoPago) {
+    function valeAPena(custo, venda, min, ultimoPago) {
         if (!(custo > 0) || !(venda > 0)) return null;
-        const variavel = venda * (pctVariavel || 0) / 100;
-        const lucro = venda - custo - variavel;
+
+        const pctVariavel = (min && min.pct_variavel) || 0;
+        // pct_fixo e null quando nao ha faturamento para saber quanto energia e
+        // sistema pesam. Sem ele so da para julgar a primeira camada.
+        const pctFixo = min && min.pct_fixo != null ? min.pct_fixo : null;
+
+        const taxas = venda * pctVariavel / 100;
+        const sobra = venda - custo - taxas;
+        const operacao = pctFixo === null ? null : venda * pctFixo / 100;
+        const sobraApos = operacao === null ? null : sobra - operacao;
+
+        // Mesmos tres degraus da aba Margens, senao o mesmo produto recebe
+        // vereditos diferentes nas duas telas.
+        let veredito = 'vale';
+        if (sobra <= 0.005) {
+            veredito = 'nao';
+        } else if (sobraApos !== null && sobraApos < -0.005) {
+            veredito = 'aperto';
+        }
+
         return {
-            custo, venda, variavel, lucro,
+            custo, venda, taxas, operacao, sobra, sobraApos, veredito,
             fator: venda / custo,
-            margem: lucro / venda * 100,
-            // Empate conta como "no limite": lucro zero nao e negocio.
-            veredito: lucro > 0.005 ? 'vale' : (lucro < -0.005 ? 'nao' : 'limite'),
+            margem: (sobraApos === null ? sobra : sobraApos) / venda * 100,
             // Comparacao com o que ele costuma pagar, quando ha historico.
             versusUltimo: ultimoPago > 0 ? (custo - ultimoPago) / ultimoPago * 100 : null,
         };
@@ -170,6 +186,20 @@
                 'sincronize.</p></div>';
         }
         const custos = d.custos || {};
+        const min = d.minimos || {};
+        const num = (v) => (v || 0).toFixed(2).replace('.', ',');
+
+        let conta = 'Você vende por <strong>' + moeda(venda) + '</strong>. A conta tira ' +
+            num(min.pct_variavel || custos.pct) + '% de maquininha, condomínio e franquia';
+        if (min.pct_fixo != null) {
+            conta += ', e mais ' + num(min.pct_fixo) + '% de energia e sistema — que é o ' +
+                'peso deles sobre o seu faturamento';
+        }
+        conta += '.';
+        if (custos.tem_mix === false) {
+            conta += ' Ainda sem a taxa da maquininha, por falta de venda no período.';
+        }
+
         return '<div class="cartao">' +
             '<h2 class="sem-topo">Vale a pena?</h2>' +
             '<p class="ajuda">Quanto estão cobrando por uma unidade agora?</p>' +
@@ -179,11 +209,7 @@
               '<button type="button" id="btn-vale" class="botao">Calcular</button>' +
             '</div>' +
             '<div id="vale-resposta"></div>' +
-            '<p class="ajuda">Você vende por <strong>' + moeda(venda) + '</strong>. ' +
-            'A conta desconta ' + (custos.pct || 0).toFixed(2).replace('.', ',') + '% ' +
-            'que sai de toda venda (maquininha, condomínio e franquia)' +
-            (custos.tem_mix === false ? ', ainda sem a taxa da maquininha por falta de venda no período' : '') +
-            '. Energia e sistema ficam de fora: não mudam por comprar mais uma unidade.</p>' +
+            '<p class="ajuda">' + conta + '</p>' +
             '</div>';
     }
 
@@ -195,20 +221,27 @@
         if (!campo || !botao || !alvoR) return;
 
         const venda = precoDeVenda(d.loja);
-        const pct = (d.custos && d.custos.pct) || 0;
+        // Os cortes vem calculados do servidor: mix de pagamento real dos
+        // ultimos 90 dias e peso do custo fixo sobre o faturamento do mes.
+        const min = d.minimos || { pct_variavel: (d.custos && d.custos.pct) || 0, pct_fixo: null };
         const ultimo = (d.stats && Number(d.stats.ultimo)) || 0;
 
         function responder() {
-            const v = valeAPena(numero(campo.value), venda, pct, ultimo);
+            const v = valeAPena(numero(campo.value), venda, min, ultimo);
             if (!v) { alvoR.innerHTML = ''; return; }
 
-            const classe = v.veredito === 'vale' ? 'margem-boa' : 'margem-ruim';
+            const classe = v.veredito === 'vale' ? 'margem-boa'
+                        : (v.veredito === 'aperto' ? 'margem-aperto' : 'margem-ruim');
             const titulo = v.veredito === 'vale' ? 'Vale a pena'
-                        : (v.veredito === 'limite' ? 'No limite' : 'Não vale');
+                        : (v.veredito === 'aperto' ? 'Não paga a operação' : 'Não vale');
 
             // Prejuizo se diz "perde", nao "sobra R$ -0,09".
-            let linhas = (v.lucro >= 0 ? 'sobra ' : 'perde ') + moeda(Math.abs(v.lucro)) +
-                         ' por unidade · vende ' + moeda(v.venda);
+            const diz = (valor) => (valor >= 0 ? 'sobra ' : 'perde ') + moeda(Math.abs(valor));
+            let linhas = diz(v.sobra) + ' depois das taxas';
+            if (v.sobraApos !== null) {
+                linhas += ', ' + diz(v.sobraApos) + ' depois da operação';
+            }
+            linhas += ' · vende ' + moeda(v.venda);
             if (v.versusUltimo != null) {
                 const sinal = v.versusUltimo >= 0 ? '+' : '−';
                 linhas += ' · ' + sinal + Math.abs(v.versusUltimo).toFixed(0) +

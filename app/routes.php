@@ -448,6 +448,7 @@ function rota_api_produto(array $u): void
             'ean'        => ean_normalizado($ean),
             'loja'       => loja_resposta_api($ean, null),
             'custos'     => custos_variavel_atual(),
+            'minimos'    => margens_minimos(),
         ]);
     }
     $hist  = produto_historico((int) $p['id'], (int) $u['id']);
@@ -460,6 +461,7 @@ function rota_api_produto(array $u): void
             'mensagem'   => 'Produto conhecido, mas voce ainda nao comprou.',
             'loja'       => $loja,
             'custos'     => custos_variavel_atual(),
+            'minimos'    => margens_minimos(),
         ]);
     }
     json_resposta([

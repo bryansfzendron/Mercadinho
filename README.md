@@ -410,14 +410,17 @@ hora se compensa. A conta é:
 sobra por unidade = preço de venda − custo digitado − preço de venda × (maquininha + condomínio + franquia)
 ```
 
-Descontar os percentuais antes de comparar é o que evita a conta mentir para cima: um
-produto com fator 1,2x já dá prejuízo depois dos ~11,7% que saem de toda venda. **Custo
-fixo fica de fora de propósito** — energia e sistema não mudam por comprar mais uma
-unidade deste produto; eles pesam no resultado do mês, não na decisão de compra.
+```
+depois da operação = sobra − preço de venda × (energia + sistema, como % do faturamento)
+```
 
-O percentual vem do mix de pagamento real dos últimos 90 dias, não de média chutada. Além
-do veredito, a tela mostra o fator, quanto por cento do preço sobra e como o valor se
-compara com o último que você pagou naquele produto.
+Duas camadas porque elas respondem a perguntas diferentes, e o veredito usa **os mesmos três
+degraus da aba Margens** — vale a pena, não paga a operação, não vale. Um produto no meio
+não pode receber "vale a pena" ao bipar e "não paga a operação" na listagem.
+
+Os percentuais vêm dos dados reais: mix de pagamento dos últimos 90 dias e peso do custo
+fixo sobre o faturamento do mês. Além do veredito, a tela mostra o fator, quanto sobra em
+cada camada e como o valor se compara com o último que você pagou naquele produto.
 
 ## O que sobra da venda
 

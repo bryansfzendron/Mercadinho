@@ -148,9 +148,20 @@ async function abrir(navegador, rota, opcoes = {}) {
         const vale = (await pag.locator('#vale-resposta').innerText()).replace(/\s+/g, ' ');
         checar('vale: veredito positivo', /Vale a pena/.test(vale), vale);
         checar('vale: fator', /1,94x/.test(vale), vale);
-        // 1,94 - 1,00 - (1,94 x 11,68%) = 0,71
-        checar('vale: sobra ja sem os percentuais', /R\$ 0,71/.test(vale), vale);
+        // 1,94 - 1,00 - (1,94 x 11,68%) = 0,71 depois das taxas
+        checar('vale: sobra depois das taxas', /R\$ 0,71 depois das taxas/.test(vale), vale);
+        // e menos 3,05% de energia e sistema: 0,71 - 0,06 = 0,65
+        checar('vale: e depois da operacao', /R\$ 0,65 depois da operação/.test(vale), vale);
         checar('vale: compara com o ultimo pago', /vs\. os R\$ 1,00/.test(vale), vale);
+
+        // Entre os dois cortes: cobre as taxas, nao paga a operacao.
+        // 1,94 - 1,70 - 0,23 = 0,01 de sobra; menos 0,06 de fixo = -0,05.
+        await pag.locator('#custo-agora').fill('1,70');
+        await pag.waitForTimeout(120);
+        const aperto = (await pag.locator('#vale-resposta').innerText()).replace(/\s+/g, ' ');
+        checar('vale: no aperto nao diz que vale', /Não paga a operação/.test(aperto), aperto);
+        checar('vale: aperto tem cor propria',
+            await pag.locator('#vale-resposta .margem').evaluate(el => el.classList.contains('margem-aperto')));
 
         // Custo que come toda a margem tem que dizer que nao vale.
         await pag.locator('#custo-agora').fill('1,80');
@@ -161,9 +172,17 @@ async function abrir(navegador, rota, opcoes = {}) {
             /perde R\$ 0,09/.test(ruim) && !/-0,09/.test(ruim), ruim);
         checar('vale: fica vermelho',
             await pag.locator('#vale-resposta .margem').evaluate(el => el.classList.contains('margem-ruim')));
+        // O cartao diz o que entrou na conta, para nao restar duvida.
+        const explicacao = (await pag.locator('.cartao', { hasText: 'Vale a pena?' }).innerText()).replace(/\s+/g, ' ');
+        checar('vale: explica os percentuais',
+            /11,68% de maquininha, condomínio e franquia/.test(explicacao), explicacao);
+        checar('vale: explica o fixo', /3,05% de energia e sistema/.test(explicacao), explicacao);
 
-        // Campo vazio nao pode mostrar resposta nenhuma.
-        await pag.locator('#custo-agora').fill('');
+        // Campo vazio nao pode mostrar resposta nenhuma. Limpa pelo teclado:
+        // fill('') nao dispara o evento input neste Chrome, e o teste passaria
+        // a testar o Playwright em vez da tela.
+        await pag.locator('#custo-agora').press('Control+a');
+        await pag.locator('#custo-agora').press('Backspace');
         await pag.waitForTimeout(120);
         checar('vale: sem valor nao responde',
             (await pag.locator('#vale-resposta').innerText()).trim(), '');
