@@ -92,7 +92,52 @@ checar('erro: status', $r['status'], 'erro');
 checar('erro: mensagem', $r['erro'], 'captcha');
 checar('erro: sem itens', $r['itens'], []);
 
-// ---- f) calculo do liquido, item a item ----
+// ---- f) payload que o n8n manda hoje: aninhado, com EAN e desconto por item ----
+$novo = callback_normalizar([
+    'nota_id' => 12,
+    'token' => 'segredo',
+    'status' => 'ok',
+    'nota' => [
+        'chave' => '35260946029724000673651010000280481783880108',
+        'emitente' => 'HIGA PRODUTOS ALIMENTICIOS LTDA',
+        'cnpj' => '46029724000673',
+        'inscricao_estadual' => '798552003114',
+        'municipio' => 'SOROCABA',
+        'codigo_municipio' => '3552205',
+        'uf' => 'SP',
+        'modelo' => '65', 'serie' => '101', 'numero_nota' => '28048',
+        'emissao' => '04/09/2026 22:26:38-03:00',
+        'valor_total_produtos' => '1.595,140',
+        'desconto_total_nota' => '62,040',
+        'valor_total_nota' => '1.533,100',
+    ],
+    'itens' => [[
+        'item' => 1, 'codigo' => '359894',
+        'descricao' => 'SAND FAROESTE BURGER C CARAM 145G',
+        'quantidade' => '3,0000', 'unidade' => 'UN',
+        'valor_unitario' => '6,9800000000', 'valor_total_item' => '20,940',
+        'desconto_item' => '0,870', 'ean' => '7891164026974',
+        'ncm' => '16029000', 'cest' => '1707900', 'cfop' => '5405',
+        'valor_tributos' => '5,110', 'origem' => '0 - Nacional',
+    ]],
+]);
+checar('n8n atual: nota_id', $novo['nota_id'], 12);
+checar('n8n atual: emitente', $novo['cab']['emitente'], 'HIGA PRODUTOS ALIMENTICIOS LTDA');
+checar('n8n atual: municipio sem codigo IBGE', $novo['cab']['municipio'], 'SOROCABA');
+checar('n8n atual: emissao com fuso', data_mysql($novo['cab']['emissao']), '2026-09-04 22:26:38');
+checar('n8n atual: ean do item', $novo['itens'][0]['ean'], '7891164026974');
+checar('n8n atual: ean normalizado', ean_normalizado($novo['itens'][0]['ean']), '7891164026974');
+checar('n8n atual: codigo interno', $novo['itens'][0]['codigo'], '359894');
+checar('n8n atual: desconto do item', num_br($novo['itens'][0]['desconto_item']), 0.87);
+checar('n8n atual: valor unitario longo', num_br($novo['itens'][0]['valor_unitario']), 6.98);
+checar(
+    'n8n atual: liquido do item',
+    round(num_br($novo['itens'][0]['valor_total_item']) - num_br($novo['itens'][0]['desconto_item']), 2),
+    20.07
+);
+checar('n8n atual: campo extra nao atrapalha', $novo['itens'][0]['valor_tributos'], '5,110');
+
+// ---- g) calculo do liquido, item a item ----
 foreach ([
     ['bruto' => '59,80', 'desc' => '0,00', 'qtd' => '2,0000', 'liq' => 59.80, 'unit' => 29.90],
     ['bruto' => '8,63',  'desc' => '1,00', 'qtd' => '1,235',  'liq' => 7.63,  'unit' => 6.1781],

@@ -158,10 +158,20 @@ node n8n/montar-workflow.js   # regenera o .workflow.json
 node n8n/teste-parser.js      # roda o parser contra um HTML sintético
 ```
 
-O teste cobre as armadilhas conhecidas: linha de cabeçalho em `<label>`, a aba
-Cobrança que reusa `class="toggle box"`, entidade HTML dupla (`D&amp;#39;ORO`),
-item `SEM GTIN` e o caminho de erro. Ele valida a **lógica**, não os seletores
-reais — só a primeira nota de verdade confirma esses.
+O HTML sintético do teste imita a estrutura real, conferida contra a nota 28048
+(109 itens). Ele cobre as armadilhas que já morderam:
+
+- **cada item são duas tabelas irmãs** — a linha resumida em
+  `<table class="toggle box">` e os detalhes (EAN, código do produto, valor
+  unitário, desconto) em `<table class="toggable box">` logo depois. Casar só
+  `toggle` devolve descrição e valor, mas deixa todo o resto vazio;
+- **a aba Destinatário (`id="DestRem"`) repete os rótulos do Emitente** com
+  valor vazio; por isso a fatia do emitente termina ali e o primeiro rótulo
+  vence no `pares()` — senão a razão social vira string vazia;
+- o corpo da resposta HTTP vem em **`data`** nesta versão do n8n (era `body` nas
+  antigas); os nodes leem os dois;
+- linha de cabeçalho em `<label>`, a aba Cobrança que reusa `class="toggle box"`,
+  entidade HTML dupla (`D&amp;#39;ORO`), item `SEM GTIN` e o caminho de erro.
 
 ### Contrato com o app
 
@@ -201,34 +211,46 @@ O `Devolver ao Mercadinho` posta em `{{ $json.callback_url }}`:
   "status": "ok",
   "nota": {
     "chave": "35260946029724000673651010000280481783880108",
-    "emitente": "HIGA PRODUTOS ALIMENTICIOS",
+    "emitente": "HIGA PRODUTOS ALIMENTICIOS LTDA",
+    "nome_fantasia": "",
     "cnpj": "46029724000673",
-    "municipio": "SAO PAULO",
+    "inscricao_estadual": "798552003114",
+    "endereco": "AV. JUVENAL DE CAMPOS, 550",
+    "bairro": "JARDIM FACULDADE",
+    "cep": "18030-280",
+    "municipio": "SOROCABA",
+    "codigo_municipio": "3552205",
     "uf": "SP",
     "modelo": "65",
     "serie": "101",
     "numero_nota": "28048",
-    "emissao": "05/09/2026 19:32:11",
-    "valor_total_produtos": "1.234,56",
-    "desconto_total_nota": "0,00",
-    "valor_total_nota": "1.234,56",
+    "emissao": "04/09/2026 22:26:38-03:00",
+    "natureza_operacao": "venda",
+    "valor_total_produtos": "1.595,140",
+    "desconto_total_nota": "62,040",
+    "valor_total_nota": "1.533,100",
     "url_consulta": "https://..."
   },
   "itens": [
     {
-      "item": 1, "codigo": "7291", "descricao": "ARROZ TIPO 1 5KG",
-      "quantidade": "1,000", "unidade": "UN",
-      "valor_unitario": "24,90", "valor_total_item": "24,90",
-      "desconto_item": "0,00",
-      "ean": "7891000315507", "ncm": "10063021", "cest": "", "cfop": "5102"
+      "item": 1, "codigo": "359894", "descricao": "SAND FAROESTE BURGER 145G",
+      "quantidade": "3,0000", "unidade": "UN",
+      "valor_unitario": "6,9800000000", "valor_total_item": "20,940",
+      "desconto_item": "0,870",
+      "ean": "7891164026974", "ean_tributavel": "7891164026974",
+      "ncm": "16029000", "cest": "1707900", "cfop": "5405",
+      "valor_tributos": "5,110", "origem": "0 - Nacional"
     }
   ]
 }
 ```
 
-São exatamente as 27 colunas que o fluxo já extrai. Números podem ir em formato
-brasileiro (`1.234,56`) ou como float — o PHP aceita os dois. Datas aceitas em
-`dd/mm/aaaa hh:mm:ss` ou ISO.
+O app usa `emitente`, `cnpj`, `municipio`, `uf` e os totais no cabeçalho, e
+`codigo`, `ean`, `ncm`, `cest`, `cfop`, quantidade, unidade, valores e
+`desconto_item` em cada produto. Campos além desses (endereço, tributos,
+origem) vêm junto para uso futuro e são ignorados sem erro. Números podem ir em
+formato brasileiro (`1.234,56`) ou como float — o PHP aceita os dois. Datas
+aceitas em `dd/mm/aaaa hh:mm:ss`, com ou sem o fuso colado (`-03:00`), ou ISO.
 
 Quando algo falha — sessão recusada, `__VIEWSTATE` ausente, nenhum item extraído —
 o mesmo node posta:

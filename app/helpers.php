@@ -53,8 +53,19 @@ function data_mysql($v): ?string
         return null;
     }
     $s = trim((string) $v);
-    // Remove o fuso descritivo que a SEFAZ as vezes anexa: "01/09/2026 19:32:11-03:00"
+    // Remove o fuso descritivo entre parenteses, tipo "(Horario de Brasilia)".
     $s = preg_replace('/\s*\(.*\)$/', '', $s);
+
+    // A emissao da NFC-e vem com o deslocamento colado no fim:
+    // "04/09/2026 22:26:38-03:00". O horario ja e o local, entao o
+    // deslocamento e cortado antes de tentar os formatos — sem isso o
+    // createFromFormat acusa "trailing data" e a data cai no strtotime, que
+    // le 04/09 no formato americano e grava 9 de abril.
+    $candidatos = [$s];
+    $sem_fuso = preg_replace('/(\d:\d{2}(?::\d{2})?)\s*(?:Z|[+-]\d{2}:?\d{2})$/i', '$1', $s);
+    if ($sem_fuso !== null && $sem_fuso !== $s && $sem_fuso !== '') {
+        $candidatos[] = $sem_fuso;
+    }
 
     // O "!" zera os campos nao informados. Sem ele, uma data sem hora
     // herda a hora atual do servidor.
@@ -68,12 +79,14 @@ function data_mysql($v): ?string
         '!Y-m-d\TH:i',
         '!Y-m-d',
     ];
-    foreach ($formatos as $f) {
-        $dt = DateTime::createFromFormat($f, $s);
-        if ($dt instanceof DateTime) {
-            $erros = DateTime::getLastErrors();
-            if (!$erros || (empty($erros['warning_count']) && empty($erros['error_count']))) {
-                return $dt->format('Y-m-d H:i:s');
+    foreach ($candidatos as $texto) {
+        foreach ($formatos as $f) {
+            $dt = DateTime::createFromFormat($f, $texto);
+            if ($dt instanceof DateTime) {
+                $erros = DateTime::getLastErrors();
+                if (!$erros || (empty($erros['warning_count']) && empty($erros['error_count']))) {
+                    return $dt->format('Y-m-d H:i:s');
+                }
             }
         }
     }

@@ -5,7 +5,14 @@ const resposta = $input.first().json;
 // assim editar um node do meio nao derruba o callback_url la na frente.
 const entrada = $('Normalizar Entrada').first().json;
 const cookies = $('Extrair Cookies').first().json.cookies;
-const html = String(resposta.body || '');
+// Com fullResponse ligado o corpo vem em "data" nesta versao do n8n; versoes
+// antigas usavam "body". Ler so um dos dois devolve string vazia.
+const html = String(
+    (resposta && resposta.data) ||
+    (resposta && resposta.body && resposta.body.data) ||
+    (resposta && resposta.body) ||
+    ''
+);
 
 function decodificarAtributo(valor) {
     return String(valor)

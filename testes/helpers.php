@@ -35,6 +35,12 @@ checar('data br sem hora', data_mysql('05/09/2026'), '2026-09-05 00:00:00');
 checar('data iso',         data_mysql('2026-09-05 19:32:11'), '2026-09-05 19:32:11');
 checar('data vazia',       data_mysql(''), null);
 checar('data lixo',        data_mysql('nao e data'), null);
+// A emissao da NFC-e vem com o fuso colado: sem cortar, o strtotime lia
+// 04/09 como 9 de abril.
+checar('data br com fuso',     data_mysql('04/09/2026 22:26:38-03:00'), '2026-09-04 22:26:38');
+checar('data br fuso sem seg', data_mysql('04/09/2026 22:26-03:00'), '2026-09-04 22:26:00');
+checar('data iso com fuso',    data_mysql('2026-09-04T22:26:38-03:00'), '2026-09-04 22:26:38');
+checar('data com Z',           data_mysql('04/09/2026 22:26:38Z'), '2026-09-04 22:26:38');
 
 // ---- normalizar_texto ----
 checar('norm acentos',   normalizar_texto('Pão de Açúcar'), 'PAO DE ACUCAR');
