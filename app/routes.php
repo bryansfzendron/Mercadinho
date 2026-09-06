@@ -18,6 +18,7 @@ function despachar(string $rota): void
     $u = exigir_login();
 
     if ($rota === '/')          { rota_inicio($u); return; }
+    if ($rota === '/dashboard') { rota_dashboard($u); return; }
     if ($rota === '/escanear')  { ver('escanear', [], 'Escanear nota'); }
     if ($rota === '/bipar')     { ver('bipar', [], 'Bipar produto'); }
     if ($rota === '/notas')     { rota_notas($u); return; }
@@ -553,6 +554,46 @@ function rota_vendas(array $u): void
     ];
 
     ver('vendas_relatorio', compact('r', 'f', 'pdvs', 'formas'), 'Vendas');
+}
+
+/** Dashboard de vendas: KPIs principais + cards visuais. */
+function rota_dashboard(array $u): void
+{
+    $periodos = vendas_periodos();
+    $chave = $_GET['periodo'] ?? 'mes';
+    $periodo = $periodos[$chave] ?? $periodos['mes'];
+    [$rotulo, $de, $ate] = $periodo;
+
+    $f = ['de' => $de, 'ate' => $ate, 'agrupar' => 'produto'];
+    $r = vendas_relatorio($f);
+    $res = $r['resultado'];
+
+    // Comparação com período anterior (mesmo tamanho)
+    $dias = (int) $res['dias'];
+    $de_ant = date('Y-m-d', strtotime($de . ' -' . $dias . ' days'));
+    $ate_ant = date('Y-m-d', strtotime($de . ' -1 day'));
+    $r_ant = vendas_relatorio(['de' => $de_ant, 'ate' => $ate_ant, 'agrupar' => 'produto']);
+    $res_ant = $r_ant['resultado'];
+
+    // Variações
+    $var = static fn(float $atual, float $anterior): ?float => $anterior > 0 ? (($atual - $anterior) / $anterior * 100) : null;
+    $variacao = [
+        'receita'  => $var($res['receita'], $res_ant['receita']),
+        'cmv'      => $var($res['cmv'], $res_ant['cmv']),
+        'taxa'     => $var($res['taxa'], $res_ant['taxa']),
+        'fixos'    => $var($res['fixos'], $res_ant['fixos']),
+        'lucro'    => $var($res['lucro'], $res_ant['lucro']),
+        'margem'   => $var($res['margem'], $res_ant['margem']),
+        'vendas'   => $var($res['vendas'], $res_ant['vendas']),
+    ];
+
+    // Top produtos por contribuição
+    $top = array_slice($r['linhas'], 0, 5);
+
+    // Formas de pagamento para mini cards
+    $formas_map = ['Debit' => 'Débito', 'Credit' => 'Crédito', 'Pix' => 'Pix', 'Voucher' => 'Voucher'];
+
+    ver('dashboard', compact('res', 'res_ant', 'variacao', 'top', 'formas_map', 'r', 'chave', 'rotulo', 'de', 'ate', 'periodos'), 'Dashboard');
 }
 
 /** Metas do mes: quanto entrou, quanto falta e se o ritmo chega la. */
