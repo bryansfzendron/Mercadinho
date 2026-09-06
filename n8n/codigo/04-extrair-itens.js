@@ -9,7 +9,10 @@
 //  - valores ficam em formato brasileiro e sao repassados como texto — o PHP
 //    aceita "1.234,56" e float.
 const resposta = $input.first().json;
-const entrada = $('Extrair ViewState').first().json;
+// Os dados da viagem (nota_id, token, callback_url, chave) vem sempre do
+// Normalizar Entrada, nunca do node anterior. Se um node do meio for editado
+// e deixar de repassar campos, o callback continua sabendo para onde voltar.
+const entrada = $('Normalizar Entrada').first().json;
 const html = String(resposta.body || '');
 
 const base = {
