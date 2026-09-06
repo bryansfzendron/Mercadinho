@@ -38,6 +38,18 @@ return [
     'guardar_html' => true,
 
     // ---------------------------------------------------------------
+    // Espelho do TouchPay (preco de venda e estoque da loja)
+    // ---------------------------------------------------------------
+    // Webhook de producao do workflow "TouchPay -> Mercadinho".
+    'n8n_webhook_touchpay' => 'https://biomega-n8n.bryanzendron.com.br/webhook/touchpay-mercadinho',
+
+    // Login do painel do TouchPay. Fica SO aqui: este arquivo nao vai para o
+    // git, e o n8n recebe as credenciais no corpo do disparo em vez de
+    // guarda-las dentro do workflow.
+    'touchpay_email' => '',
+    'touchpay_senha' => '',
+
+    // ---------------------------------------------------------------
     // Token da pagina de instalacao/diagnostico (setup.php).
     // Acesse: /setup.php?token=SEU-TOKEN
     // Depois de instalar, troque por uma string aleatoria ou remova o arquivo.

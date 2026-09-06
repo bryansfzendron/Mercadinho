@@ -188,7 +188,7 @@ try {
 }
 
 if ($db_ok) {
-    $esperadas = ['usuarios', 'estabelecimentos', 'produtos', 'produto_aliases', 'notas', 'itens'];
+    $esperadas = ['usuarios', 'estabelecimentos', 'produtos', 'produto_aliases', 'notas', 'itens', 'loja_pdvs', 'loja_itens'];
     $faltando  = array_diff($esperadas, $tabelas);
 
     // ---- aplicar schema ----

@@ -115,3 +115,49 @@ CREATE TABLE IF NOT EXISTS itens (
     CONSTRAINT fk_itens_produto FOREIGN KEY (produto_id)
         REFERENCES produtos (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Espelho do TouchPay: preco de venda e estoque atual por ponto de venda.
+-- Preenchido pelo fluxo n8n "TouchPay -> Mercadinho" via /api/loja/callback.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS loja_pdvs (
+    id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    fonte         VARCHAR(20)  NOT NULL DEFAULT 'touchpay',
+    externo_id    INT UNSIGNED NOT NULL,
+    nome          VARCHAR(120) NOT NULL,
+    tipo          VARCHAR(40)  NULL,
+    atualizado_em DATETIME     NULL,
+    criado_em     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_pdv_fonte_externo (fonte, externo_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS loja_itens (
+    id                 INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    pdv_id             INT UNSIGNED  NOT NULL,
+    -- Amarra com o catalogo do Mercadinho quando o EAN e conhecido.
+    produto_id         INT UNSIGNED  NULL,
+    externo_produto_id INT UNSIGNED  NULL,
+    ean                VARCHAR(14)   NULL,
+    codigo             VARCHAR(60)   NULL,
+    descricao          VARCHAR(255)  NOT NULL,
+    categoria          VARCHAR(120)  NULL,
+    -- NULL quando o produto nao esta no planograma ativo (sem preco de venda).
+    preco_venda        DECIMAL(14,2) NULL,
+    estoque            DECIMAL(14,3) NOT NULL DEFAULT 0,
+    reservado          DECIMAL(14,3) NOT NULL DEFAULT 0,
+    custo_medio        DECIMAL(14,4) NULL,
+    minimo             DECIMAL(14,3) NULL,
+    capacidade         DECIMAL(14,3) NULL,
+    unidade            VARCHAR(10)   NULL,
+    imagem             VARCHAR(500)  NULL,
+    atualizado_em      DATETIME      NULL,
+    PRIMARY KEY (id),
+    KEY ix_loja_itens_ean (ean),
+    KEY ix_loja_itens_produto (produto_id),
+    KEY ix_loja_itens_pdv (pdv_id),
+    CONSTRAINT fk_loja_itens_pdv FOREIGN KEY (pdv_id)
+        REFERENCES loja_pdvs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_loja_itens_produto FOREIGN KEY (produto_id)
+        REFERENCES produtos (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

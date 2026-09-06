@@ -47,6 +47,51 @@
         return 'R$ ' + Number(v).toFixed(2).replace('.', ',');
     }
 
+    function qtd(v) {
+        const n = Number(v);
+        return Number.isInteger(n) ? String(n) : n.toFixed(3).replace('.', ',');
+    }
+
+    function esc(t) {
+        const d = document.createElement('div');
+        d.textContent = t == null ? '' : String(t);
+        return d.innerHTML;
+    }
+
+    /** Preco de venda e estoque vindos do TouchPay, por ponto de venda. */
+    function blocoLoja(loja) {
+        if (!loja || !loja.length) return '';
+        const linhas = loja.map(l => {
+            const estoque = l.estoque > 0
+                ? qtd(l.estoque) + ' em estoque'
+                : '<span class="zerado">sem estoque</span>';
+            const reservado = l.reservado > 0 ? ' · ' + qtd(l.reservado) + ' reservado' : '';
+            return '<li>' +
+                '<div class="linha-topo"><span class="forte">' + esc(l.pdv) + '</span>' +
+                '<span class="valor">' + (l.preco == null ? '—' : moeda(l.preco)) + '</span></div>' +
+                '<div class="linha-baixo"><span>' + estoque + reservado + '</span>' +
+                '<span>' + esc(l.atualizado) + '</span></div></li>';
+        }).join('');
+        return '<h2>Na loja agora</h2><ul class="lista">' + linhas + '</ul>';
+    }
+
+    /** A conta que interessa: vendo por X, paguei Y. */
+    function blocoMargem(loja, stats) {
+        if (!loja || !loja.length || !stats || !stats.ultimo) return '';
+        const comPreco = loja.filter(l => l.preco != null);
+        if (!comPreco.length) return '';
+        const venda = Math.max(...comPreco.map(l => l.preco));
+        const custo = Number(stats.ultimo);
+        if (!(custo > 0)) return '';
+        const margem = venda - custo;
+        const perc = (margem / custo) * 100;
+        const classe = margem >= 0 ? 'margem-boa' : 'margem-ruim';
+        return '<p class="margem ' + classe + '">Vende por <strong>' + moeda(venda) +
+            '</strong>, você pagou <strong>' + moeda(custo) + '</strong> · ' +
+            (margem >= 0 ? '+' : '') + moeda(margem) +
+            ' (' + (perc >= 0 ? '+' : '') + perc.toFixed(0) + '%)</p>';
+    }
+
     function lembrar(ligada) {
         try { localStorage.setItem(AUTO, ligada ? '1' : '0'); } catch (e) { /* modo privado */ }
     }
@@ -128,13 +173,16 @@
             dica.textContent = leitor ? 'Aponte para o próximo produto' : '';
 
             if (!d.encontrado) {
+                const naLoja = (d.loja && d.loja.length) ? d.loja[0] : null;
                 alvo.innerHTML =
                     '<div class="cartao centro">' +
-                    '<p class="grande">—</p>' +
-                    '<p>' + (d.mensagem || 'Você nunca comprou esse produto.') + '</p>' +
-                    '<p class="mono">' + (d.ean || ean) + '</p>' +
+                    '<p class="grande">' + (naLoja && naLoja.preco != null ? moeda(naLoja.preco) : '—') + '</p>' +
+                    '<p>' + esc(naLoja ? naLoja.descricao : (d.mensagem || 'Você nunca comprou esse produto.')) + '</p>' +
+                    (naLoja ? '<p class="ajuda">Preço de venda na loja. Você ainda não comprou esse produto.</p>' : '') +
+                    '<p class="mono">' + esc(d.ean || ean) + '</p>' +
                     '<a class="botao" href="/manual?ean=' + encodeURIComponent(d.ean || ean) + '">Cadastrar compra</a>' +
-                    '</div>';
+                    '</div>' +
+                    blocoLoja(d.loja);
                 return;
             }
 
@@ -154,7 +202,10 @@
                 '<div class="numero"><strong>' + moeda(d.stats.max) + '</strong><span>maior</span></div>' +
                 '</div>' +
                 '<p class="ajuda">' + d.stats.n + ' compra(s) registradas</p>' +
+                blocoMargem(d.loja, d.stats) +
                 '</div>' +
+                blocoLoja(d.loja) +
+                '<h2>Você pagou</h2>' +
                 '<ul class="lista">' + linhas + '</ul>' +
                 '<p class="centro"><a href="' + d.url + '">Ver histórico completo</a></p>';
         } catch (e) {

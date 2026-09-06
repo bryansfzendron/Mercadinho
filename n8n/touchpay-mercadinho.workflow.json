@@ -1,0 +1,252 @@
+{
+  "name": "TouchPay -> Mercadinho",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "touchpay-mercadinho",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "receber-do-mercadinho",
+      "name": "Receber do Mercadinho",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "8993f260-be1b-49dc-86c9-ec16ad760e35"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// O Mercadinho dispara este fluxo mandando as credenciais do TouchPay no\n// corpo. Elas moram no config.php (fora do git), nunca aqui no workflow.\nconst bruto = $input.first().json;\nconst corpo = bruto.body && typeof bruto.body === 'object' ? bruto.body : bruto;\n\nconst email = String(corpo.email || '').trim();\nconst senha = String(corpo.senha || '');\nconst callback_url = String(corpo.callback_url || '').trim();\n\nif (!email || !senha) {\n    throw new Error('Faltou email ou senha do TouchPay no corpo da requisicao.');\n}\nif (!callback_url) {\n    throw new Error('Faltou callback_url no corpo da requisicao.');\n}\n\nreturn [{\n    json: {\n        token: String(corpo.token || ''),\n        callback_url,\n        email,\n        senha,\n        // Quando vem vazio, sincroniza todos os pontos de venda.\n        pos_ids: Array.isArray(corpo.pos_ids) ? corpo.pos_ids.map(Number) : [],\n    },\n}];\n"
+      },
+      "id": "normalizar-entrada",
+      "name": "Normalizar Entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://touchpay.market/account/login",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json, text/plain, */*"
+            },
+            {
+              "name": "origin",
+              "value": "https://touchpay.market"
+            },
+            {
+              "name": "referer",
+              "value": "https://touchpay.market/"
+            },
+            {
+              "name": "user-agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email: $json.email, password: $json.senha }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "entrar-no-touchpay",
+      "name": "Entrar no TouchPay",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// O login do TouchPay responde 200 com CORPO VAZIO: o JWT vem no header\n// \"authorization\". Procurar no body devolve nada.\nconst resposta = $input.first().json;\nconst entrada = $('Normalizar Entrada').first().json;\n\nconst cabecalhos = resposta.headers || {};\nconst bruto = cabecalhos.authorization || cabecalhos.Authorization || '';\nconst jwt = String(bruto).replace(/^Bearer\\s+/i, '').trim();\n\nif (!jwt) {\n    throw new Error(\n        'O TouchPay nao devolveu o header authorization (HTTP ' +\n        (resposta.statusCode || '?') + '). Confira email e senha no config.php.'\n    );\n}\n\nreturn [{ json: { ...entrada, jwt } }];\n"
+      },
+      "id": "pegar-token",
+      "name": "Pegar Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://touchpay.market/api/PointsOfSale?hasInventory=true&hideSecondary=true&hasActivePlanogram=false",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json, text/plain, */*"
+            },
+            {
+              "name": "authorization",
+              "value": "={{ \"Bearer \" + $json.jwt }}"
+            },
+            {
+              "name": "referer",
+              "value": "https://touchpay.market/"
+            },
+            {
+              "name": "user-agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "listar-pdvs",
+      "name": "Listar PDVs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Para cada ponto de venda junta duas fontes:\n//  - /api/Planograms/{id}      -> preco de venda por produto (entries.items[].price)\n//  - /api/web/inventory/items  -> estoque atual e codigo de barras (paginado)\n// A chave do casamento e o productId; o EAN so existe do lado do estoque.\n//\n// Sai UM item por ponto de venda, entao o node seguinte posta um lote por PDV\n// e o PHP troca as linhas daquele PDV numa transacao so.\nconst resposta = $input.first().json;\nconst entrada = $('Pegar Token').first().json;\n\nconst NAVEGADOR = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';\nconst base = 'https://touchpay.market';\nconst cabecalhos = {\n    accept: 'application/json, text/plain, */*',\n    authorization: 'Bearer ' + entrada.jwt,\n    referer: base + '/',\n    'user-agent': NAVEGADOR,\n};\n\nasync function pegar(caminho) {\n    return this.helpers.httpRequest({\n        method: 'GET',\n        url: base + caminho,\n        headers: cabecalhos,\n        json: true,\n    });\n}\n\n// Parte dos codigos do TouchPay vem com o prefixo \"OM\" grudado no codigo de\n// barras (\"OM7896007811021\"). Tirar as duas letras deixa o EAN exato, e e o\n// que permite casar o planograma (que so tem productCode) com o estoque.\nfunction semPrefixo(valor) {\n    const texto = String(valor == null ? '' : valor).trim();\n    const m = texto.match(/^OM(\\d{6,14})$/i);\n    return m ? m[1] : texto;\n}\n\nfunction ehCodigoDeBarras(valor) {\n    return /^\\d{8}$|^\\d{12,14}$/.test(String(valor || ''));\n}\n\nconst pdvsBrutos = resposta.data || resposta.body || [];\nif (!Array.isArray(pdvsBrutos) || pdvsBrutos.length === 0) {\n    throw new Error('O TouchPay nao devolveu nenhum ponto de venda.');\n}\n\nconst filtro = Array.isArray(entrada.pos_ids) ? entrada.pos_ids : [];\nconst pdvs = filtro.length ? pdvsBrutos.filter((p) => filtro.includes(p.id)) : pdvsBrutos;\n\nconst hoje = new Date().toISOString().slice(0, 10);\nconst saida = [];\n\nfor (const pdv of pdvs) {\n    // ---- precos do planograma ativo ----\n    // Indexado por productId e tambem pelo codigo sem o \"OM\": o planograma nao\n    // traz o EAN, entao o codigo limpo e a segunda via de casamento.\n    const precos = new Map();\n    const precosPorCodigo = new Map();\n    const extras = new Map();\n    if (pdv.currentPlanogramId) {\n        const plano = await pegar.call(this, '/api/Planograms/' + pdv.currentPlanogramId);\n        const linhas = (plano && plano.entries && plano.entries.items) || [];\n        for (const linha of linhas) {\n            const dados = {\n                preco: linha.price,\n                minimo: linha.minimumQuantity,\n                capacidade: linha.capacity,\n                imagem: linha.productImageUrl || null,\n            };\n            precos.set(linha.productId, dados);\n            const codigo = semPrefixo(linha.productCode);\n            if (codigo) {\n                precosPorCodigo.set(codigo, dados);\n            }\n            extras.set(linha.productId, dados);\n        }\n    }\n\n    // ---- estoque do PDV, pagina a pagina ----\n    const inventarioId = pdv.inventoryId || pdv.id;\n    const itens = [];\n    let pagina = 1;\n    let total = null;\n    while (pagina <= 40) {\n        const url =\n            '/api/web/inventory/items?page=' + pagina + '&pageSize=500' +\n            '&sortOrder=quantity&descending=false&search=&inventoryIds=' + inventarioId +\n            '&productId=&inventoryTypes=pointOfSale&date=' + hoje +\n            'T00%3A00%3A00.000Z&timezoneOffset=180&showTotals=false';\n        const pag = await pegar.call(this, url);\n        const lista = (pag && pag.items) || [];\n        total = pag && typeof pag.totalItems === 'number' ? pag.totalItems : total;\n        itens.push(...lista);\n        if (lista.length < 500 || (total !== null && itens.length >= total)) {\n            break;\n        }\n        pagina++;\n    }\n\n    let semPreco = 0;\n    const linhas = itens.map((item) => {\n        const codigo = semPrefixo(item.productCode);\n        // productBarCode e a fonte boa do EAN; quando falta, o codigo sem \"OM\"\n        // ja e o proprio codigo de barras.\n        const eanBruto = String(item.productBarCode || '').trim();\n        const ean = eanBruto || (ehCodigoDeBarras(codigo) ? codigo : '');\n\n        const dados = precos.get(item.productId) || precosPorCodigo.get(codigo) || null;\n        if (!dados) {\n            semPreco++;\n        }\n\n        return {\n            produto_id_externo: item.productId,\n            ean,\n            codigo,\n            descricao: String(item.productDescription || '').trim(),\n            categoria: String(item.productCategoryName || '').trim(),\n            // O preco de venda vem do planograma; sem planograma fica nulo.\n            preco: dados ? dados.preco : null,\n            estoque: item.quantity,\n            reservado: item.reservedQuantity,\n            custo_medio: item.averageCost,\n            unidade: item.productConversionUnitName || null,\n            minimo: dados && dados.minimo != null ? dados.minimo : null,\n            capacidade: dados && dados.capacidade != null ? dados.capacidade : null,\n            imagem: (dados && dados.imagem) || null,\n            validade: item.productExpirationDate || null,\n        };\n    });\n\n    saida.push({\n        json: {\n            callback_url: entrada.callback_url,\n            payload: {\n                token: entrada.token,\n                status: 'ok',\n                fonte: 'touchpay',\n                pos: {\n                    id: pdv.id,\n                    nome: pdv.localName || pdv.localCustomerName || ('PDV ' + pdv.id),\n                    tipo: pdv.posType || null,\n                    inventario_id: inventarioId,\n                    planograma_id: pdv.currentPlanogramId || null,\n                },\n                consultado_em: new Date().toISOString(),\n                // Diagnostico: quantos itens do estoque nao acharam preco.\n                sem_preco: semPreco,\n                sem_ean: linhas.filter((l) => !l.ean).length,\n                itens: linhas,\n            },\n        },\n    });\n}\n\nif (saida.length === 0) {\n    throw new Error('Nenhum ponto de venda restou depois do filtro pos_ids.');\n}\n\nreturn saida;\n"
+      },
+      "id": "coletar-precos-e-estoque",
+      "name": "Coletar Precos e Estoque",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "devolver-ao-mercadinho",
+      "name": "Devolver ao Mercadinho",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Receber do Mercadinho": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Entrada": {
+      "main": [
+        [
+          {
+            "node": "Entrar no TouchPay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entrar no TouchPay": {
+      "main": [
+        [
+          {
+            "node": "Pegar Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pegar Token": {
+      "main": [
+        [
+          {
+            "node": "Listar PDVs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar PDVs": {
+      "main": [
+        [
+          {
+            "node": "Coletar Precos e Estoque",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coletar Precos e Estoque": {
+      "main": [
+        [
+          {
+            "node": "Devolver ao Mercadinho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "executionTimeout": 300
+  },
+  "pinData": {}
+}

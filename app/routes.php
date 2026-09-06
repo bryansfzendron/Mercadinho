@@ -9,8 +9,9 @@ function despachar(string $rota): void
     if ($rota === '/login')   { rota_login($m); return; }
     if ($rota === '/logout')  { fazer_logout(); redirecionar('/login'); }
 
-    // Callback do n8n: autenticado por token, nao por sessao.
+    // Callbacks do n8n: autenticados por token, nao por sessao.
     if ($rota === '/api/callback' && $m === 'POST') { rota_callback(); return; }
+    if ($rota === '/api/loja/callback' && $m === 'POST') { rota_loja_callback(); return; }
 
     // ---------------- exige login ----------------
     $u = exigir_login();
@@ -24,6 +25,7 @@ function despachar(string $rota): void
 
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
     if ($rota === '/api/produto' && $m === 'GET')  { rota_api_produto($u); return; }
+    if ($rota === '/api/loja/sincronizar' && $m === 'POST') { rota_loja_sincronizar($u); return; }
 
     if (preg_match('#^/api/notas/(\d+)/status$#', $rota, $mm)) {
         rota_api_nota_status($u, (int) $mm[1]);
@@ -106,7 +108,9 @@ function rota_inicio(array $u): void
         [$u['id']]
     );
 
-    ver('inicio', compact('resumo', 'itens_total', 'pendentes', 'ultimas'), 'Inicio');
+    $loja = loja_resumo();
+
+    ver('inicio', compact('resumo', 'itens_total', 'pendentes', 'ultimas', 'loja'), 'Inicio');
 }
 
 function rota_notas(array $u): void
@@ -401,15 +405,23 @@ function rota_api_produto(array $u): void
     $ean = (string) ($_GET['ean'] ?? '');
     $p = produto_por_ean($ean);
     if (!$p) {
-        json_resposta(['encontrado' => false, 'ean' => ean_normalizado($ean)]);
+        // Nunca comprado nao quer dizer desconhecido: a loja pode ter o
+        // produto na prateleira, e o preco de venda ja ajuda.
+        json_resposta([
+            'encontrado' => false,
+            'ean'        => ean_normalizado($ean),
+            'loja'       => loja_resposta_api($ean, null),
+        ]);
     }
     $hist  = produto_historico((int) $p['id'], (int) $u['id']);
     $stats = produto_estatisticas($hist);
+    $loja  = loja_resposta_api($p['ean'], (int) $p['id']);
     if (!$hist) {
         json_resposta([
             'encontrado' => false,
             'ean'        => $p['ean'],
             'mensagem'   => 'Produto conhecido, mas voce ainda nao comprou.',
+            'loja'       => $loja,
         ]);
     }
     json_resposta([
@@ -419,6 +431,7 @@ function rota_api_produto(array $u): void
         'ean'        => $p['ean'],
         'url'        => '/produtos/' . $p['id'],
         'stats'      => $stats,
+        'loja'       => $loja,
         'ultimas'    => array_map(static fn($h) => [
             'data'     => data_fmt($h['emissao']),
             'loja'     => $h['loja'] ?? '-',
@@ -427,6 +440,44 @@ function rota_api_produto(array $u): void
             'unidade'  => $h['unidade'],
         ], array_slice($hist, 0, 5)),
     ]);
+}
+
+/** Preco de venda e estoque da loja, no formato que a tela de bipar espera. */
+function loja_resposta_api(?string $ean, ?int $produto_id): array
+{
+    $linhas = loja_por_ean($ean, $produto_id);
+    return array_map(static fn($l) => [
+        'pdv'        => $l['pdv'],
+        'preco'      => $l['preco_venda'] === null ? null : (float) $l['preco_venda'],
+        'estoque'    => (float) $l['estoque'],
+        'reservado'  => (float) $l['reservado'],
+        'descricao'  => $l['descricao'],
+        'atualizado' => data_fmt($l['atualizado_em']),
+    ], $linhas);
+}
+
+/** Dispara a sincronizacao do TouchPay. */
+function rota_loja_sincronizar(array $u): void
+{
+    exigir_csrf();
+    $r = loja_disparar_sync();
+    json_resposta($r, $r['ok'] ? 200 : 422);
+}
+
+/** Callback do fluxo TouchPay. Mesmo token compartilhado do fluxo da NFC-e. */
+function rota_loja_callback(): void
+{
+    $p = loja_callback_normalizar(corpo_json());
+
+    $esperado = (string) cfg('n8n_token');
+    $recebido = $p['token'] !== '' ? $p['token'] : (string) ($_SERVER['HTTP_X_TOKEN'] ?? '');
+
+    if ($esperado === '' || $esperado === 'TROQUE-ME' || !hash_equals($esperado, $recebido)) {
+        json_resposta(['erro' => 'token invalido'], 401);
+    }
+
+    $r = loja_processar_callback($p);
+    json_resposta($r, $r['ok'] ? 200 : 422);
 }
 
 /** Callback do n8n. Autenticado pelo token compartilhado. */

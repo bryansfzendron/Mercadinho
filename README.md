@@ -305,12 +305,46 @@ Quando a nota não informa o total de um item, ele é reconstruído de
 `quantidade × valor_unitario`; quando não informa o total da nota, usa-se a soma dos
 líquidos.
 
+## Espelho da loja (TouchPay)
+
+Além de "quanto eu paguei", a tela de bipar mostra **por quanto a loja vende** e
+**quanto tem em estoque agora**. Esses dados vêm do painel TouchPay (AMLabs) por um
+segundo workflow n8n, `n8n/touchpay-mercadinho.workflow.json`.
+
+O que foi descoberto sobre essa API, tudo conferido contra a conta real:
+
+- `POST /account/login` responde **200 com corpo vazio**: o JWT vem no header
+  `authorization`. Procurar no body devolve nada. Vale ~1 hora.
+- `GET /api/PointsOfSale?hasInventory=true&hideSecondary=true&hasActivePlanogram=false`
+  lista os PDVs, com `inventoryId` e `currentPlanogramId`.
+- **Preço de venda está no planograma**, não no inventário:
+  `GET /api/Planograms/{id}` → `entries.items[].price`.
+- **Estoque e código de barras estão no inventário**, não no planograma:
+  `GET /api/web/inventory/items?inventoryIds={id}&inventoryTypes=pointOfSale&pageSize=500&page=N`
+  → `quantity`, `productBarCode`, `averageCost`. Paginado; 500 por página.
+- O casamento entre os dois é por `productId`. Como o planograma **não traz EAN**, há uma
+  segunda via: o `productCode` sem o prefixo **`OM`** que o TouchPay gruda no código de
+  barras (`OM7896007811021` → `7896007811021`). Na conta real isso bateu com o
+  `productBarCode` em 499 de 500 itens — o único diferente eram dois GTINs do mesmo
+  produto, e aí o `productBarCode` ganha.
+
+O fluxo devolve **um POST por ponto de venda** em `/api/loja/callback`, e o PHP troca as
+linhas daquele PDV numa transação (INSERT em blocos de 200; são mais de mil itens e a
+hospedagem corta em 30s). Cada item é ligado ao produto do Mercadinho pelo EAN, então o
+histórico de compras e o preço de venda aparecem juntos ao bipar.
+
+As credenciais do TouchPay ficam **só no `config.php`** (`touchpay_email`,
+`touchpay_senha`), que não vai para o git — o PHP as manda no corpo do disparo em vez de
+elas viverem dentro do workflow. O botão *Atualizar preços e estoque* fica na tela inicial.
+
 ## Testes
 
 ```bash
 php testes/helpers.php      # número BR, data, EAN, chave do QR, formatação
 php testes/callback.php     # os formatos aceitos no callback e o cálculo do líquido
-node n8n/teste-parser.js    # o parser do Code node contra HTML sintético
+php testes/loja.php         # normalização do callback do TouchPay e o prefixo OM
+node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
+node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 ```
 
 ## Limites conhecidos

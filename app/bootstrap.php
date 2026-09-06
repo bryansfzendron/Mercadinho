@@ -63,3 +63,4 @@ require APP . '/db.php';
 require APP . '/auth.php';
 require APP . '/produtos.php';
 require APP . '/notas.php';
+require APP . '/loja.php';
