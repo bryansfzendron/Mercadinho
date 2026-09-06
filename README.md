@@ -465,7 +465,12 @@ Engrenagem no topo, não um quinto item na barra de baixo — configuração nã
 frequente e a barra já tem quatro. Quatro abas, com o mesmo submenu da Loja:
 
 - **Sincronizar** — atualizar preços e estoque, e buscar vendas novas. Os dois com o
-  estado atual do lado (o que já entrou, de quando é).
+  estado atual do lado (o que já entrou, de quando é) e **barra de progresso de verdade**:
+  o fluxo diz "lote 7 de 25" em cada callback, a tabela `sync_estado` guarda o placar e a
+  tela pergunta a cada 1,5s. Sem saber o total ainda, a barra fica listrada em vez de
+  mostrar percentual chutado; sem notícia há 10 minutos, ela diz que o fluxo se perdeu em
+  vez de girar para sempre. Recarregar no meio da importação continua acompanhando, e o
+  relógio para sozinho quando ninguém está importando.
 - **PDVs** — liga e desliga cada ponto de venda no app.
 - **Metas** — os alvos do mês; o progresso continua em Loja → Metas.
 - **Taxas** — maquininha por forma de pagamento, condomínio, franquia, fixos e o CMV padrão.
@@ -513,6 +518,7 @@ php testes/callback.php     # os formatos aceitos no callback e o cálculo do l�
 php testes/loja.php         # normalização do callback do TouchPay e o prefixo OM
 php testes/vendas.php       # callback das vendas, fuso da data e o unitário calculado
 php testes/custos.php       # taxa por forma de pagamento, resultado do período e CMV
+php testes/sync.php         # a conta da barra de progresso e o fluxo dado por perdido
 php testes/nav.php          # o menu de baixo acende um item por rota
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa

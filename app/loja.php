@@ -34,6 +34,8 @@ function loja_disparar_sync(array $pos_ids = []): array
         'pos_ids'      => array_values(array_map('intval', $pos_ids)),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
+    sync_iniciar('loja');
+
     $ch = curl_init($webhook);
     curl_setopt_array($ch, [
         CURLOPT_POST           => true,
@@ -87,6 +89,9 @@ function loja_callback_normalizar(array $p): array
         'status' => (string) ($p['status'] ?? 'ok'),
         'erro'   => (string) ($p['erro'] ?? ''),
         'pos'    => is_array($p['pos'] ?? null) ? $p['pos'] : [],
+        // Um POST por ponto de venda; o fluxo diz qual e de quantos.
+        'lote'   => (int) ($p['lote'] ?? 0),
+        'lotes'  => (int) ($p['lotes'] ?? 0),
         'itens'  => $itens,
     ];
 }
@@ -141,6 +146,7 @@ function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
 function loja_processar_callback(array $p): array
 {
     if (($p['status'] ?? 'ok') === 'erro') {
+        sync_avancar('loja', (int) $p['lote'], (int) $p['lotes'], 0, mb_substr((string) $p['erro'], 0, 200));
         return ['ok' => true, 'itens' => 0, 'mensagem' => 'erro do n8n: ' . mb_substr((string) $p['erro'], 0, 300)];
     }
 
@@ -231,6 +237,7 @@ function loja_processar_callback(array $p): array
         exec_sql('UPDATE loja_pdvs SET atualizado_em = ? WHERE id = ?', [$agora, $pdv_id]);
 
         $pdo->commit();
+        sync_avancar('loja', (int) $p['lote'], (int) $p['lotes'], $gravados);
         return [
             'ok'         => true,
             'itens'      => $gravados,
@@ -241,6 +248,7 @@ function loja_processar_callback(array $p): array
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
+        sync_avancar('loja', (int) $p['lote'], (int) $p['lotes'], 0, $e->getMessage());
         return ['ok' => false, 'itens' => 0, 'mensagem' => $e->getMessage()];
     }
 }

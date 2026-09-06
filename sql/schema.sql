@@ -236,3 +236,21 @@ CREATE TABLE IF NOT EXISTS custos_parametros (
     atualizado_em DATETIME      NOT NULL,
     PRIMARY KEY (chave)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Estado da ultima sincronizacao de cada fonte, para a tela poder mostrar
+-- barra de progresso de verdade. Uma linha por fluxo: o PHP marca "rodando"
+-- ao disparar e cada callback avanca o contador de lotes.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sync_estado (
+    fonte         VARCHAR(20)  NOT NULL,
+    status        VARCHAR(20)  NOT NULL DEFAULT 'rodando',
+    lote          INT UNSIGNED NOT NULL DEFAULT 0,
+    -- Zero enquanto o fluxo ainda nao disse quantos lotes serao.
+    lotes         INT UNSIGNED NOT NULL DEFAULT 0,
+    itens         INT UNSIGNED NOT NULL DEFAULT 0,
+    mensagem      VARCHAR(255) NULL,
+    iniciado_em   DATETIME     NOT NULL,
+    atualizado_em DATETIME     NOT NULL,
+    PRIMARY KEY (fonte)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

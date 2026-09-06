@@ -67,3 +67,4 @@ require APP . '/loja.php';
 require APP . '/vendas.php';
 require APP . '/custos.php';
 require APP . '/metas.php';
+require APP . '/sync.php';

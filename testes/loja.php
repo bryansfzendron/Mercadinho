@@ -14,6 +14,14 @@ require APP . '/helpers.php';
 // carregar o arquivo so define funcoes.
 require APP . '/loja.php';
 
+// O caminho de erro do callback marca o progresso da importacao, que fala com
+// o banco. Aqui so interessa a normalizacao, entao o placar vira um registro.
+$GLOBALS['avancos'] = [];
+function sync_avancar(string $fonte, int $lote, int $lotes, int $itens, ?string $erro = null): void
+{
+    $GLOBALS['avancos'][] = compact('fonte', 'lote', 'lotes', 'itens', 'erro');
+}
+
 $ok = 0; $falhou = 0;
 function checar(string $nome, $obtido, $esperado): void
 {
@@ -102,6 +110,16 @@ checar('nulo vira zero', num_br(null), 0.0);
 // Sem banco: so confere o particionamento em blocos.
 $linhas = array_fill(0, 450, [1, null, 927, '789', 'c', 'd', null, 3.0, 0.0, 0.0, 0.0, null, null, 'Unit', null, '2026-09-06 00:00:00']);
 checar('450 linhas viram 3 blocos de ate 200', (int) ceil(count($linhas) / 200), 3);
+
+// O erro do n8n tambem avanca o placar, senao a barra fica girando para sempre.
+$GLOBALS['avancos'] = [];
+loja_processar_callback(loja_callback_normalizar(
+    ['status' => 'erro', 'erro' => 'sem PDV', 'lote' => 2, 'lotes' => 3]
+));
+checar('erro do n8n avanca o progresso', count($GLOBALS['avancos']), 1);
+checar('e leva o numero do lote',
+    [$GLOBALS['avancos'][0]['lote'], $GLOBALS['avancos'][0]['lotes']], [2, 3]);
+checar('e a mensagem do erro', $GLOBALS['avancos'][0]['erro'], 'sem PDV');
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

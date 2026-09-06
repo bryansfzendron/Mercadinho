@@ -140,6 +140,10 @@ const ENTRADA = {
     // paginando pelo totalItems em vez de parar na primeira pagina curta.
     checar('servidor limitando a pagina nao perde item', p1.itens.length, 501);
 
+    // ---- a2) numeracao dos lotes, para a barra de progresso ----
+    checar('numera o lote', [saida[0].json.payload.lote, saida[1].json.payload.lote], [1, 2]);
+    checar('todos sabem o total', [saida[0].json.payload.lotes, saida[1].json.payload.lotes], [2, 2]);
+
     // ---- b) prefixo OM ----
     checar('nenhum codigo sai com OM', p1.itens.filter((i) => /^OM/i.test(i.codigo)).length, 0);
     checar('nenhum ean sai com OM', p1.itens.filter((i) => /^OM/i.test(i.ean)).length, 0);

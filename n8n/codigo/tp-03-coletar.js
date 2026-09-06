@@ -151,6 +151,9 @@ for (const pdv of pdvs) {
                 token: entrada.token,
                 status: 'ok',
                 fonte: 'touchpay',
+                // Numera o POST para o app poder desenhar barra de progresso.
+                // O total so e conhecido depois do laco; preenchido abaixo.
+                lote: saida.length + 1,
                 pos: {
                     id: pdv.id,
                     nome: pdv.localName || pdv.localCustomerName || ('PDV ' + pdv.id),
@@ -170,6 +173,11 @@ for (const pdv of pdvs) {
 
 if (saida.length === 0) {
     throw new Error('Nenhum ponto de venda restou depois do filtro pos_ids.');
+}
+
+// So aqui se sabe quantos PDVs sobraram no total.
+for (const item of saida) {
+    item.json.payload.lotes = saida.length;
 }
 
 return saida;

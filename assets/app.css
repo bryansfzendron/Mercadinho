@@ -364,6 +364,31 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .chip:hover { text-decoration: none; }
 .chip.ativo { background: var(--tinta-marca); border-color: transparent; color: var(--marca); font-weight: 600; }
 
+/* Barra de progresso da importacao. */
+.progresso { margin: .6rem 0 .2rem; }
+.progresso-barra {
+    height: 8px; border-radius: 99px; background: rgba(127, 127, 127, .15); overflow: hidden;
+}
+.progresso-barra > span {
+    display: block; height: 100%; width: 0; border-radius: 99px;
+    background: var(--marca-forte); transition: width .4s ease;
+}
+.progresso.pronto .progresso-barra > span { background: var(--positivo); }
+.progresso.erro .progresso-barra > span { background: var(--vermelho); }
+.progresso-texto { margin: .35rem 0 0; }
+/* Sem saber quantos lotes serao: listras andando, em vez de percentual chutado. */
+.progresso-barra.indeterminada > span {
+    background-image: linear-gradient(115deg,
+        rgba(255, 255, 255, .45) 25%, transparent 25%, transparent 50%,
+        rgba(255, 255, 255, .45) 50%, rgba(255, 255, 255, .45) 75%, transparent 75%);
+    background-size: 18px 18px;
+    animation: listras .8s linear infinite;
+}
+@keyframes listras { to { background-position: 18px 0; } }
+@media (prefers-reduced-motion: reduce) {
+    .progresso-barra.indeterminada > span { animation: none; }
+}
+
 /* Barra de progresso da meta. */
 .meta-barra {
     height: 10px; border-radius: 99px; background: rgba(127, 127, 127, .15);

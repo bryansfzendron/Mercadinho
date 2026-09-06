@@ -58,6 +58,10 @@ function vendas_disparar_sync(?string $desde = null, ?string $ate = null): array
         'max_date'     => $ate,
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
+    // Marca antes de disparar: o primeiro lote pode voltar antes desta
+    // funcao terminar, e ai o iniciar apagaria o progresso dele.
+    sync_iniciar('vendas');
+
     $ch = curl_init($webhook);
     curl_setopt_array($ch, [
         CURLOPT_POST           => true,
@@ -236,6 +240,7 @@ function vendas_normalizar_lote(array $vendas): array
 function vendas_processar_callback(array $p): array
 {
     if (($p['status'] ?? 'ok') === 'erro') {
+        sync_avancar('vendas', $p['lote'], $p['lotes'], 0, mb_substr((string) $p['erro'], 0, 200));
         return [
             'ok' => true, 'vendas' => 0, 'itens' => 0, 'vinculados' => 0,
             'mensagem' => 'erro do n8n: ' . mb_substr((string) $p['erro'], 0, 300),
@@ -245,6 +250,7 @@ function vendas_processar_callback(array $p): array
     // Janela sem venda nenhuma e resposta valida, nao falha: acontece toda
     // vez que o sync roda duas vezes seguidas.
     if (!$p['vendas']) {
+        sync_avancar('vendas', $p['lote'], $p['lotes'], 0);
         return ['ok' => true, 'vendas' => 0, 'itens' => 0, 'vinculados' => 0, 'mensagem' => 'nada novo'];
     }
 
@@ -370,6 +376,7 @@ function vendas_processar_callback(array $p): array
         ], $linhas_item);
 
         $pdo->commit();
+        sync_avancar('vendas', $p['lote'], $p['lotes'], count($normalizadas));
 
         $r = [
             'ok'         => true,
@@ -396,6 +403,7 @@ function vendas_processar_callback(array $p): array
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
+        sync_avancar('vendas', $p['lote'], $p['lotes'], 0, $e->getMessage());
         return ['ok' => false, 'vendas' => 0, 'itens' => 0, 'vinculados' => 0, 'mensagem' => $e->getMessage()];
     }
 }

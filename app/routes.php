@@ -31,6 +31,7 @@ function despachar(string $rota): void
 
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
     if ($rota === '/api/produto' && $m === 'GET')  { rota_api_produto($u); return; }
+    if ($rota === '/api/sync/estado' && $m === 'GET') { rota_api_sync_estado($u); return; }
     if ($rota === '/api/loja/sincronizar' && $m === 'POST') { rota_loja_sincronizar($u); return; }
     if ($rota === '/api/vendas/sincronizar' && $m === 'POST') { rota_vendas_sincronizar($u); return; }
 
@@ -521,6 +522,15 @@ function rota_margens(array $u): void
     ver('margens', compact('itens', 'conta', 'min', 'filtro', 'busca'), 'Margens');
 }
 
+/** Placar das duas importacoes, para a tela desenhar a barra de progresso. */
+function rota_api_sync_estado(array $u): void
+{
+    json_resposta([
+        'loja'   => sync_estado('loja'),
+        'vendas' => sync_estado('vendas'),
+    ]);
+}
+
 /** Relatorio de vendas: filtros livres e o que sobra depois dos custos. */
 function rota_vendas(array $u): void
 {
@@ -601,8 +611,11 @@ function rota_config(array $u, string $metodo): void
     $pdvs   = loja_pdvs_todos();
     $loja   = loja_resumo();
     $vendas = vendas_resumo();
+    // Estado inicial no proprio HTML: recarregar no meio de uma importacao ja
+    // mostra a barra andando, sem esperar o primeiro polling.
+    $sync   = ['loja' => sync_estado('loja'), 'vendas' => sync_estado('vendas')];
 
-    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas'), 'Configuracoes');
+    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas', 'sync'), 'Configuracoes');
 }
 
 /**
