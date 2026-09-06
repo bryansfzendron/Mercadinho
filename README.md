@@ -418,9 +418,12 @@ control do iOS — o padrão de quem precisa de mais função do que cabe numa a
   ritmo diário, projeção de fechamento e quanto falta por dia. Zero desliga a meta e
   deixa só a projeção. As metas moram na mesma tabela dos parâmetros de custo.
 
-Ali também se escolhe o **ponto de venda considerado**, que vale para as telas sem filtro
-(início e metas). Um PDV pode estar na mesma conta do TouchPay sem ser seu — foi o caso
-durante uma transição — e sem isso ele inflaria faturamento, lucro e meta.
+Ali também se **liga e desliga cada ponto de venda**. Um PDV pode estar na mesma conta do
+TouchPay sem ser do dono do app — foi o caso durante uma transição. Desmarcado, ele sai do
+app inteiro (catálogo, bipe, vendas, metas e tela inicial) via `loja_pdvs.ativo`; o sync
+continua trazendo os dados, as telas é que ignoram. É por isso que toda leitura de
+`loja_itens` passa por `loja_pdvs` — sem o JOIN, o preço de venda de um PDV alheio
+apareceria ao bipar.
 
 **Lote perdido não passa mais calado.** O POST de volta usa `neverError`, então um 401
 (token diferente entre app e disparo) ou um 500 no meio da carga era engolido e o

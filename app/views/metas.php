@@ -67,22 +67,28 @@ cartao_meta($luc, 'Lucro do mês', 'meta_lucro');
                        value="<?= e(number_format($p['meta_lucro'], 2, ',', '')) ?>">
             </label>
         </div>
-        <label>Ponto de venda considerado
-            <select name="pdv_padrao">
-                <option value="0" <?= (int) $p['pdv_padrao'] === 0 ? 'selected' : '' ?>>todos</option>
-                <?php foreach ($pdvs as $pdv): ?>
-                    <option value="<?= (int) $pdv['id'] ?>" <?= (int) $p['pdv_padrao'] === (int) $pdv['id'] ? 'selected' : '' ?>>
-                        só <?= e($pdv['nome']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
         <p class="ajuda">
             Zero desliga a meta e deixa só a projeção. O lucro sai do mesmo cálculo da aba
             Vendas: já com mercadoria, maquininha, condomínio, franquia e os fixos do mês.
-            O ponto de venda escolhido vale aqui e na tela inicial — se um PDV está na mesma
-            conta do TouchPay mas não é seu, é aqui que você tira ele da conta.
         </p>
+
+        <?php if (count($pdvs) > 1): ?>
+            <h2>Pontos de venda</h2>
+            <p class="ajuda">
+                Desmarcar tira o ponto de venda do app inteiro — catálogo, bipe, vendas e
+                metas. Serve para o PDV que está na mesma conta do TouchPay mas não é seu:
+                o sync continua trazendo, as telas é que ignoram.
+            </p>
+            <input type="hidden" name="pdvs_enviados" value="1">
+            <?php foreach ($pdvs as $pdv): ?>
+                <label class="caixa-marcar">
+                    <input type="checkbox" name="pdvs[]" value="<?= (int) $pdv['id'] ?>"
+                           <?= (int) $pdv['ativo'] === 1 ? 'checked' : '' ?>>
+                    <?= e($pdv['nome']) ?>
+                    <span class="ajuda"><?= (int) $pdv['itens'] ?> itens</span>
+                </label>
+            <?php endforeach; ?>
+        <?php endif; ?>
         <button type="submit" class="botao">Salvar metas</button>
     </form>
 </div>

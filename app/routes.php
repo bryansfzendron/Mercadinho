@@ -526,19 +526,25 @@ function rota_metas(array $u, string $metodo): void
     if ($metodo === 'POST') {
         exigir_csrf();
         custos_salvar($_POST);
+
+        // Quais pontos de venda contam no app. Vem como lista de marcados;
+        // quem nao veio, desliga.
+        if (isset($_POST['pdvs_enviados'])) {
+            $ligados = array_map('intval', (array) ($_POST['pdvs'] ?? []));
+            foreach (loja_pdvs_todos() as $pdv) {
+                loja_pdv_ativo((int) $pdv['id'], in_array((int) $pdv['id'], $ligados, true));
+            }
+        }
+
         flash('ok', 'Metas atualizadas.');
         redirecionar('/metas');
     }
 
     $p = custos_parametros();
 
-    // O mes corrente inteiro, do dia 1 ate hoje, so no PDV que e seu.
-    $r = vendas_relatorio([
-        'de'      => date('Y-m-01'),
-        'ate'     => date('Y-m-d'),
-        'agrupar' => 'produto',
-        'pdv_id'  => (int) $p['pdv_padrao'],
-    ]);
+    // O mes corrente inteiro, do dia 1 ate hoje. Os PDVs desligados ja saem
+    // no filtro de dentro do relatorio.
+    $r = vendas_relatorio(['de' => date('Y-m-01'), 'ate' => date('Y-m-d'), 'agrupar' => 'produto']);
     [$dia, $no_mes] = metas_dias();
 
     $fat = meta_progresso($r['resultado']['receita'], (float) $p['meta_faturamento'], $dia, $no_mes)
@@ -550,7 +556,7 @@ function rota_metas(array $u, string $metodo): void
               'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
     $mes = $meses[(int) date('n')] . ' de ' . date('Y');
 
-    $pdvs = vendas_pdvs();
+    $pdvs = loja_pdvs_todos();
     ver('metas', compact('fat', 'luc', 'p', 'mes', 'pdvs'), 'Metas');
 }
 

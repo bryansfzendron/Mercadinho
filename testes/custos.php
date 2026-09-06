@@ -185,12 +185,6 @@ $comN = custos_resultado([['forma' => 'Pix', 'total' => 100.0, 'n' => 7]], 0.0, 
 checar('conta as vendas do periodo', $comN['vendas'], 7);
 checar('sem contagem nao inventa', custos_resultado([['forma' => 'Pix', 'total' => 100.0]], 0.0, 30, $p)['vendas'], 0);
 
-// O PDV padrao e parametro tambem: PDV de outro dono na mesma conta do
-// TouchPay nao pode inflar o faturamento das telas sem filtro.
-checar('pdv padrao comeca em todos', custos_padrao()['pdv_padrao'], 0.0);
-checar('pdv padrao nao mexe no resultado',
-    custos_resultado([['forma' => 'Pix', 'total' => 100.0]], 0.0, 30, custos_padrao())['receita'], 100.0);
-
 // ------------------------------------------------------------- parametros
 checar('agrupamentos tem produto e categoria',
     array_key_exists('produto', vendas_agrupamentos()) && array_key_exists('categoria', vendas_agrupamentos()), true);

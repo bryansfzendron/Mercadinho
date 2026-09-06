@@ -403,20 +403,12 @@ function vendas_processar_callback(array $p): array
 /** Quanto ja entrou, para a tela de inicio mostrar sem abrir relatorio. */
 function vendas_resumo(): array
 {
-    // O PDV padrao vale aqui: PDV de outro dono na mesma conta do TouchPay
-    // nao pode inflar o seu faturamento.
-    $pdv = (int) custos_parametros()['pdv_padrao'];
-    $onde = '(resultado = ? OR resultado IS NULL)';
-    $args = ['Ok'];
-    if ($pdv > 0) {
-        $onde .= ' AND pdv_id = ?';
-        $args[] = $pdv;
-    }
-
+    // Mesmo corte do relatorio: PDV desligado nao infla o faturamento.
+    [$onde, $args] = vendas_filtro_sql([]);
     $r = q1(
-        'SELECT COUNT(*) AS vendas, MIN(data_hora) AS primeira, MAX(data_hora) AS ultima,
-                COALESCE(SUM(valor_pago), 0) AS total
-           FROM vendas WHERE ' . $onde,
+        'SELECT COUNT(*) AS vendas, MIN(v.data_hora) AS primeira, MAX(v.data_hora) AS ultima,
+                COALESCE(SUM(v.valor_pago), 0) AS total
+           FROM vendas v WHERE ' . $onde,
         $args
     );
     return $r ?: ['vendas' => 0, 'primeira' => null, 'ultima' => null, 'total' => 0];
@@ -450,7 +442,12 @@ function vendas_filtro_sql(array $f): array
 {
     // So venda que valeu. O resultado fica gravado para poder filtrar, mas o
     // relatorio de faturamento nao pode somar transacao negada.
-    $onde = ['(v.resultado = ? OR v.resultado IS NULL)'];
+    // PDV desligado sai do relatorio junto com o resto do app. O IS NULL
+    // segura venda orfa: melhor aparecer sem PDV do que sumir com o dinheiro.
+    $onde = [
+        '(v.resultado = ? OR v.resultado IS NULL)',
+        '(v.pdv_id IS NULL OR EXISTS (SELECT 1 FROM loja_pdvs lp WHERE lp.id = v.pdv_id AND lp.ativo = 1))',
+    ];
     $args = ['Ok'];
 
     if (!empty($f['de'])) {
@@ -665,6 +662,7 @@ function vendas_pdvs(): array
     return q(
         'SELECT p.id, p.nome, COUNT(*) AS vendas
            FROM vendas v JOIN loja_pdvs p ON p.id = v.pdv_id
+          WHERE p.ativo = 1
        GROUP BY p.id, p.nome ORDER BY p.nome'
     );
 }

@@ -126,6 +126,10 @@ CREATE TABLE IF NOT EXISTS loja_pdvs (
     externo_id    INT UNSIGNED NOT NULL,
     nome          VARCHAR(120) NOT NULL,
     tipo          VARCHAR(40)  NULL,
+    -- Zero tira o ponto de venda do app inteiro: catalogo, bipe, relatorio e
+    -- metas. Existe porque um PDV pode estar na mesma conta do TouchPay sem
+    -- ser do dono do app — o sync continua trazendo, a tela e que ignora.
+    ativo         TINYINT(1)   NOT NULL DEFAULT 1,
     atualizado_em DATETIME     NULL,
     criado_em     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),

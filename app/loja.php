@@ -273,7 +273,7 @@ function loja_por_ean(?string $ean_bruto, ?int $produto_id = null): array
                 p.nome AS pdv, p.externo_id AS pdv_externo
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
-          WHERE ' . implode(' OR ', $onde) . '
+          WHERE p.ativo = 1 AND (' . implode(' OR ', $onde) . ')
        ORDER BY p.nome',
         $args
     );
@@ -297,12 +297,13 @@ function loja_por_produtos(array $produto_ids): array
     $marcas = implode(',', array_fill(0, count($ids), '?'));
 
     $linhas = q(
-        'SELECT produto_id,
-                SUM(estoque)     AS estoque,
-                MAX(preco_venda) AS preco,
-                COUNT(*)         AS pdvs
-           FROM loja_itens
-          WHERE produto_id IN (' . $marcas . ')
+        'SELECT li.produto_id,
+                SUM(li.estoque)     AS estoque,
+                MAX(li.preco_venda) AS preco,
+                COUNT(*)            AS pdvs
+           FROM loja_itens li
+           JOIN loja_pdvs p ON p.id = li.pdv_id
+          WHERE p.ativo = 1 AND li.produto_id IN (' . $marcas . ')
        GROUP BY produto_id',
         $ids
     );
@@ -330,7 +331,8 @@ function loja_listar(
     string $estoque = '',
     int $limite = 400
 ): array {
-    $onde = ['1 = 1'];
+    // PDV desligado sai do app inteiro; o sync continua trazendo os dados.
+    $onde = ['p.ativo = 1'];
     $args = [];
 
     if ($busca !== '') {
@@ -406,8 +408,27 @@ function loja_resumo(): array
                 SUM(CASE WHEN li.produto_id IS NOT NULL THEN 1 ELSE 0 END) AS vinculados
            FROM loja_pdvs p
       LEFT JOIN loja_itens li ON li.pdv_id = p.id
+          WHERE p.ativo = 1
        GROUP BY p.id, p.nome, p.atualizado_em
        ORDER BY p.nome'
     );
     return $pdvs;
+}
+
+/** Todos os PDVs, ligados ou nao. So a tela que liga e desliga usa isto. */
+function loja_pdvs_todos(): array
+{
+    return q(
+        'SELECT p.id, p.nome, p.ativo, COUNT(li.id) AS itens
+           FROM loja_pdvs p
+      LEFT JOIN loja_itens li ON li.pdv_id = p.id
+       GROUP BY p.id, p.nome, p.ativo
+       ORDER BY p.nome'
+    );
+}
+
+/** Liga ou desliga um ponto de venda no app. */
+function loja_pdv_ativo(int $id, bool $ativo): void
+{
+    exec_sql('UPDATE loja_pdvs SET ativo = ? WHERE id = ?', [$ativo ? 1 : 0, $id]);
 }

@@ -134,5 +134,20 @@ $sujo = vendas_normalizar_lote([venda(), 'nao e array', venda(['id' => 0]), []])
 checar('lote ignora lixo', count($sujo), 1);
 checar('lote so de lixo fica vazio', vendas_normalizar_lote(['x', []]), []);
 
+// ------------------------------------------------------------ filtro SQL
+// PDV desligado sai do relatorio; venda orfa (sem PDV) fica, senao o
+// dinheiro dela sumia da conta sem ninguem ver.
+[$onde, $args] = vendas_filtro_sql([]);
+checar('so venda que valeu', strpos($onde, 'v.resultado') !== false, true);
+checar('corta PDV desligado', strpos($onde, 'lp.ativo = 1') !== false, true);
+checar('venda sem PDV continua entrando', strpos($onde, 'v.pdv_id IS NULL') !== false, true);
+checar('sem filtro extra so o resultado vai como parametro', $args, ['Ok']);
+
+[$onde2, $args2] = vendas_filtro_sql(['de' => '2026-09-01', 'ate' => '2026-09-06', 'pdv_id' => 3, 'forma' => 'Pix']);
+checar('datas viram inicio e fim do dia',
+    [$args2[1], $args2[2]], ['2026-09-01 00:00:00', '2026-09-06 23:59:59']);
+checar('pdv e forma entram como parametro', [$args2[3], $args2[4]], [3, 'Pix']);
+checar('nada do filtro vai concatenado no SQL', strpos($onde2, '2026-09-01'), false);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);
