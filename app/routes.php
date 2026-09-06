@@ -178,7 +178,10 @@ function rota_produtos(array $u): void
           LIMIT 300',
         $params
     );
-    ver('produtos_lista', compact('produtos', 'busca'), 'Produtos');
+    // Preco de venda e estoque da loja para a lista inteira, numa consulta so.
+    $loja = loja_por_produtos(array_column($produtos, 'id'));
+
+    ver('produtos_lista', compact('produtos', 'busca', 'loja'), 'Produtos');
 }
 
 /** Catalogo da loja: tudo que veio do TouchPay, nao so o que voce ja comprou. */

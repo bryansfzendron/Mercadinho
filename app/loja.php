@@ -303,6 +303,45 @@ function loja_por_ean(?string $ean_bruto, ?int $produto_id = null): array
 }
 
 /**
+ * Preco e estoque de varios produtos de uma vez, somando os pontos de venda.
+ *
+ * Uma consulta so para a lista inteira: uma por produto derrubaria a pagina
+ * de produtos, que mostra ate 300 linhas.
+ *
+ * @param int[] $produto_ids
+ * @return array<int, array{estoque:float, preco:?float, pdvs:int}>
+ */
+function loja_por_produtos(array $produto_ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $produto_ids))));
+    if (!$ids) {
+        return [];
+    }
+    $marcas = implode(',', array_fill(0, count($ids), '?'));
+
+    $linhas = q(
+        'SELECT produto_id,
+                SUM(estoque)     AS estoque,
+                MAX(preco_venda) AS preco,
+                COUNT(*)         AS pdvs
+           FROM loja_itens
+          WHERE produto_id IN (' . $marcas . ')
+       GROUP BY produto_id',
+        $ids
+    );
+
+    $mapa = [];
+    foreach ($linhas as $l) {
+        $mapa[(int) $l['produto_id']] = [
+            'estoque' => (float) $l['estoque'],
+            'preco'   => $l['preco'] === null ? null : (float) $l['preco'],
+            'pdvs'    => (int) $l['pdvs'],
+        ];
+    }
+    return $mapa;
+}
+
+/**
  * Catalogo da loja: tudo que o TouchPay mandou, com filtro e ordem.
  *
  * @param string $ordem  nome | preco | preco_desc | estoque | estoque_desc | categoria

@@ -10,6 +10,11 @@ const entrada = $('Pegar Token').first().json;
 
 const NAVEGADOR = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
 const base = 'https://touchpay.market';
+
+// Conferido contra a API: com 10000 o PDV maior (1211 itens) volta inteiro
+// numa requisicao so, em ~400ms. O laco de paginacao continua abaixo para o
+// caso de o servidor passar a limitar a pagina.
+const POR_PAGINA = 10000;
 const cabecalhos = {
     accept: 'application/json, text/plain, */*',
     authorization: 'Bearer ' + entrada.jwt,
@@ -76,14 +81,17 @@ for (const pdv of pdvs) {
         }
     }
 
-    // ---- estoque do PDV, pagina a pagina ----
+    // ---- estoque do PDV ----
+    // O TouchPay aceita pageSize alto: o PDV maior (1211 itens) vem inteiro
+    // numa requisicao so. A paginacao continua aqui de proposito, para o caso
+    // de o servidor decidir limitar a pagina por conta propria.
     const inventarioId = pdv.inventoryId || pdv.id;
     const itens = [];
     let pagina = 1;
     let total = null;
     while (pagina <= 40) {
         const url =
-            '/api/web/inventory/items?page=' + pagina + '&pageSize=500' +
+            '/api/web/inventory/items?page=' + pagina + '&pageSize=' + POR_PAGINA +
             '&sortOrder=quantity&descending=false&search=&inventoryIds=' + inventarioId +
             '&productId=&inventoryTypes=pointOfSale&date=' + hoje +
             'T00%3A00%3A00.000Z&timezoneOffset=180&showTotals=false';
@@ -91,7 +99,14 @@ for (const pdv of pdvs) {
         const lista = (pag && pag.items) || [];
         total = pag && typeof pag.totalItems === 'number' ? pag.totalItems : total;
         itens.push(...lista);
-        if (lista.length < 500 || (total !== null && itens.length >= total)) {
+
+        // Quem manda na parada e o totalItems (vem mesmo com showTotals=false).
+        // Contar pelo tamanho da pagina pararia cedo demais justamente no caso
+        // que importa: o servidor devolver menos do que o pageSize pedido.
+        if (lista.length === 0) {
+            break;
+        }
+        if (total !== null ? itens.length >= total : lista.length < POR_PAGINA) {
             break;
         }
         pagina++;

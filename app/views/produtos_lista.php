@@ -1,4 +1,4 @@
-<?php /** @var array $produtos @var string $busca */ ?>
+<?php /** @var array $produtos @var string $busca @var array $loja */ ?>
 <h1>Produtos</h1>
 
 <form method="get" action="/produtos" class="linha-form">
@@ -25,6 +25,24 @@
                         </span>
                         <span class="mono"><?= $p['ean'] ? e($p['ean']) : 'sem GTIN' ?></span>
                     </div>
+                    <?php $na_loja = $loja[(int) $p['id']] ?? null; ?>
+                    <?php if ($na_loja): ?>
+                        <div class="linha-baixo">
+                            <span>
+                                na loja
+                                <?= $na_loja['preco'] === null ? '—' : moeda($na_loja['preco']) ?>
+                                ·
+                                <?php if ($na_loja['estoque'] > 0): ?>
+                                    <?= qtd_fmt($na_loja['estoque']) ?> em estoque
+                                <?php else: ?>
+                                    <span class="zerado">sem estoque</span>
+                                <?php endif; ?>
+                            </span>
+                            <?php if ($na_loja['pdvs'] > 1): ?>
+                                <span class="ajuda"><?= (int) $na_loja['pdvs'] ?> PDVs</span>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                 </a>
             </li>
         <?php endforeach; ?>

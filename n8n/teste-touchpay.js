@@ -130,7 +130,11 @@ const ENTRADA = {
     checar('token repassado', p1.token, 'segredo');
     checar('nome do PDV', p1.pos.nome, 'Itália');
     checar('planograma do PDV', p1.pos.planograma_id, 96658);
-    checar('paginacao trouxe os 501 itens', p1.itens.length, 501);
+    checar('pede a pagina grande', chamadas.some((u) => u.includes('pageSize=10000')), true);
+    // A API falsa devolve no maximo 500 por pagina, de proposito: e o caso do
+    // servidor limitar a pagina por conta propria. O laco tem que continuar
+    // paginando pelo totalItems em vez de parar na primeira pagina curta.
+    checar('servidor limitando a pagina nao perde item', p1.itens.length, 501);
 
     // ---- b) prefixo OM ----
     checar('nenhum codigo sai com OM', p1.itens.filter((i) => /^OM/i.test(i.codigo)).length, 0);
