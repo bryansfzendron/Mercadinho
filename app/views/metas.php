@@ -13,9 +13,9 @@
     <label>Ponto de venda
         <select name="pdv_id" onchange="this.form.submit()">
             <option value="">todos</option>
-            <?php foreach ($pdvs as $p): ?>
-                <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>>
-                    <?= e($p['nome']) ?>
+            <?php foreach ($pdvs as $pdv): ?>
+                <option value="<?= (int) $pdv['id'] ?>" <?= $pdv_id === (int) $pdv['id'] ? 'selected' : '' ?>>
+                    <?= e($pdv['nome']) ?>
                 </option>
             <?php endforeach; ?>
         </select>
