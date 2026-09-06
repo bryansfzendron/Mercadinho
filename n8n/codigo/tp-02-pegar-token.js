@@ -14,4 +14,9 @@ if (!jwt) {
     );
 }
 
-return [{ json: { ...entrada, jwt } }];
+// A senha morre aqui. Daqui para frente o fluxo so precisa do JWT, e o que
+// nao trafega nos nodes seguintes tambem nao vai parar no historico de
+// execucao do n8n.
+const { senha, ...semSegredo } = entrada;
+
+return [{ json: { ...semSegredo, jwt } }];

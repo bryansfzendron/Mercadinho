@@ -81,7 +81,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// O login do TouchPay responde 200 com CORPO VAZIO: o JWT vem no header\n// \"authorization\". Procurar no body devolve nada.\nconst resposta = $input.first().json;\nconst entrada = $('Normalizar Entrada').first().json;\n\nconst cabecalhos = resposta.headers || {};\nconst bruto = cabecalhos.authorization || cabecalhos.Authorization || '';\nconst jwt = String(bruto).replace(/^Bearer\\s+/i, '').trim();\n\nif (!jwt) {\n    throw new Error(\n        'O TouchPay nao devolveu o header authorization (HTTP ' +\n        (resposta.statusCode || '?') + '). Confira email e senha no config.php.'\n    );\n}\n\nreturn [{ json: { ...entrada, jwt } }];\n"
+        "jsCode": "// O login do TouchPay responde 200 com CORPO VAZIO: o JWT vem no header\n// \"authorization\". Procurar no body devolve nada.\nconst resposta = $input.first().json;\nconst entrada = $('Normalizar Entrada').first().json;\n\nconst cabecalhos = resposta.headers || {};\nconst bruto = cabecalhos.authorization || cabecalhos.Authorization || '';\nconst jwt = String(bruto).replace(/^Bearer\\s+/i, '').trim();\n\nif (!jwt) {\n    throw new Error(\n        'O TouchPay nao devolveu o header authorization (HTTP ' +\n        (resposta.statusCode || '?') + '). Confira email e senha no config.php.'\n    );\n}\n\n// A senha morre aqui. Daqui para frente o fluxo so precisa do JWT, e o que\n// nao trafega nos nodes seguintes tambem nao vai parar no historico de\n// execucao do n8n.\nconst { senha, ...semSegredo } = entrada;\n\nreturn [{ json: { ...semSegredo, jwt } }];\n"
       },
       "id": "pegar-token",
       "name": "Pegar Token",
@@ -244,7 +244,7 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "saveDataSuccessExecution": "all",
+    "saveDataSuccessExecution": "none",
     "saveDataErrorExecution": "all",
     "executionTimeout": 300
   },

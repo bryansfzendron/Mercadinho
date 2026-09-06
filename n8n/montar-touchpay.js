@@ -139,8 +139,10 @@ const workflow = {
     connections,
     settings: {
         executionOrder: 'v1',
-        // Sem isto a instancia descarta a execucao e nao da para depurar.
-        saveDataSuccessExecution: 'all',
+        // Erro fica guardado, se nao nao da para depurar.
+        // Sucesso NAO e guardado de proposito: o corpo do webhook carrega a
+        // senha do TouchPay, e historico de execucao guarda isso em texto puro.
+        saveDataSuccessExecution: 'none',
         saveDataErrorExecution: 'all',
         executionTimeout: 300,
     },
