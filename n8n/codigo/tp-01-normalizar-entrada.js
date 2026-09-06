@@ -14,6 +14,16 @@ if (!callback_url) {
     throw new Error('Faltou callback_url no corpo da requisicao.');
 }
 
+// Janela de datas: so o fluxo de vendas usa. O do espelho manda vazio e
+// segue a vida, por isso nao e obrigatoria aqui.
+const data = (valor) => (/^\d{4}-\d{2}-\d{2}$/.test(String(valor || '')) ? String(valor) : '');
+const min_date = data(corpo.min_date);
+const max_date = data(corpo.max_date);
+
+if ((corpo.min_date || corpo.max_date) && (!min_date || !max_date)) {
+    throw new Error('min_date e max_date precisam vir as duas no formato AAAA-MM-DD.');
+}
+
 return [{
     json: {
         token: String(corpo.token || ''),
@@ -22,5 +32,7 @@ return [{
         senha,
         // Quando vem vazio, sincroniza todos os pontos de venda.
         pos_ids: Array.isArray(corpo.pos_ids) ? corpo.pos_ids.map(Number) : [],
+        min_date,
+        max_date,
     },
 }];

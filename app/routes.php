@@ -12,6 +12,7 @@ function despachar(string $rota): void
     // Callbacks do n8n: autenticados por token, nao por sessao.
     if ($rota === '/api/callback' && $m === 'POST') { rota_callback(); return; }
     if ($rota === '/api/loja/callback' && $m === 'POST') { rota_loja_callback(); return; }
+    if ($rota === '/api/vendas/callback' && $m === 'POST') { rota_vendas_callback(); return; }
 
     // ---------------- exige login ----------------
     $u = exigir_login();
@@ -27,6 +28,7 @@ function despachar(string $rota): void
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
     if ($rota === '/api/produto' && $m === 'GET')  { rota_api_produto($u); return; }
     if ($rota === '/api/loja/sincronizar' && $m === 'POST') { rota_loja_sincronizar($u); return; }
+    if ($rota === '/api/vendas/sincronizar' && $m === 'POST') { rota_vendas_sincronizar($u); return; }
 
     if (preg_match('#^/api/notas/(\d+)/status$#', $rota, $mm)) {
         rota_api_nota_status($u, (int) $mm[1]);
@@ -110,8 +112,9 @@ function rota_inicio(array $u): void
     );
 
     $loja = loja_resumo();
+    $vendas = vendas_resumo();
 
-    ver('inicio', compact('resumo', 'itens_total', 'pendentes', 'ultimas', 'loja'), 'Inicio');
+    ver('inicio', compact('resumo', 'itens_total', 'pendentes', 'ultimas', 'loja', 'vendas'), 'Inicio');
 }
 
 function rota_notas(array $u): void
@@ -487,6 +490,39 @@ function rota_loja_sincronizar(array $u): void
 {
     exigir_csrf();
     $r = loja_disparar_sync();
+    json_resposta($r, $r['ok'] ? 200 : 422);
+}
+
+/**
+ * Dispara a coleta de vendas. Sem corpo, o proprio app decide a janela:
+ * primeira carga puxa 12 meses, depois so o que falta.
+ */
+function rota_vendas_sincronizar(array $u): void
+{
+    exigir_csrf();
+    $corpo = corpo_json();
+    $dias  = (int) ($corpo['dias'] ?? 0);
+
+    $r = $dias > 0
+        ? vendas_disparar_sync(date('Y-m-d', strtotime('-' . $dias . ' days')), date('Y-m-d'))
+        : vendas_disparar_sync();
+
+    json_resposta($r, $r['ok'] ? 200 : 422);
+}
+
+/** Callback do fluxo de vendas. Mesmo token compartilhado dos outros fluxos. */
+function rota_vendas_callback(): void
+{
+    $p = vendas_callback_normalizar(corpo_json());
+
+    $esperado = (string) cfg('n8n_token');
+    $recebido = $p['token'] !== '' ? $p['token'] : (string) ($_SERVER['HTTP_X_TOKEN'] ?? '');
+
+    if ($esperado === '' || $esperado === 'TROQUE-ME' || !hash_equals($esperado, $recebido)) {
+        json_resposta(['erro' => 'token invalido'], 401);
+    }
+
+    $r = vendas_processar_callback($p);
     json_resposta($r, $r['ok'] ? 200 : 422);
 }
 

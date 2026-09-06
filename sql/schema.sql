@@ -161,3 +161,61 @@ CREATE TABLE IF NOT EXISTS loja_itens (
     CONSTRAINT fk_loja_itens_produto FOREIGN KEY (produto_id)
         REFERENCES produtos (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Vendas do TouchPay (GET /api/Transactions), uma linha por transacao e
+-- uma por item vendido. Preenchido pelo fluxo n8n "TouchPay Vendas ->
+-- Mercadinho" via /api/vendas/callback.
+--
+-- O par (fonte, externo_id) e unico: reimportar a mesma janela de datas
+-- troca a venda no lugar em vez de duplicar.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS vendas (
+    id              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+    fonte           VARCHAR(20)     NOT NULL DEFAULT 'touchpay',
+    externo_id      BIGINT UNSIGNED NOT NULL,
+    uuid            VARCHAR(60)     NULL,
+    -- NULL so se o PDV sumir do espelho; o callback cria o que faltar.
+    pdv_id          INT UNSIGNED    NULL,
+    data_hora       DATETIME        NOT NULL,
+    -- "Ok" e a venda que valeu; o resto fica gravado para poder filtrar.
+    resultado       VARCHAR(30)     NULL,
+    forma_pagamento VARCHAR(30)     NULL,
+    bandeira        VARCHAR(30)     NULL,
+    valor_total     DECIMAL(14,2)   NOT NULL DEFAULT 0,
+    valor_pago      DECIMAL(14,2)   NOT NULL DEFAULT 0,
+    codigo          VARCHAR(60)     NULL,
+    atualizado_em   DATETIME        NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_venda_fonte_externo (fonte, externo_id),
+    KEY ix_vendas_data (data_hora),
+    KEY ix_vendas_pdv (pdv_id),
+    CONSTRAINT fk_vendas_pdv FOREIGN KEY (pdv_id)
+        REFERENCES loja_pdvs (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS venda_itens (
+    id                 INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    venda_id           INT UNSIGNED  NOT NULL,
+    -- Amarra com o catalogo do Mercadinho pelo EAN, igual ao espelho da loja.
+    produto_id         INT UNSIGNED  NULL,
+    externo_produto_id INT UNSIGNED  NULL,
+    ean                VARCHAR(14)   NULL,
+    codigo             VARCHAR(60)   NULL,
+    descricao          VARCHAR(255)  NOT NULL,
+    categoria          VARCHAR(120)  NULL,
+    quantidade         DECIMAL(14,3) NOT NULL DEFAULT 1,
+    -- O TouchPay manda o TOTAL da linha (item com quantidade 4 vem com o
+    -- valor das 4). O unitario e conta nossa, guardada pronta para os
+    -- relatorios nao terem que dividir toda vez.
+    valor_total        DECIMAL(14,2) NOT NULL DEFAULT 0,
+    valor_unitario     DECIMAL(14,4) NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY ix_venda_itens_venda (venda_id),
+    KEY ix_venda_itens_produto (produto_id),
+    KEY ix_venda_itens_ean (ean),
+    CONSTRAINT fk_venda_itens_venda FOREIGN KEY (venda_id)
+        REFERENCES vendas (id) ON DELETE CASCADE,
+    CONSTRAINT fk_venda_itens_produto FOREIGN KEY (produto_id)
+        REFERENCES produtos (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

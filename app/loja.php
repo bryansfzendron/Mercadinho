@@ -91,20 +91,29 @@ function loja_callback_normalizar(array $p): array
     ];
 }
 
-/** Acha (ou cria) o PDV espelhado. */
-function loja_pdv_resolver(array $pos): ?int
+/**
+ * Acha (ou cria) o PDV espelhado.
+ *
+ * $marcar_sync so vale para quem acabou de trazer preco e estoque: o fluxo de
+ * vendas tambem passa por aqui e nao pode dizer que o espelho foi atualizado.
+ * Pelo mesmo motivo nome e tipo so sobrescrevem quando vem preenchidos — a
+ * venda manda o nome do PDV mas nao manda o tipo.
+ */
+function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
 {
     $externo = (int) ($pos['id'] ?? 0);
     if ($externo <= 0) {
         return null;
     }
     $nome = trim((string) ($pos['nome'] ?? '')) ?: ('PDV ' . $externo);
+    $tipo = mb_substr((string) ($pos['tipo'] ?? ''), 0, 40) ?: null;
 
     $id = qv('SELECT id FROM loja_pdvs WHERE fonte = ? AND externo_id = ?', ['touchpay', $externo]);
     if ($id) {
         exec_sql(
-            'UPDATE loja_pdvs SET nome = ?, tipo = ?, atualizado_em = NOW() WHERE id = ?',
-            [mb_substr($nome, 0, 120), mb_substr((string) ($pos['tipo'] ?? ''), 0, 40) ?: null, $id]
+            'UPDATE loja_pdvs SET nome = ?, tipo = COALESCE(?, tipo)'
+            . ($marcar_sync ? ', atualizado_em = NOW()' : '') . ' WHERE id = ?',
+            [mb_substr($nome, 0, 120), $tipo, $id]
         );
         return (int) $id;
     }
@@ -113,8 +122,10 @@ function loja_pdv_resolver(array $pos): ?int
         'fonte'         => 'touchpay',
         'externo_id'    => $externo,
         'nome'          => mb_substr($nome, 0, 120),
-        'tipo'          => mb_substr((string) ($pos['tipo'] ?? ''), 0, 40) ?: null,
-        'atualizado_em' => date('Y-m-d H:i:s'),
+        'tipo'          => $tipo,
+        // PDV que aparece primeiro numa venda entra sem data de espelho: ele
+        // ainda nao tem preco nem estoque nossos.
+        'atualizado_em' => $marcar_sync ? date('Y-m-d H:i:s') : null,
     ]);
 }
 
@@ -215,7 +226,7 @@ function loja_processar_callback(array $p): array
             ];
         }
 
-        $gravados = loja_inserir_em_blocos($colunas, $linhas);
+        $gravados = inserir_em_blocos('loja_itens', $colunas, $linhas);
 
         exec_sql('UPDATE loja_pdvs SET atualizado_em = ? WHERE id = ?', [$agora, $pdv_id]);
 
@@ -232,40 +243,6 @@ function loja_processar_callback(array $p): array
         }
         return ['ok' => false, 'itens' => 0, 'mensagem' => $e->getMessage()];
     }
-}
-
-/**
- * INSERT de varias linhas por vez em loja_itens.
- *
- * O bloco de 200 e por causa do limite de placeholders do driver: 200 linhas
- * x 16 colunas = 3200 parametros, bem abaixo do teto e com poucas viagens ao
- * banco.
- *
- * @param string[] $colunas
- * @param array[]  $linhas  cada linha na mesma ordem de $colunas
- */
-function loja_inserir_em_blocos(array $colunas, array $linhas, int $bloco = 200): int
-{
-    if (!$linhas) {
-        return 0;
-    }
-    $campos = '`' . implode('`, `', $colunas) . '`';
-    $marca  = '(' . implode(', ', array_fill(0, count($colunas), '?')) . ')';
-    $total  = 0;
-
-    foreach (array_chunk($linhas, $bloco) as $parte) {
-        $sql = 'INSERT INTO loja_itens (' . $campos . ') VALUES '
-             . implode(', ', array_fill(0, count($parte), $marca));
-        $args = [];
-        foreach ($parte as $linha) {
-            foreach ($linha as $valor) {
-                $args[] = $valor;
-            }
-        }
-        exec_sql($sql, $args);
-        $total += count($parte);
-    }
-    return $total;
 }
 
 /**

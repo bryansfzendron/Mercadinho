@@ -79,6 +79,41 @@ function inserir(string $tabela, array $dados): int
     return (int) db()->lastInsertId();
 }
 
+/**
+ * INSERT de varias linhas por vez.
+ *
+ * Sao mais de mil linhas por sincronizacao e a hospedagem corta em 30s:
+ * inserir uma a uma nao cabe. O bloco de 200 e por causa do limite de
+ * placeholders do driver (200 linhas x 16 colunas = 3200 parametros, bem
+ * abaixo do teto) com poucas viagens ao banco.
+ *
+ * @param string[] $colunas
+ * @param array[]  $linhas  cada linha com os valores na ordem de $colunas
+ */
+function inserir_em_blocos(string $tabela, array $colunas, array $linhas, int $bloco = 200): int
+{
+    if (!$linhas) {
+        return 0;
+    }
+    $campos = '`' . implode('`, `', $colunas) . '`';
+    $marca  = '(' . implode(', ', array_fill(0, count($colunas), '?')) . ')';
+    $total  = 0;
+
+    foreach (array_chunk($linhas, $bloco) as $parte) {
+        $sql = 'INSERT INTO `' . $tabela . '` (' . $campos . ') VALUES '
+             . implode(', ', array_fill(0, count($parte), $marca));
+        $args = [];
+        foreach ($parte as $linha) {
+            foreach ($linha as $valor) {
+                $args[] = $valor;
+            }
+        }
+        exec_sql($sql, $args);
+        $total += count($parte);
+    }
+    return $total;
+}
+
 function valor_pdo_tipo($v): int
 {
     if ($v === null)  return PDO::PARAM_NULL;

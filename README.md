@@ -55,14 +55,20 @@ app/
   auth.php         login por sessão
   produtos.php     casamento de produtos e histórico de preços
   notas.php        criação, disparo ao n8n e ingestão do callback
+  loja.php         espelho de preço e estoque do TouchPay
+  vendas.php       vendas do TouchPay: disparo, callback e gravação em lote
   routes.php       rotas e controllers
   views/
 assets/            css, leitor de câmera, ícones
 sql/schema.sql     schema MySQL (idempotente)
 n8n/
-  nfce-sp-mercadinho.workflow.json   workflow pronto para importar
+  nfce-sp-mercadinho.workflow.json   workflow da NFC-e, pronto para importar
+  touchpay-mercadinho.workflow.json  workflow do preço e estoque
+  touchpay-vendas.workflow.json      workflow das vendas
   codigo/*.js                        o JS de cada Code node
-  montar-workflow.js                 gera o .json a partir do codigo/
+  montar-workflow.js                 gera o .json da NFC-e a partir do codigo/
+  montar-touchpay.js                 idem, preço e estoque
+  montar-vendas.js                   idem, vendas
   teste-parser.js                    regressão do parser
 ```
 
@@ -154,9 +160,14 @@ O JavaScript de cada Code node mora em `n8n/codigo/*.js` — escrever JS dentro 
 string JSON à mão é fonte garantida de erro de escape. Depois de editar:
 
 ```bash
-node n8n/montar-workflow.js   # regenera o .workflow.json
+node n8n/montar-workflow.js   # regenera o .workflow.json da NFC-e
+node n8n/montar-touchpay.js   # idem, preço e estoque
+node n8n/montar-vendas.js     # idem, vendas
 node n8n/teste-parser.js      # roda o parser contra um HTML sintético
 ```
+
+Os dois fluxos do TouchPay compartilham `tp-01-normalizar-entrada.js` e
+`tp-02-pegar-token.js`, então **regenere os dois** depois de mexer no login.
 
 O HTML sintético do teste imita a estrutura real, conferida contra a nota 28048
 (109 itens). Ele cobre as armadilhas que já morderam:
@@ -337,15 +348,50 @@ As credenciais do TouchPay ficam **só no `config.php`** (`touchpay_email`,
 `touchpay_senha`), que não vai para o git — o PHP as manda no corpo do disparo em vez de
 elas viverem dentro do workflow. O botão *Atualizar preços e estoque* fica na tela inicial.
 
+## Vendas (TouchPay)
+
+O espelho acima diz por quanto a loja vende hoje. As **vendas que aconteceram** vêm de
+outro endpoint e de um terceiro workflow, `n8n/touchpay-vendas.workflow.json`, porque a
+cadência é outra: preço e estoque são uma foto do agora, venda é histórico.
+
+- `GET /api/Transactions` devolve tudo numa chamada só — **cada transação já traz os
+  itens dentro** (`items[]` com `productId`, `productCode`, `productDescription`,
+  `productCategoryName`, `quantity`, `price`, `paymentAmount`), mais data, PDV,
+  `result`, `paymentMethod` (Credit/Debit/Pix/Voucher) e `cardBrand`. Não precisa de
+  `/api/PointsOfSale`: o PDV vem na própria transação.
+- Filtros aceitos pela API: `minDate`, `maxDate`, `minTime`, `maxTime`, `pointOfSaleId`,
+  `localId`, `customerId`, `paymentMethod`, `minAmount`, `maxAmount`, `productId`, `cpf`,
+  mais `page`/`pageSize`/`sortOrder`/`descending` e `timezoneOffset=180`.
+  `pageSize=1000` funciona (1000 transações em ~600ms).
+- **`price` e `paymentAmount` do item são o TOTAL DA LINHA, não o unitário.** Um item com
+  `quantity: 4` veio com `price: 15.56` (unitário 3,89). Somar `paymentAmount` das linhas
+  bate com o total da transação em 1000 de 1000 casos; multiplicar por quantidade erra em
+  213. O app guarda o total como veio e calcula o unitário dividindo.
+- `subtractedItems[]` são os produtos que o cliente **pegou e devolveu**: não entram em
+  `items` nem no total, e o coletor ignora.
+- `costOfSale` e `profits` vêm sempre **zero** — o TouchPay não sabe o custo. É por isso
+  que o relatório mora aqui: quem sabe o custo é a NFC-e.
+
+O fluxo devolve **um POST por lote de 500 vendas** em `/api/vendas/callback`. A gravação é
+idempotente pelo par `(fonte, externo_id)`: as vendas do lote são apagadas antes de entrar
+de novo, então reimportar a mesma janela corrige em vez de duplicar. Por isso o sync
+incremental volta 3 dias — transação recente ainda pode ser reconciliada.
+
+Na tela inicial, *Importar 12 meses de vendas* faz a carga inicial (~12,5 mil transações,
+13 páginas) e depois o botão vira *Buscar vendas novas*, que puxa só o que falta.
+O webhook novo precisa de `n8n_webhook_vendas` no `config.php`.
+
 ## Testes
 
 ```bash
 php testes/helpers.php      # número BR, data, EAN, chave do QR, formatação
 php testes/callback.php     # os formatos aceitos no callback e o cálculo do líquido
 php testes/loja.php         # normalização do callback do TouchPay e o prefixo OM
+php testes/vendas.php       # callback das vendas, fuso da data e o unitário calculado
 php testes/nav.php          # o menu de baixo acende um item por rota
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
+node n8n/teste-vendas.js    # o coletor de vendas: lotes, devolução e total da linha
 ```
 
 Os que precisam de navegador (`npm i playwright && npx playwright install chromium`,

@@ -1,0 +1,199 @@
+{
+  "name": "TouchPay Vendas -> Mercadinho",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "touchpay-vendas",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "receber-do-mercadinho",
+      "name": "Receber do Mercadinho",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "b1f0a0d2-7c64-4a5f-9f0e-6a3c1d2e4b70"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// O Mercadinho dispara este fluxo mandando as credenciais do TouchPay no\n// corpo. Elas moram no config.php (fora do git), nunca aqui no workflow.\nconst bruto = $input.first().json;\nconst corpo = bruto.body && typeof bruto.body === 'object' ? bruto.body : bruto;\n\nconst email = String(corpo.email || '').trim();\nconst senha = String(corpo.senha || '');\nconst callback_url = String(corpo.callback_url || '').trim();\n\nif (!email || !senha) {\n    throw new Error('Faltou email ou senha do TouchPay no corpo da requisicao.');\n}\nif (!callback_url) {\n    throw new Error('Faltou callback_url no corpo da requisicao.');\n}\n\n// Janela de datas: so o fluxo de vendas usa. O do espelho manda vazio e\n// segue a vida, por isso nao e obrigatoria aqui.\nconst data = (valor) => (/^\\d{4}-\\d{2}-\\d{2}$/.test(String(valor || '')) ? String(valor) : '');\nconst min_date = data(corpo.min_date);\nconst max_date = data(corpo.max_date);\n\nif ((corpo.min_date || corpo.max_date) && (!min_date || !max_date)) {\n    throw new Error('min_date e max_date precisam vir as duas no formato AAAA-MM-DD.');\n}\n\nreturn [{\n    json: {\n        token: String(corpo.token || ''),\n        callback_url,\n        email,\n        senha,\n        // Quando vem vazio, sincroniza todos os pontos de venda.\n        pos_ids: Array.isArray(corpo.pos_ids) ? corpo.pos_ids.map(Number) : [],\n        min_date,\n        max_date,\n    },\n}];\n"
+      },
+      "id": "normalizar-entrada",
+      "name": "Normalizar Entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://touchpay.market/account/login",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json, text/plain, */*"
+            },
+            {
+              "name": "origin",
+              "value": "https://touchpay.market"
+            },
+            {
+              "name": "referer",
+              "value": "https://touchpay.market/"
+            },
+            {
+              "name": "user-agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email: $json.email, password: $json.senha }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "entrar-no-touchpay",
+      "name": "Entrar no TouchPay",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// O login do TouchPay responde 200 com CORPO VAZIO: o JWT vem no header\n// \"authorization\". Procurar no body devolve nada.\nconst resposta = $input.first().json;\nconst entrada = $('Normalizar Entrada').first().json;\n\nconst cabecalhos = resposta.headers || {};\nconst bruto = cabecalhos.authorization || cabecalhos.Authorization || '';\nconst jwt = String(bruto).replace(/^Bearer\\s+/i, '').trim();\n\nif (!jwt) {\n    throw new Error(\n        'O TouchPay nao devolveu o header authorization (HTTP ' +\n        (resposta.statusCode || '?') + '). Confira email e senha no config.php.'\n    );\n}\n\n// A senha morre aqui. Daqui para frente o fluxo so precisa do JWT, e o que\n// nao trafega nos nodes seguintes tambem nao vai parar no historico de\n// execucao do n8n.\nconst { senha, ...semSegredo } = entrada;\n\nreturn [{ json: { ...semSegredo, jwt } }];\n"
+      },
+      "id": "pegar-token",
+      "name": "Pegar Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Vendas do TouchPay: pagina o GET /api/Transactions na janela de datas\n// pedida e devolve lotes prontos para o /api/vendas/callback do Mercadinho.\n//\n// Cada transacao ja vem com os itens dentro, entao uma passada resolve venda\n// e item. Nao precisa de /api/PointsOfSale: o PDV vem na propria transacao.\nconst entrada = $('Pegar Token').first().json;\n\nconst NAVEGADOR = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';\nconst base = 'https://touchpay.market';\n\n// Medido contra a conta real: 1000 transacoes em ~600ms, e um ano inteiro\n// (12,5 mil) sai em 13 requisicoes.\nconst POR_PAGINA = 1000;\n// Teto de seguranca: 200 paginas cheias sao 200 mil transacoes, muito acima\n// de qualquer janela que o app peca.\nconst MAX_PAGINAS = 200;\n// Transacoes por POST de volta. Com 1,6 itens por venda da ~800 linhas por\n// lote, que a hospedagem grava bem dentro dos 30s dela.\nconst POR_LOTE = 500;\n\nconst cabecalhos = {\n    accept: 'application/json, text/plain, */*',\n    authorization: 'Bearer ' + entrada.jwt,\n    referer: base + '/',\n    'user-agent': NAVEGADOR,\n};\n\nasync function pegar(caminho) {\n    return this.helpers.httpRequest({\n        method: 'GET',\n        url: base + caminho,\n        headers: cabecalhos,\n        json: true,\n    });\n}\n\n// Igual ao fluxo do espelho: parte dos codigos vem com \"OM\" grudado no\n// codigo de barras (\"OM7896007811021\").\nfunction semPrefixo(valor) {\n    const texto = String(valor == null ? '' : valor).trim();\n    const m = texto.match(/^OM(\\d{6,14})$/i);\n    return m ? m[1] : texto;\n}\n\nfunction ehCodigoDeBarras(valor) {\n    return /^\\d{8}$|^\\d{12,14}$/.test(String(valor || ''));\n}\n\nconst minData = entrada.min_date;\nconst maxData = entrada.max_date;\nif (!minData || !maxData) {\n    throw new Error('Faltou a janela de datas (min_date/max_date) para buscar as vendas.');\n}\n\nconst transacoes = [];\nlet pagina = 1;\nlet total = null;\n\nwhile (pagina <= MAX_PAGINAS) {\n    const url =\n        '/api/Transactions?customerId=&localId=&pointOfSaleId=&paymentMethod=' +\n        '&minAmount=&maxAmount=&cardHolder=&cpf=&minTime=&maxTime=&productId=' +\n        '&onlyWithCpf=false&timezoneOffset=180&sortOrder=date&descending=false' +\n        '&minDate=' + minData + '&maxDate=' + maxData +\n        '&page=' + pagina + '&pageSize=' + POR_PAGINA;\n\n    const resposta = await pegar.call(this, url);\n    const lista = (resposta && resposta.items) || [];\n    total = resposta && typeof resposta.totalItems === 'number' ? resposta.totalItems : total;\n    transacoes.push(...lista);\n\n    // Quem manda na parada e o totalItems. Contar pelo tamanho da pagina\n    // pararia cedo se o servidor devolvesse menos do que o pageSize pedido.\n    if (lista.length === 0) {\n        break;\n    }\n    if (total !== null ? transacoes.length >= total : lista.length < POR_PAGINA) {\n        break;\n    }\n    pagina++;\n}\n\nfunction linhaDoItem(item) {\n    const codigo = semPrefixo(item.productCode);\n    return {\n        produto_id_externo: item.productId,\n        ean: ehCodigoDeBarras(codigo) ? codigo : '',\n        codigo,\n        descricao: String(item.productDescription || '').trim(),\n        categoria: String(item.productCategoryName || '').trim(),\n        quantidade: item.quantity == null ? 1 : item.quantity,\n        // ATENCAO: price e paymentAmount do item sao o TOTAL da linha, nao o\n        // unitario — item com quantidade 4 veio com price 15,56 (3,89 cada).\n        // Somar paymentAmount das linhas bate com o total da transacao em\n        // 1000 de 1000 casos; multiplicar por quantidade erra em 213.\n        valor_total: item.paymentAmount == null ? item.price : item.paymentAmount,\n    };\n}\n\nconst vendas = transacoes.map((t) => ({\n    id: t.id,\n    uuid: t.uuid || null,\n    data: t.date,\n    pdv_id: t.pointOfSaleId,\n    pdv_nome: t.pointOfSaleLocalName || t.pointOfSaleLocalCustomerName || ('PDV ' + t.pointOfSaleId),\n    resultado: t.result || null,\n    forma_pagamento: t.paymentMethod || null,\n    bandeira: t.cardBrand || null,\n    valor_total: t.totalPrice == null ? 0 : t.totalPrice,\n    valor_pago: t.paymentAmount == null ? t.totalPrice : t.paymentAmount,\n    codigo: t.friendlyTransactionCode || null,\n    // subtractedItems ficam de fora de proposito: sao os produtos que o\n    // cliente pegou e devolveu, nao entram em items nem no total pago.\n    itens: (t.items || []).map(linhaDoItem),\n}));\n\nconst lotes = [];\nfor (let i = 0; i < vendas.length; i += POR_LOTE) {\n    lotes.push(vendas.slice(i, i + POR_LOTE));\n}\n// Janela sem venda nenhuma ainda manda um lote vazio: e o que faz o\n// Mercadinho responder \"nada novo\" em vez de o fluxo morrer calado.\nif (lotes.length === 0) {\n    lotes.push([]);\n}\n\nreturn lotes.map((lote, i) => ({\n    json: {\n        callback_url: entrada.callback_url,\n        payload: {\n            token: entrada.token,\n            status: 'ok',\n            fonte: 'touchpay',\n            lote: i + 1,\n            lotes: lotes.length,\n            janela: { de: minData, ate: maxData },\n            consultado_em: new Date().toISOString(),\n            total_transacoes: vendas.length,\n            vendas: lote,\n        },\n    },\n}));\n"
+      },
+      "id": "coletar-vendas",
+      "name": "Coletar Vendas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "devolver-ao-mercadinho",
+      "name": "Devolver ao Mercadinho",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Receber do Mercadinho": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Entrada": {
+      "main": [
+        [
+          {
+            "node": "Entrar no TouchPay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entrar no TouchPay": {
+      "main": [
+        [
+          {
+            "node": "Pegar Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pegar Token": {
+      "main": [
+        [
+          {
+            "node": "Coletar Vendas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coletar Vendas": {
+      "main": [
+        [
+          {
+            "node": "Devolver ao Mercadinho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "executionTimeout": 600
+  },
+  "pinData": {}
+}

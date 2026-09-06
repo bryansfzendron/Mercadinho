@@ -1,4 +1,4 @@
-<?php /** @var array $resumo @var int $itens_total @var int $pendentes @var array $ultimas @var array $loja */ ?>
+<?php /** @var array $resumo @var int $itens_total @var int $pendentes @var array $ultimas @var array $loja @var array $vendas */ ?>
 <div class="acoes-topo">
     <a class="botao botao-grande" href="/escanear">▣ Escanear nota</a>
     <a class="botao botao-grande botao-alt" href="/bipar">||| Bipar produto</a>
@@ -76,28 +76,57 @@
     <p class="ajuda" id="sync-estado"></p>
 </div>
 
+<h2>Vendas (TouchPay)</h2>
+<?php if ((int) $vendas['vendas'] === 0): ?>
+    <p class="vazio">Nenhuma venda importada ainda. O primeiro import puxa os últimos 12 meses.</p>
+<?php else: ?>
+    <div class="numeros">
+        <div class="numero"><strong><?= (int) $vendas['vendas'] ?></strong><span>vendas</span></div>
+        <div class="numero"><strong><?= moeda($vendas['total']) ?></strong><span>faturamento</span></div>
+    </div>
+    <p class="ajuda">
+        De <?= data_fmt($vendas['primeira']) ?> a <?= data_fmt($vendas['ultima'], true) ?>.
+    </p>
+<?php endif; ?>
+
+<div class="acoes">
+    <button type="button" id="btn-sync-vendas" class="botao botao-alt">
+        <?= (int) $vendas['vendas'] === 0 ? 'Importar 12 meses de vendas' : 'Buscar vendas novas' ?>
+    </button>
+    <p class="ajuda" id="sync-vendas-estado"></p>
+</div>
+
 <script>
 (function () {
-    const btn = document.getElementById('btn-sync-loja');
-    const estado = document.getElementById('sync-estado');
     const CSRF = <?= json_encode(csrf_token()) ?>;
 
-    btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        estado.textContent = 'Pedindo os dados ao TouchPay...';
-        try {
-            const r = await fetch('/api/loja/sincronizar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
-            });
-            const d = await r.json();
-            estado.textContent = d.ok
-                ? 'Sincronização disparada. Leva alguns segundos; recarregue a página para ver.'
-                : ('Não deu: ' + (d.erro || 'erro desconhecido'));
-        } catch (e) {
-            estado.textContent = 'Falha de rede: ' + e.message;
-        }
-        btn.disabled = false;
-    });
+    /* Os dois botões fazem a mesma coisa contra rotas diferentes: pedem ao
+       n8n e voltam na hora, porque quem grava é o callback. */
+    function ligar(botaoId, estadoId, url, pronto) {
+        const btn = document.getElementById(botaoId);
+        const estado = document.getElementById(estadoId);
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            estado.textContent = 'Pedindo os dados ao TouchPay...';
+            try {
+                const r = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+                });
+                const d = await r.json();
+                estado.textContent = d.ok ? pronto(d) : ('Não deu: ' + (d.erro || 'erro desconhecido'));
+            } catch (e) {
+                estado.textContent = 'Falha de rede: ' + e.message;
+            }
+            btn.disabled = false;
+        });
+    }
+
+    ligar('btn-sync-loja', 'sync-estado', '/api/loja/sincronizar',
+        () => 'Sincronização disparada. Leva alguns segundos; recarregue a página para ver.');
+
+    ligar('btn-sync-vendas', 'sync-vendas-estado', '/api/vendas/sincronizar',
+        (d) => 'Buscando vendas de ' + (d.desde || '?') + ' a ' + (d.ate || '?') +
+               '. Chegam em lotes; recarregue a página em alguns segundos.');
 })();
 </script>

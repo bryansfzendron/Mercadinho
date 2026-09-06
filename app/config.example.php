@@ -43,6 +43,9 @@ return [
     // Webhook de producao do workflow "TouchPay -> Mercadinho".
     'n8n_webhook_touchpay' => 'https://biomega-n8n.bryanzendron.com.br/webhook/touchpay-mercadinho',
 
+    // Webhook de producao do workflow "TouchPay Vendas -> Mercadinho".
+    'n8n_webhook_vendas' => 'https://biomega-n8n.bryanzendron.com.br/webhook/touchpay-vendas',
+
     // Login do painel do TouchPay. Fica SO aqui: este arquivo nao vai para o
     // git, e o n8n recebe as credenciais no corpo do disparo em vez de
     // guarda-las dentro do workflow.
