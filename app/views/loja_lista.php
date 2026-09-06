@@ -18,6 +18,11 @@ $ordens = [
 ];
 ?>
 <h1>Loja</h1>
+
+<div class="acoes-topo">
+    <a class="botao botao-grande" href="/vendas">R$ Relatório de vendas</a>
+</div>
+
 <p class="ajuda">Tudo que está cadastrado nos pontos de venda, com o preço de venda e o estoque da última sincronização.</p>
 
 <?php if (!$pdvs): ?>

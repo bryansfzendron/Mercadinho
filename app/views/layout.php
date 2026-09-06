@@ -10,7 +10,7 @@ $flashes = flash_pegar();
 <meta name="theme-color" content="#14532d">
 <title><?= e($titulo) ?> · Mercadinho</title>
 <link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/assets/app.css?v=7">
+<link rel="stylesheet" href="/assets/app.css?v=8">
 </head>
 <body>
 
@@ -34,10 +34,10 @@ $flashes = flash_pegar();
 <?php if ($usuario): ?>
 <nav class="barra">
     <a href="/"          class="<?= $rota === '/' ? 'ativo' : '' ?>"><span>⌂</span>Início</a>
-    <?php // Escanear e bipar sao telas de dentro: acendem o item a que pertencem. ?>
+    <?php // Escanear, bipar e vendas sao telas de dentro: acendem o item a que pertencem. ?>
     <a href="/notas"     class="<?= str_starts_with($rota, '/notas') || in_array($rota, ['/escanear', '/manual'], true) ? 'ativo' : '' ?>"><span>≡</span>Notas</a>
     <a href="/produtos"  class="<?= str_starts_with($rota, '/produtos') || $rota === '/bipar' ? 'ativo' : '' ?>"><span>☰</span>Produtos</a>
-    <a href="/loja"      class="<?= $rota === '/loja' ? 'ativo' : '' ?>"><span>R$</span>Loja</a>
+    <a href="/loja"      class="<?= in_array($rota, ['/loja', '/vendas'], true) ? 'ativo' : '' ?>"><span>R$</span>Loja</a>
 </nav>
 <?php endif; ?>
 

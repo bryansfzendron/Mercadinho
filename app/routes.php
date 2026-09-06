@@ -23,12 +23,14 @@ function despachar(string $rota): void
     if ($rota === '/notas')     { rota_notas($u); return; }
     if ($rota === '/produtos')  { rota_produtos($u); return; }
     if ($rota === '/loja')      { rota_loja($u); return; }
+    if ($rota === '/vendas')    { rota_vendas($u); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
 
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
     if ($rota === '/api/produto' && $m === 'GET')  { rota_api_produto($u); return; }
     if ($rota === '/api/loja/sincronizar' && $m === 'POST') { rota_loja_sincronizar($u); return; }
     if ($rota === '/api/vendas/sincronizar' && $m === 'POST') { rota_vendas_sincronizar($u); return; }
+    if ($rota === '/vendas/custos' && $m === 'POST') { rota_vendas_custos($u); return; }
 
     if (preg_match('#^/api/notas/(\d+)/status$#', $rota, $mm)) {
         rota_api_nota_status($u, (int) $mm[1]);
@@ -491,6 +493,37 @@ function rota_loja_sincronizar(array $u): void
     exigir_csrf();
     $r = loja_disparar_sync();
     json_resposta($r, $r['ok'] ? 200 : 422);
+}
+
+/** Relatorio de vendas: filtros livres e o que sobra depois dos custos. */
+function rota_vendas(array $u): void
+{
+    $f = [
+        // Sem filtro, os ultimos 30 dias — a pergunta de sempre e "e esse mes?".
+        'de'      => (string) ($_GET['de'] ?? date('Y-m-d', strtotime('-29 days'))),
+        'ate'     => (string) ($_GET['ate'] ?? date('Y-m-d')),
+        'pdv_id'  => (int) ($_GET['pdv_id'] ?? 0),
+        'forma'   => (string) ($_GET['forma'] ?? ''),
+        'agrupar' => (string) ($_GET['agrupar'] ?? 'produto'),
+        'busca'   => trim((string) ($_GET['q'] ?? '')),
+    ];
+
+    $r = vendas_relatorio($f);
+    $pdvs = vendas_pdvs();
+    $formas = [
+        'Debit' => 'Débito', 'Credit' => 'Crédito', 'Pix' => 'Pix', 'Voucher' => 'Voucher',
+    ];
+
+    ver('vendas_relatorio', compact('r', 'f', 'pdvs', 'formas'), 'Vendas');
+}
+
+/** Salva as taxas e os custos fixos editados na propria tela. */
+function rota_vendas_custos(array $u): void
+{
+    exigir_csrf();
+    $n = custos_salvar($_POST);
+    flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Custos atualizados.' : 'Nada para salvar.');
+    redirecionar('/vendas');
 }
 
 /**

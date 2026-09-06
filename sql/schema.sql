@@ -219,3 +219,16 @@ CREATE TABLE IF NOT EXISTS venda_itens (
     CONSTRAINT fk_venda_itens_produto FOREIGN KEY (produto_id)
         REFERENCES produtos (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Parametros de custo do relatorio de vendas. Uma linha por parametro,
+-- editavel na propria tela — taxa de maquininha muda com o faturamento e
+-- com o fim da promocao, e o CMV padrao e so o palpite de quem ainda nao
+-- tem nota daquele produto.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS custos_parametros (
+    chave         VARCHAR(40)   NOT NULL,
+    valor         DECIMAL(14,4) NOT NULL DEFAULT 0,
+    atualizado_em DATETIME      NOT NULL,
+    PRIMARY KEY (chave)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

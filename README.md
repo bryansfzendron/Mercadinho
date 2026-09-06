@@ -381,6 +381,30 @@ Na tela inicial, *Importar 12 meses de vendas* faz a carga inicial (~12,5 mil tr
 13 páginas) e depois o botão vira *Buscar vendas novas*, que puxa só o que falta.
 O webhook novo precisa de `n8n_webhook_vendas` no `config.php`.
 
+## O que sobra da venda
+
+A tela `/vendas` (link no topo da Loja) cruza o que o TouchPay vendeu com o que a NFC-e diz
+que você pagou. Filtros: período, ponto de venda, forma de pagamento e busca por produto,
+código ou categoria; agrupamento por produto, categoria, dia, mês, PDV, forma de pagamento,
+hora do dia ou dia da semana.
+
+O custo entra em três camadas, porque elas se comportam de forma diferente:
+
+1. **Mercadoria (CMV)** — por produto, o último valor unitário líquido pago naquele produto
+   segundo a NFC-e. Produto que ainda não tem nota cai no percentual padrão (55%), e a linha
+   aparece marcada como *estimado*. O cartão do topo diz quanto do faturamento tem custo de
+   nota fiscal de verdade — quanto mais nota escaneada, menos palpite.
+2. **Percentual sobre o faturamento** — condomínio, franquia e a taxa da maquininha. A taxa
+   sai da forma de pagamento de cada venda (débito, crédito, Pix, voucher), não de uma média
+   chutada.
+3. **Fixos do mês** — energia e sistema, rateados por dia no período filtrado. Não entram no
+   resultado por produto: ratear energia por item vendido seria invenção. Por isso a linha do
+   produto mostra **contribuição** (receita − mercadoria − os percentuais) e o cartão do topo
+   mostra o **lucro** do período.
+
+As taxas e os valores fixos ficam na tabela `custos_parametros`, editáveis no fim da própria
+tela — taxa de maquininha muda com o faturamento e com o fim da promoção.
+
 ## Testes
 
 ```bash
@@ -388,6 +412,7 @@ php testes/helpers.php      # número BR, data, EAN, chave do QR, formatação
 php testes/callback.php     # os formatos aceitos no callback e o cálculo do líquido
 php testes/loja.php         # normalização do callback do TouchPay e o prefixo OM
 php testes/vendas.php       # callback das vendas, fuso da data e o unitário calculado
+php testes/custos.php       # taxa por forma de pagamento, resultado do período e CMV
 php testes/nav.php          # o menu de baixo acende um item por rota
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa

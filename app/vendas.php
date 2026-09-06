@@ -389,3 +389,250 @@ function vendas_resumo(): array
     );
     return $r ?: ['vendas' => 0, 'primeira' => null, 'ultima' => null, 'total' => 0];
 }
+
+// ---------------------------------------------------------------------
+// Relatorio
+// ---------------------------------------------------------------------
+
+/** Os agrupamentos que a tela oferece: rotulo e a coluna que os define. */
+function vendas_agrupamentos(): array
+{
+    return [
+        'produto'   => ['Produto',            'COALESCE(vi.ean, vi.codigo, vi.descricao)'],
+        'categoria' => ['Categoria',          "COALESCE(vi.categoria, 'sem categoria')"],
+        'dia'       => ['Dia',                'DATE(v.data_hora)'],
+        'mes'       => ['Mês',                "DATE_FORMAT(v.data_hora, '%Y-%m')"],
+        'pdv'       => ['Ponto de venda',     "COALESCE(p.nome, 'sem PDV')"],
+        'forma'     => ['Forma de pagamento', "COALESCE(v.forma_pagamento, 'desconhecida')"],
+        'hora'      => ['Hora do dia',        'HOUR(v.data_hora)'],
+        'semana'    => ['Dia da semana',      'DAYOFWEEK(v.data_hora)'],
+    ];
+}
+
+/**
+ * Monta o WHERE das vendas a partir dos filtros da tela.
+ *
+ * @return array{0:string, 1:array} trecho SQL e os parametros
+ */
+function vendas_filtro_sql(array $f): array
+{
+    // So venda que valeu. O resultado fica gravado para poder filtrar, mas o
+    // relatorio de faturamento nao pode somar transacao negada.
+    $onde = ['(v.resultado = ? OR v.resultado IS NULL)'];
+    $args = ['Ok'];
+
+    if (!empty($f['de'])) {
+        $onde[] = 'v.data_hora >= ?';
+        $args[] = $f['de'] . ' 00:00:00';
+    }
+    if (!empty($f['ate'])) {
+        $onde[] = 'v.data_hora <= ?';
+        $args[] = $f['ate'] . ' 23:59:59';
+    }
+    if (!empty($f['pdv_id'])) {
+        $onde[] = 'v.pdv_id = ?';
+        $args[] = (int) $f['pdv_id'];
+    }
+    if (!empty($f['forma'])) {
+        $onde[] = 'v.forma_pagamento = ?';
+        $args[] = (string) $f['forma'];
+    }
+    return [implode(' AND ', $onde), $args];
+}
+
+/** Faturamento por forma de pagamento: a base da taxa da maquininha. */
+function vendas_por_forma(array $f): array
+{
+    [$onde, $args] = vendas_filtro_sql($f);
+    return q(
+        'SELECT COALESCE(v.forma_pagamento, ?) AS forma,
+                COUNT(*) AS n, COALESCE(SUM(v.valor_pago), 0) AS total
+           FROM vendas v WHERE ' . $onde . '
+       GROUP BY v.forma_pagamento ORDER BY total DESC',
+        array_merge(['desconhecida'], $args)
+    );
+}
+
+/**
+ * Ultimo valor unitario liquido pago em cada produto, da NFC-e.
+ * E o custo real que o TouchPay nao tem — la o costOfSale vem sempre zero.
+ *
+ * @param int[] $ids
+ * @return array<int,float> produto_id => custo unitario
+ */
+function vendas_custo_por_produto(array $ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) {
+        return [];
+    }
+    $custos = [];
+    foreach (array_chunk($ids, 500) as $parte) {
+        $marcas = implode(',', array_fill(0, count($parte), '?'));
+        // A nota mais recente de cada produto manda. Duas notas no mesmo
+        // instante empatam; a primeira que vier resolve, e a diferenca entre
+        // elas nao muda o relatorio.
+        $linhas = q(
+            'SELECT i.produto_id, i.valor_unitario_liquido
+               FROM itens i
+               JOIN notas n ON n.id = i.nota_id
+              WHERE n.status = ? AND i.produto_id IN (' . $marcas . ')
+                AND i.valor_unitario_liquido > 0
+           ORDER BY n.emissao DESC, n.id DESC',
+            array_merge(['ok'], $parte)
+        );
+        foreach ($linhas as $l) {
+            $pid = (int) $l['produto_id'];
+            if (!isset($custos[$pid])) {
+                $custos[$pid] = (float) $l['valor_unitario_liquido'];
+            }
+        }
+    }
+    return $custos;
+}
+
+/** Dias do periodo filtrado, para ratear os custos fixos do mes. */
+function vendas_dias_do_periodo(array $f): int
+{
+    $de  = !empty($f['de'])  ? strtotime((string) $f['de'])  : null;
+    $ate = !empty($f['ate']) ? strtotime((string) $f['ate']) : null;
+    if (!$de || !$ate || $ate < $de) {
+        return 30;
+    }
+    return (int) max(1, round(($ate - $de) / 86400) + 1);
+}
+
+/**
+ * Junta as linhas do banco em grupos, aplicando o custo de cada produto.
+ * Funcao pura — e onde mora a conta que os testes cobrem.
+ *
+ * @param array            $linhas  uma linha por (grupo, produto)
+ * @param array<int,float> $custos  produto_id => custo unitario da NFC-e
+ */
+function vendas_agrupar(array $linhas, array $custos, float $cmv_padrao_pct, float $pct_variavel): array
+{
+    $grupos = [];
+    $cmv_total = 0.0;
+    $receita_total = 0.0;
+    $receita_com_nota = 0.0;
+
+    foreach ($linhas as $l) {
+        $g       = (string) ($l['grupo'] ?? '');
+        $receita = num_br($l['receita'] ?? 0);
+        $qtd     = num_br($l['quantidade'] ?? 0);
+        $pid     = (int) ($l['produto_id'] ?? 0);
+
+        // Custo de nota quando existe; senao o percentual padrao.
+        $de_nota = $pid > 0 && isset($custos[$pid]);
+        $custo   = $de_nota ? $custos[$pid] * $qtd : $receita * $cmv_padrao_pct / 100;
+
+        $receita_total += $receita;
+        $cmv_total     += $custo;
+        if ($de_nota) {
+            $receita_com_nota += $receita;
+        }
+
+        if (!isset($grupos[$g])) {
+            $grupos[$g] = [
+                'grupo' => $g, 'descricao' => (string) ($l['descricao'] ?? $g),
+                'ean' => $l['ean'] ?? null, 'quantidade' => 0.0, 'receita' => 0.0,
+                'custo' => 0.0, 'vendas' => 0, 'com_nota' => false, 'produtos' => 0,
+            ];
+        }
+        $grupos[$g]['quantidade'] += $qtd;
+        $grupos[$g]['receita']    += $receita;
+        $grupos[$g]['custo']      += $custo;
+        $grupos[$g]['vendas']     += (int) ($l['vendas'] ?? 0);
+        $grupos[$g]['produtos']++;
+        $grupos[$g]['com_nota'] = $grupos[$g]['com_nota'] || $de_nota;
+    }
+
+    foreach ($grupos as &$g) {
+        // Margem de contribuicao: tira o custo da mercadoria e os percentuais
+        // que acompanham o faturamento. Custo fixo nao entra aqui — ratear
+        // energia por produto seria invencao.
+        $g['bruto'] = $g['receita'] - $g['custo'];
+        $g['contribuicao'] = $g['bruto'] - $g['receita'] * $pct_variavel / 100;
+        $g['fator'] = $g['custo'] > 0 ? $g['receita'] / $g['custo'] : null;
+    }
+    unset($g);
+
+    usort($grupos, static fn (array $a, array $b): int => $b['receita'] <=> $a['receita']);
+
+    return [
+        'linhas'    => $grupos,
+        'cmv'       => $cmv_total,
+        // Diagnostico: quanto do faturamento tem custo de nota de verdade, e
+        // nao o percentual chutado.
+        'cobertura' => $receita_total > 0 ? $receita_com_nota / $receita_total * 100 : 0.0,
+    ];
+}
+
+/** O relatorio inteiro: linhas agrupadas e resultado do periodo. */
+function vendas_relatorio(array $f): array
+{
+    $agrupamentos = vendas_agrupamentos();
+    $chave = isset($agrupamentos[$f['agrupar'] ?? '']) ? (string) $f['agrupar'] : 'produto';
+    [$rotulo, $coluna] = $agrupamentos[$chave];
+
+    [$onde, $args] = vendas_filtro_sql($f);
+
+    $busca = trim((string) ($f['busca'] ?? ''));
+    if ($busca !== '') {
+        $onde .= ' AND (vi.descricao LIKE ? OR vi.ean LIKE ? OR vi.codigo LIKE ? OR vi.categoria LIKE ?)';
+        $curinga = '%' . $busca . '%';
+        array_push($args, $curinga, $curinga, $curinga, $curinga);
+    }
+
+    // Uma linha por (grupo, produto): o custo e por produto, entao o CMV so
+    // fecha se o produto vier separado dentro do grupo. A dobra em grupo
+    // acontece no PHP, em vendas_agrupar().
+    $linhas = q(
+        'SELECT ' . $coluna . ' AS grupo,
+                vi.produto_id,
+                MIN(vi.descricao) AS descricao,
+                MIN(vi.ean) AS ean,
+                SUM(vi.quantidade) AS quantidade,
+                SUM(vi.valor_total) AS receita,
+                COUNT(DISTINCT v.id) AS vendas
+           FROM venda_itens vi
+           JOIN vendas v ON v.id = vi.venda_id
+      LEFT JOIN loja_pdvs p ON p.id = v.pdv_id
+          WHERE ' . $onde . '
+       GROUP BY grupo, vi.produto_id
+          LIMIT 20000',
+        $args
+    );
+
+    $p = custos_parametros();
+    $por_forma = vendas_por_forma($f);
+    $pct_variavel = custos_pct_variavel($por_forma, $p);
+
+    $agrupado = vendas_agrupar(
+        $linhas,
+        vendas_custo_por_produto(array_column($linhas, 'produto_id')),
+        (float) $p['cmv_padrao_pct'],
+        $pct_variavel
+    );
+
+    return [
+        'rotulo'       => $rotulo,
+        'agrupar'      => $chave,
+        'linhas'       => $agrupado['linhas'],
+        'por_forma'    => $por_forma,
+        'resultado'    => custos_resultado($por_forma, $agrupado['cmv'], vendas_dias_do_periodo($f), $p),
+        'pct_variavel' => $pct_variavel,
+        'parametros'   => $p,
+        'cobertura'    => $agrupado['cobertura'],
+    ];
+}
+
+/** PDVs que tem venda, para o filtro da tela. */
+function vendas_pdvs(): array
+{
+    return q(
+        'SELECT p.id, p.nome, COUNT(*) AS vendas
+           FROM vendas v JOIN loja_pdvs p ON p.id = v.pdv_id
+       GROUP BY p.id, p.nome ORDER BY p.nome'
+    );
+}

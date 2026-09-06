@@ -310,6 +310,19 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 .margem-linha { font-size: .78rem; color: var(--suave); font-variant-numeric: tabular-nums; }
 .zerado { color: var(--vermelho); }
 
+/* ---------- relatorio de vendas ---------- */
+.sem-topo { margin-top: 0; }
+/* O padding do cartao da lista quando o item nao e um link. */
+.linha-cartao { padding: .7rem .85rem; }
+.negativo { color: var(--suave); font-weight: 500; }
+.lucro-bom { color: var(--verde); font-weight: 600; }
+.lucro-ruim { color: var(--vermelho); font-weight: 600; }
+/* Custo que veio do percentual padrao, nao de nota fiscal. */
+.estimado {
+    font-size: .68rem; padding: .05rem .35rem; border-radius: 99px;
+    border: 1px solid var(--borda); color: var(--suave); margin-left: .2rem;
+}
+
 /* ---------- puxar para atualizar (so no app instalado) ---------- */
 .puxar {
     position: fixed; top: 8px; left: 50%; z-index: 30;
@@ -332,7 +345,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde); out
 }
 
 /* ---------- filtros da tela da loja ---------- */
-.filtros { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .3rem; }
+/* minmax(0, 1fr) e obrigatorio: item de grid tem min-width auto, e o campo de
+   data tem largura intrinseca grande — sem isso os dois estouram a tela. */
+.filtros { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-bottom: .3rem; }
+.filtros input, .filtros select { min-width: 0; }
+.col-cheia { grid-column: 1 / -1; }
 .filtros label { margin-bottom: .3rem; }
 .filtros select { margin-top: .2rem; }
 .caixa-marcar {

@@ -4,7 +4,8 @@ declare(strict_types=1);
 /*
  * O menu de baixo tem que acender UM item por rota. As telas de dentro
  * acendem o item a que pertencem: escanear e lancamento manual acendem
- * "Notas", bipar acende "Produtos" — nenhuma das duas tem item proprio.
+ * "Notas", bipar acende "Produtos" e o relatorio de vendas acende "Loja" —
+ * nenhuma delas tem item proprio.
  *
  * Renderiza o layout de verdade, sem banco: as duas funcoes que dependem de
  * sessao/MySQL sao substituidas por versoes de teste.
@@ -65,6 +66,7 @@ $rotas = [
     '/produtos'    => '/produtos',
     '/produtos/3'  => '/produtos',
     '/loja'        => '/loja',
+    '/vendas'      => '/loja',
 ];
 
 foreach ($rotas as $rota => $esperado) {
