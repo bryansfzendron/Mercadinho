@@ -130,6 +130,20 @@
         1120,
         0
       ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Confere o que o Mercadinho respondeu em cada lote.\n//\n// Sem este node, lote perdido some calado: o \"Devolver ao Mercadinho\" usa\n// neverError, entao um 401 (token errado) ou um 500 no meio da carga passa\n// como se tivesse dado certo, e o relatorio nasce faltando venda sem ninguem\n// perceber. Aqui a falha vira execucao com erro, que fica guardada.\nconst lotes = $input.all();\n\nconst problemas = [];\nlet vendas = 0;\nlet itens = 0;\nlet conferencia = null;\n\nfor (const lote of lotes) {\n    const r = lote.json || {};\n    const status = r.statusCode || 0;\n    const corpo = r.body || {};\n\n    if (status < 200 || status >= 300) {\n        problemas.push(\n            'lote ' + (problemas.length + 1) + ' respondeu HTTP ' + status +\n            ' (' + JSON.stringify(corpo).slice(0, 200) + ')'\n        );\n        continue;\n    }\n    if (corpo.ok === false) {\n        problemas.push('o Mercadinho recusou um lote: ' + (corpo.mensagem || corpo.erro || '?'));\n        continue;\n    }\n\n    vendas += Number(corpo.vendas || 0);\n    itens += Number(corpo.itens || 0);\n\n    // O ultimo lote traz a conferencia do total da janela.\n    if (corpo.esperado) {\n        conferencia = corpo;\n    }\n}\n\nif (problemas.length) {\n    throw new Error(\n        'A carga de vendas nao chegou inteira: ' + problemas.join(' | ') +\n        '. Reenvie o periodo — a gravacao e idempotente, nao duplica.'\n    );\n}\n\nif (conferencia && conferencia.completo === false) {\n    throw new Error(\n        'O TouchPay tinha ' + conferencia.esperado + ' transacoes na janela e o banco ficou com ' +\n        conferencia.gravado + '. Faltaram ' + (conferencia.esperado - conferencia.gravado) +\n        '. Reenvie o periodo — a gravacao e idempotente, nao duplica.'\n    );\n}\n\nreturn [{\n    json: {\n        lotes: lotes.length,\n        vendas,\n        itens,\n        esperado: conferencia ? conferencia.esperado : null,\n        gravado: conferencia ? conferencia.gravado : null,\n        completo: conferencia ? conferencia.completo : null,\n    },\n}];\n"
+      },
+      "id": "conferir-gravacao",
+      "name": "Conferir Gravacao",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        0
+      ]
     }
   ],
   "connections": {
@@ -182,6 +196,17 @@
         [
           {
             "node": "Devolver ao Mercadinho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Devolver ao Mercadinho": {
+      "main": [
+        [
+          {
+            "node": "Conferir Gravacao",
             "type": "main",
             "index": 0
           }

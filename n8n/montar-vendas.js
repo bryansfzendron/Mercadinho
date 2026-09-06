@@ -105,6 +105,8 @@ const nodes = [
         typeVersion: 4.2,
         position: [1120, 0],
     },
+
+    nodeCode('Conferir Gravacao', 'vd-04-conferir.js', [1344, 0]),
 ];
 
 const ordem = nodes.map((n) => n.name);

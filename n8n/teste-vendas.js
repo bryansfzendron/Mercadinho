@@ -214,6 +214,50 @@ const ENTRADA = {
     }
     checar('sem janela explica o problema', /janela de datas/i.test(erro), true);
 
+
+// ---- i) o node que confere a gravacao ----
+// Lote perdido some calado (o POST usa neverError): este node existe para
+// transformar isso em execucao com erro.
+{
+    const CONFERIR = fs.readFileSync(path.join(__dirname, 'codigo', 'vd-04-conferir.js'), 'utf8');
+    const conferir = (itens) => {
+        const $input = { all: () => itens.map((json) => ({ json })) };
+        return new Function('$input', '"use strict";' + CONFERIR)($input);
+    };
+    const ok = (extra = {}) => Object.assign({
+        statusCode: 200,
+        body: { ok: true, vendas: 500, itens: 800, mensagem: 'gravado' },
+    }, extra);
+
+    const bom = conferir([
+        ok(),
+        ok({ body: { ok: true, vendas: 23, itens: 40, esperado: 523, gravado: 523, completo: true } }),
+    ]);
+    checar('conferir: soma as vendas dos lotes', bom[0].json.vendas, 523);
+    checar('conferir: passa a conferencia adiante', bom[0].json.completo, true);
+
+    let erro = '';
+    try { conferir([ok(), ok({ statusCode: 401, body: { erro: 'token invalido' } })]); }
+    catch (e) { erro = e.message; }
+    checar('conferir: 401 vira erro', /HTTP 401/.test(erro), true, erro);
+    checar('conferir: erro ensina o conserto', /idempotente/.test(erro), true);
+
+    erro = '';
+    try { conferir([ok({ body: { ok: false, mensagem: 'lote sem venda utilizavel' } })]); }
+    catch (e) { erro = e.message; }
+    checar('conferir: recusa do app vira erro', /recusou/.test(erro), true, erro);
+
+    erro = '';
+    try {
+        conferir([ok({ body: { ok: true, vendas: 100, itens: 160, esperado: 523, gravado: 400, completo: false } })]);
+    } catch (e) { erro = e.message; }
+    checar('conferir: total que nao fecha vira erro', /Faltaram 123/.test(erro), true, erro);
+
+    // Sync incremental sem novidade nao pode virar alarme falso.
+    const vazio = conferir([ok({ body: { ok: true, vendas: 0, itens: 0, mensagem: 'nada novo' } })]);
+    checar('conferir: janela vazia passa limpo', vazio[0].json.vendas, 0);
+}
+
     console.log(falhas === 0 ? '\nTodos os testes de vendas passaram.' : `\n${falhas} falha(s).`);
     process.exit(falhas ? 1 : 0);
 })();

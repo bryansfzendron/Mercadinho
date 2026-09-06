@@ -418,6 +418,16 @@ control do iOS — o padrão de quem precisa de mais função do que cabe numa a
   ritmo diário, projeção de fechamento e quanto falta por dia. Zero desliga a meta e
   deixa só a projeção. As metas moram na mesma tabela dos parâmetros de custo.
 
+Ali também se escolhe o **ponto de venda considerado**, que vale para as telas sem filtro
+(início e metas). Um PDV pode estar na mesma conta do TouchPay sem ser seu — foi o caso
+durante uma transição — e sem isso ele inflaria faturamento, lucro e meta.
+
+**Lote perdido não passa mais calado.** O POST de volta usa `neverError`, então um 401
+(token diferente entre app e disparo) ou um 500 no meio da carga era engolido e o
+relatório nascia faltando venda. O último node do fluxo confere o status de cada lote e,
+no último deles, compara quantas transações a API prometeu na janela com quantas o banco
+tem — qualquer buraco vira execução com erro, que fica guardada.
+
 ## Testes
 
 ```bash

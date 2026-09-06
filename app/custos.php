@@ -34,6 +34,10 @@ function custos_padrao(): array
         // Fixos do mes inteiro, em reais.
         'fixo_energia'    => 300.0,
         'fixo_sistema'    => 149.0,
+        // PDV que conta como seu nas telas sem filtro (inicio e metas). Zero
+        // e "todos". Existe porque um PDV pode estar na mesma conta do
+        // TouchPay sem ser seu — foi o caso do Nature na transicao.
+        'pdv_padrao'      => 0.0,
     ];
 }
 

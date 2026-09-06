@@ -106,12 +106,19 @@ function vendas_callback_normalizar(array $p): array
         }
     }
 
+    $janela = is_array($p['janela'] ?? null) ? $p['janela'] : [];
+
     return [
         'token'  => (string) ($p['token'] ?? ''),
         'status' => (string) ($p['status'] ?? 'ok'),
         'erro'   => (string) ($p['erro'] ?? ''),
         'lote'   => (int) ($p['lote'] ?? 1),
         'lotes'  => (int) ($p['lotes'] ?? 1),
+        // Quantas transacoes a API prometeu na janela inteira. E com isso que
+        // o ultimo lote confere se chegou tudo.
+        'total'  => (int) ($p['total_transacoes'] ?? 0),
+        'de'     => (string) ($janela['de'] ?? ''),
+        'ate'    => (string) ($janela['ate'] ?? ''),
         'vendas' => $vendas,
     ];
 }
@@ -363,13 +370,28 @@ function vendas_processar_callback(array $p): array
         ], $linhas_item);
 
         $pdo->commit();
-        return [
+
+        $r = [
             'ok'         => true,
             'vendas'     => count($normalizadas),
             'itens'      => $itens_gravados,
             'vinculados' => $vinculados,
             'mensagem'   => 'gravado',
         ];
+
+        // No ultimo lote da janela, conferir o total. Um lote que se perde no
+        // caminho (401, timeout) some calado: o n8n considera o POST entregue.
+        // Aqui a conta fecha ou nao fecha, e quem grita e o fluxo.
+        if ($p['lote'] >= $p['lotes'] && $p['total'] > 0 && $p['de'] !== '' && $p['ate'] !== '') {
+            $r['esperado'] = $p['total'];
+            $r['gravado']  = (int) qv(
+                'SELECT COUNT(*) FROM vendas WHERE fonte = ? AND data_hora BETWEEN ? AND ?',
+                ['touchpay', $p['de'] . ' 00:00:00', $p['ate'] . ' 23:59:59']
+            );
+            $r['completo'] = $r['gravado'] >= $r['esperado'];
+        }
+
+        return $r;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -381,11 +403,21 @@ function vendas_processar_callback(array $p): array
 /** Quanto ja entrou, para a tela de inicio mostrar sem abrir relatorio. */
 function vendas_resumo(): array
 {
+    // O PDV padrao vale aqui: PDV de outro dono na mesma conta do TouchPay
+    // nao pode inflar o seu faturamento.
+    $pdv = (int) custos_parametros()['pdv_padrao'];
+    $onde = '(resultado = ? OR resultado IS NULL)';
+    $args = ['Ok'];
+    if ($pdv > 0) {
+        $onde .= ' AND pdv_id = ?';
+        $args[] = $pdv;
+    }
+
     $r = q1(
         'SELECT COUNT(*) AS vendas, MIN(data_hora) AS primeira, MAX(data_hora) AS ultima,
                 COALESCE(SUM(valor_pago), 0) AS total
-           FROM vendas WHERE resultado = ? OR resultado IS NULL',
-        ['Ok']
+           FROM vendas WHERE ' . $onde,
+        $args
     );
     return $r ?: ['vendas' => 0, 'primeira' => null, 'ultima' => null, 'total' => 0];
 }

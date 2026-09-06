@@ -530,9 +530,15 @@ function rota_metas(array $u, string $metodo): void
         redirecionar('/metas');
     }
 
-    // O mes corrente inteiro, do dia 1 ate hoje.
-    $r = vendas_relatorio(['de' => date('Y-m-01'), 'ate' => date('Y-m-d'), 'agrupar' => 'produto']);
     $p = custos_parametros();
+
+    // O mes corrente inteiro, do dia 1 ate hoje, so no PDV que e seu.
+    $r = vendas_relatorio([
+        'de'      => date('Y-m-01'),
+        'ate'     => date('Y-m-d'),
+        'agrupar' => 'produto',
+        'pdv_id'  => (int) $p['pdv_padrao'],
+    ]);
     [$dia, $no_mes] = metas_dias();
 
     $fat = meta_progresso($r['resultado']['receita'], (float) $p['meta_faturamento'], $dia, $no_mes)
@@ -544,7 +550,8 @@ function rota_metas(array $u, string $metodo): void
               'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
     $mes = $meses[(int) date('n')] . ' de ' . date('Y');
 
-    ver('metas', compact('fat', 'luc', 'p', 'mes'), 'Metas');
+    $pdvs = vendas_pdvs();
+    ver('metas', compact('fat', 'luc', 'p', 'mes', 'pdvs'), 'Metas');
 }
 
 /** Salva as taxas e os custos fixos editados na propria tela. */
