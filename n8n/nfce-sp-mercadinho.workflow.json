@@ -1,0 +1,339 @@
+{
+  "name": "NFC-e SP -> Mercadinho",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nfce-sp-mercadinho",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "receber-do-mercadinho",
+      "name": "Receber do Mercadinho",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -900,
+        0
+      ],
+      "webhookId": "a7f3c1e0-5b2d-4e91-8c6a-3d0f7b1e9a24"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Recebe o disparo do Mercadinho e normaliza o que o resto do fluxo precisa.\nconst bruto = $input.first().json;\nconst corpo = bruto.body && typeof bruto.body === 'object' ? bruto.body : bruto;\n\nconst qrcode = String(corpo.qrcode || '').trim();\n\n// A chave de acesso ja vem dentro do parametro p= do QR Code.\nlet chave = '';\nconst p = qrcode.match(/[?&]p=([^&]+)/i);\nif (p) {\n    chave = decodeURIComponent(p[1]).split('|')[0].replace(/\\D/g, '');\n}\nif (chave.length !== 44) {\n    chave = '';\n}\n\nif (!qrcode) {\n    throw new Error('QR Code vazio no corpo da requisicao.');\n}\n\nreturn [{\n    json: {\n        nota_id: corpo.nota_id ?? null,\n        token: String(corpo.token || ''),\n        callback_url: String(corpo.callback_url || ''),\n        guardar_html: corpo.guardar_html === true,\n        qrcode,\n        chave,\n    },\n}];\n"
+      },
+      "id": "normalizar-entrada",
+      "name": "Normalizar Entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.qrcode }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "pt-BR,pt;q=0.9"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "abrir-sessao-na-sefaz",
+      "name": "Abrir Sessao na SEFAZ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// O n8n nao compartilha cookie jar entre nodes HTTP Request, entao a sessao\n// ASP.NET da SEFAZ (ASP.NET_SessionId + __AntiXsrfToken) e montada aqui na mao.\nconst resposta = $input.first().json;\nconst entrada = $('Normalizar Entrada').first().json;\n\nconst cabecalhos = resposta.headers || {};\nconst bruto = cabecalhos['set-cookie'] || cabecalhos['Set-Cookie'] || [];\nconst lista = Array.isArray(bruto) ? bruto : [bruto];\n\nconst jar = {};\nfor (const linha of lista) {\n    const par = String(linha).split(';')[0];\n    const i = par.indexOf('=');\n    if (i > 0) {\n        jar[par.slice(0, i).trim()] = par.slice(i + 1).trim();\n    }\n}\n\nconst cookies = Object.entries(jar).map(([k, v]) => k + '=' + v).join('; ');\n\nif (!cookies) {\n    throw new Error(\n        'A SEFAZ nao devolveu cookies de sessao (HTTP ' + (resposta.statusCode || '?') + '). ' +\n        'O QR Code pode estar com hash invalido ou o portal esta fora do ar.'\n    );\n}\n\nreturn [{ json: { ...entrada, cookies } }];\n"
+      },
+      "id": "extrair-cookies",
+      "name": "Extrair Cookies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaResponsiva/ConsultaResumidaRJFrame_v400.aspx",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Cookie",
+              "value": "={{ $json.cookies }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Referer",
+              "value": "={{ $json.qrcode }}"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "abrir-consulta-resumida",
+      "name": "Abrir Consulta Resumida",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -20,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// A Consulta Resumida responde 302, mas o corpo ja traz o formulario com os\n// tokens do ASP.NET. Por isso o node anterior nao segue o redirecionamento.\nconst resposta = $input.first().json;\nconst anterior = $('Extrair Cookies').first().json;\nconst html = String(resposta.body || '');\n\nfunction decodificarAtributo(valor) {\n    return String(valor)\n        .replace(/&quot;/g, '\"')\n        .replace(/&#39;/g, \"'\")\n        .replace(/&lt;/g, '<')\n        .replace(/&gt;/g, '>')\n        .replace(/&amp;/g, '&');\n}\n\nfunction campoOculto(nome) {\n    const tag = html.match(new RegExp('<input[^>]*(?:name|id)=\"' + nome + '\"[^>]*>', 'i'));\n    if (!tag) {\n        return '';\n    }\n    const valor = tag[0].match(/value=\"([^\"]*)\"/i);\n    return valor ? decodificarAtributo(valor[1]) : '';\n}\n\nconst viewstate = campoOculto('__VIEWSTATE');\nconst gerador = campoOculto('__VIEWSTATEGENERATOR');\nconst validacao = campoOculto('__EVENTVALIDATION');\n\nif (!viewstate) {\n    const erro = html.match(/Erro\\(s\\)[\\s\\S]{0,200}/i);\n    throw new Error(\n        'Nao achei o __VIEWSTATE na Consulta Resumida' +\n        (erro ? ' — a SEFAZ respondeu: ' + erro[0].replace(/<[^>]*>/g, ' ').trim() : '') + '.'\n    );\n}\n\nreturn [{\n    json: {\n        ...anterior,\n        viewstate,\n        // 2CB5E186 e o gerador observado nessa pagina; serve de reserva.\n        gerador: gerador || '2CB5E186',\n        validacao,\n    },\n}];\n"
+      },
+      "id": "extrair-viewstate",
+      "name": "Extrair ViewState",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaResponsiva/ConsultaResumidaRJFrame_v400.aspx",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Cookie",
+              "value": "={{ $json.cookies }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaResponsiva/ConsultaResumidaRJFrame_v400.aspx"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "__EVENTTARGET",
+              "value": "btnVisualizarAbas"
+            },
+            {
+              "name": "__EVENTARGUMENT",
+              "value": ""
+            },
+            {
+              "name": "__VIEWSTATE",
+              "value": "={{ $json.viewstate }}"
+            },
+            {
+              "name": "__VIEWSTATEGENERATOR",
+              "value": "={{ $json.gerador }}"
+            },
+            {
+              "name": "__EVENTVALIDATION",
+              "value": "={{ $json.validacao }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "abrir-abas-detalhadas",
+      "name": "Abrir Abas Detalhadas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Extrai cabecalho e itens da Consulta Completa e monta o payload que o\n// Mercadinho espera em POST /api/callback.\n//\n// Armadilhas tratadas aqui:\n//  - a aba Cobranca tambem usa <table class=\"toggle box\">, por isso o bloco\n//    \"Prod\" e fatiado antes de procurar as tabelas;\n//  - a linha de cabecalho da tabela usa <label>, nao <span>;\n//  - descricoes vem com entidade HTML dupla (D&amp;#39;ORO -> D'ORO);\n//  - valores ficam em formato brasileiro e sao repassados como texto — o PHP\n//    aceita \"1.234,56\" e float.\nconst resposta = $input.first().json;\nconst entrada = $('Extrair ViewState').first().json;\nconst html = String(resposta.body || '');\n\nconst base = {\n    nota_id: entrada.nota_id,\n    token: entrada.token,\n};\n\nfunction decodificar(valor) {\n    let texto = String(valor == null ? '' : valor);\n    for (let i = 0; i < 3; i++) {\n        const novo = texto\n            .replace(/&#(\\d+);/g, (_, d) => String.fromCharCode(Number(d)))\n            .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))\n            .replace(/&quot;/g, '\"')\n            .replace(/&lt;/g, '<')\n            .replace(/&gt;/g, '>')\n            .replace(/&nbsp;/g, ' ')\n            .replace(/&amp;/g, '&');\n        if (novo === texto) {\n            break;\n        }\n        texto = novo;\n    }\n    return texto;\n}\n\nfunction limpar(trecho) {\n    return decodificar(String(trecho).replace(/<[^>]*>/g, ' ')).replace(/\\s+/g, ' ').trim();\n}\n\n/**\n * Fatia o HTML entre dois id=, para nao misturar as abas.\n * Com idFim ausente no documento devolve vazio de proposito, para que os\n * fallbacks do tipo `fatia(a, b) || fatia(a, null)` funcionem.\n */\nfunction fatia(idInicio, idFim) {\n    const i = html.indexOf('id=\"' + idInicio + '\"');\n    if (i < 0) {\n        return '';\n    }\n    if (!idFim) {\n        return html.slice(i);\n    }\n    const j = html.indexOf('id=\"' + idFim + '\"', i);\n    return j > i ? html.slice(i, j) : '';\n}\n\n/** Pares <label>Rotulo</label><span>Valor</span>. */\nfunction pares(bloco) {\n    const mapa = {};\n    const re = /<label[^>]*>([\\s\\S]*?)<\\/label>\\s*<span[^>]*>([\\s\\S]*?)<\\/span>/gi;\n    let m;\n    while ((m = re.exec(bloco)) !== null) {\n        const rotulo = limpar(m[1]).replace(/:$/, '');\n        if (rotulo) {\n            mapa[rotulo] = limpar(m[2]);\n        }\n    }\n    return mapa;\n}\n\nfunction semAcento(texto) {\n    return String(texto).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();\n}\n\n/** Busca tolerante: casa por trecho do rotulo, sem acento e sem caixa. */\nfunction acha(mapa, ...candidatos) {\n    const chaves = Object.keys(mapa);\n    for (const candidato of candidatos) {\n        const alvo = semAcento(candidato);\n        for (const chave of chaves) {\n            if (semAcento(chave) === alvo) {\n                return mapa[chave];\n            }\n        }\n    }\n    for (const candidato of candidatos) {\n        const alvo = semAcento(candidato);\n        for (const chave of chaves) {\n            if (semAcento(chave).includes(alvo)) {\n                return mapa[chave];\n            }\n        }\n    }\n    return '';\n}\n\nfunction celula(tabela, classe) {\n    const re = new RegExp('<t[dh][^>]*class=\"[^\"]*' + classe + '[^\"]*\"[^>]*>([\\\\s\\\\S]*?)<\\\\/t[dh]>', 'i');\n    const m = tabela.match(re);\n    return m ? limpar(m[1]) : '';\n}\n\ntry {\n    if (!html || html.length < 2000) {\n        throw new Error('A Consulta Completa voltou vazia ou curta demais (' + html.length + ' bytes).');\n    }\n\n    // ---------- cabecalho ----------\n    const dadosNFe = pares(fatia('NFe', 'Emitente') || fatia('NFe', null).slice(0, 8000));\n    const dadosEmit = pares(\n        fatia('Emitente', 'Destinatario') ||\n        fatia('Emitente', 'Prod') ||\n        fatia('Emitente', null).slice(0, 8000)\n    );\n    const dadosTotais = pares(\n        fatia('Totais', 'Transporte') || fatia('Totais', null).slice(0, 8000)\n    );\n\n    const cnpj = (acha(dadosEmit, 'CNPJ') || '').replace(/\\D/g, '');\n\n    const nota = {\n        chave: entrada.chave,\n        emitente: acha(dadosEmit, 'Nome / Razao Social', 'Razao Social', 'Nome'),\n        cnpj,\n        inscricao_estadual: acha(dadosEmit, 'Inscricao Estadual'),\n        municipio: acha(dadosEmit, 'Municipio'),\n        uf: acha(dadosEmit, 'UF'),\n        modelo: acha(dadosNFe, 'Modelo'),\n        serie: acha(dadosNFe, 'Serie'),\n        numero_nota: acha(dadosNFe, 'Numero'),\n        emissao: acha(dadosNFe, 'Data de Emissao', 'Emissao'),\n        valor_total_produtos: acha(dadosTotais, 'Valor Total dos Produtos', 'Valor dos Produtos'),\n        desconto_total_nota: acha(dadosTotais, 'Desconto'),\n        valor_total_nota: acha(dadosTotais, 'Valor Total da NFe', 'Valor a Pagar', 'Valor Total'),\n        url_consulta: entrada.qrcode,\n        consultado_em: new Date().toISOString(),\n    };\n\n    // ---------- itens ----------\n    // Fatiar \"Prod\" antes e obrigatorio: a aba Cobranca reusa a mesma classe.\n    const blocoProdutos = fatia('Prod', 'Conteudo_pnlNFe_tabTotais');\n    if (!blocoProdutos) {\n        throw new Error('Nao achei o bloco de produtos (id=\"Prod\") na resposta.');\n    }\n\n    const tabelas = blocoProdutos.match(/<table[^>]*class=\"[^\"]*toggle[^\"]*box[^\"]*\"[\\s\\S]*?<\\/table>/gi) || [];\n    const itens = [];\n\n    for (const tabela of tabelas) {\n        const numero = celula(tabela, 'fixo-prod-serv-numero');\n        // A linha de cabecalho usa <label> no lugar de <span>: descartar.\n        if (!numero || !/^\\d+$/.test(numero)) {\n            continue;\n        }\n\n        const detalhe = pares(tabela);\n        const eanBruto = acha(detalhe, 'Codigo EAN Comercial', 'GTIN', 'EAN');\n\n        itens.push({\n            item: Number(numero),\n            codigo: acha(detalhe, 'Codigo do Produto', 'Codigo'),\n            descricao: celula(tabela, 'fixo-prod-serv-descricao'),\n            quantidade: celula(tabela, 'fixo-prod-serv-qtd') || acha(detalhe, 'Quantidade Comercial'),\n            unidade: celula(tabela, 'fixo-prod-serv-uc') || acha(detalhe, 'Unidade Comercial'),\n            valor_unitario: acha(detalhe, 'Valor unitario de comercializacao', 'Valor unitario'),\n            valor_total_item: celula(tabela, 'fixo-prod-serv-vb') || acha(detalhe, 'Valor total bruto'),\n            desconto_item: acha(detalhe, 'Valor do Desconto'),\n            ean: eanBruto,\n            ncm: acha(detalhe, 'Codigo NCM', 'NCM'),\n            cest: acha(detalhe, 'Codigo CEST', 'CEST'),\n            cfop: acha(detalhe, 'CFOP'),\n        });\n    }\n\n    if (itens.length === 0) {\n        throw new Error(\n            'Cheguei na Consulta Completa mas nao extrai nenhum item — ' +\n            'o layout da SEFAZ pode ter mudado. Encontrei ' + tabelas.length + ' tabela(s) no bloco Prod.'\n        );\n    }\n\n    const payload = { ...base, status: 'ok', nota, itens };\n    if (entrada.guardar_html) {\n        payload.html = html;\n    }\n\n    return [{ json: { callback_url: entrada.callback_url, payload } }];\n} catch (e) {\n    // Qualquer falha vira um callback de erro, para a nota nao ficar\n    // eternamente \"processando\" no Mercadinho.\n    return [{\n        json: {\n            callback_url: entrada.callback_url,\n            payload: { ...base, status: 'erro', erro: String(e.message || e) },\n        },\n    }];\n}\n"
+      },
+      "id": "extrair-itens-do-cupom",
+      "name": "Extrair Itens do Cupom",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "devolver-ao-mercadinho",
+      "name": "Devolver ao Mercadinho",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Receber do Mercadinho": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Entrada": {
+      "main": [
+        [
+          {
+            "node": "Abrir Sessao na SEFAZ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abrir Sessao na SEFAZ": {
+      "main": [
+        [
+          {
+            "node": "Extrair Cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Cookies": {
+      "main": [
+        [
+          {
+            "node": "Abrir Consulta Resumida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abrir Consulta Resumida": {
+      "main": [
+        [
+          {
+            "node": "Extrair ViewState",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair ViewState": {
+      "main": [
+        [
+          {
+            "node": "Abrir Abas Detalhadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abrir Abas Detalhadas": {
+      "main": [
+        [
+          {
+            "node": "Extrair Itens do Cupom",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Itens do Cupom": {
+      "main": [
+        [
+          {
+            "node": "Devolver ao Mercadinho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

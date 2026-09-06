@@ -59,6 +59,11 @@ app/
   views/
 assets/            css, leitor de câmera, ícones
 sql/schema.sql     schema MySQL (idempotente)
+n8n/
+  nfce-sp-mercadinho.workflow.json   workflow pronto para importar
+  codigo/*.js                        o JS de cada Code node
+  montar-workflow.js                 gera o .json a partir do codigo/
+  teste-parser.js                    regressão do parser
 ```
 
 ## Deploy na Hostinger
@@ -80,8 +85,26 @@ nano app/config.php
 Preencha no `app/config.php`: dados do banco (hPanel → Bancos de Dados MySQL),
 `n8n_token` e `setup_token`.
 
+As credenciais do banco **não vêm deste repositório** — você as cria no hPanel, em
+*Bancos de Dados → Bancos MySQL*. Lá aparecem o nome do banco e o usuário (ambos com
+prefixo, tipo `u123456789_mercadinho`); a senha é a que você definiu ao criar, e pode
+ser trocada no mesmo lugar.
+
 Depois abra `https://mercadinho.bryanzendron.com.br/setup.php?token=SEU-SETUP-TOKEN`.
 A página valida PHP, extensões, HTTPS e banco, cria as tabelas e o primeiro usuário.
+
+### Criando as tabelas
+
+Três caminhos, em ordem de preferência:
+
+1. **`setup.php`** — botão "Criar as tabelas que faltam". Aplica o `sql/schema.sql`
+   e mostra tabela por tabela o que existe.
+2. **phpMyAdmin** (hPanel → Bancos de Dados → phpMyAdmin) → aba *Importar* →
+   envie `sql/schema.sql`.
+3. **SSH**: `mysql -u USUARIO -p BANCO < sql/schema.sql`
+
+O schema é idempotente (`CREATE TABLE IF NOT EXISTS`), então rodar de novo não quebra
+nada nem apaga dados.
 
 ### Atualizações
 
@@ -92,14 +115,57 @@ git pull
 
 `app/config.php` está no `.gitignore`, então o pull nunca sobrescreve suas credenciais.
 
-## O que mudar no workflow do n8n
+## Workflow do n8n
 
-O fluxo hoje termina gravando no Google Sheets. Para alimentar o app:
+O workflow pronto para importar está em **`n8n/nfce-sp-mercadinho.workflow.json`**.
+No n8n: *Workflows → Import from File*.
 
-**1. Node `Receber QR Code` (webhook)** — mude *Respond* para **Immediately**.
-Sem isso o PHP fica bloqueado esperando a raspagem inteira.
+Ele é uma cadeia linear de 9 nodes, sem IF:
 
-O app manda:
+```
+Receber do Mercadinho (webhook, responde na hora)
+  → Normalizar Entrada
+  → Abrir Sessao na SEFAZ        (GET do QR, colhe cookies)
+  → Extrair Cookies
+  → Abrir Consulta Resumida      (GET sem seguir redirect, pega __VIEWSTATE)
+  → Extrair ViewState
+  → Abrir Abas Detalhadas        (POST __EVENTTARGET=btnVisualizarAbas)
+  → Extrair Itens do Cupom       (parser; decide status ok/erro no try/catch)
+  → Devolver ao Mercadinho       (POST no callback_url)
+```
+
+Não há ramo de erro porque o parser **sempre** produz um payload — com
+`status: "ok"` ou `status: "erro"`. Assim nenhuma nota fica presa em
+"processando" no app.
+
+**Depois de importar:**
+
+1. O webhook usa o caminho **`nfce-sp-mercadinho`**, diferente do `nfce-sp` do fluxo
+   antigo, de propósito: os dois podem conviver enquanto você testa. Ajuste
+   `n8n_webhook` no `app/config.php` para
+   `https://biomega-n8n.bryanzendron.com.br/webhook/nfce-sp-mercadinho`.
+2. Ative o workflow (webhook de produção só responde com o workflow ativo).
+3. Confira a URL da Consulta Resumida nos nodes `Abrir Consulta Resumida` e
+   `Abrir Abas Detalhadas` se a SEFAZ mudar o caminho.
+
+### Editando o código dos nodes
+
+O JavaScript de cada Code node mora em `n8n/codigo/*.js` — escrever JS dentro de
+string JSON à mão é fonte garantida de erro de escape. Depois de editar:
+
+```bash
+node n8n/montar-workflow.js   # regenera o .workflow.json
+node n8n/teste-parser.js      # roda o parser contra um HTML sintético
+```
+
+O teste cobre as armadilhas conhecidas: linha de cabeçalho em `<label>`, a aba
+Cobrança que reusa `class="toggle box"`, entidade HTML dupla (`D&amp;#39;ORO`),
+item `SEM GTIN` e o caminho de erro. Ele valida a **lógica**, não os seletores
+reais — só a primeira nota de verdade confirma esses.
+
+### Contrato com o app
+
+O app manda no webhook:
 
 ```json
 {
@@ -111,11 +177,10 @@ O app manda:
 }
 ```
 
-**2. Carregue `nota_id`, `callback_url` e `token`** até o fim do fluxo
-(no `Normalizar Entrada`, guarde-os no item).
+`nota_id`, `callback_url` e `token` atravessam o fluxo inteiro a partir do
+`Normalizar Entrada`, e voltam no callback.
 
-**3. Troque `Gravar Itens na Planilha`** por um HTTP Request `POST {{$json.callback_url}}`
-com este corpo:
+O `Devolver ao Mercadinho` posta em `{{ $json.callback_url }}`:
 
 ```json
 {
@@ -153,15 +218,16 @@ São exatamente as 27 colunas que o fluxo já extrai. Números podem ir em forma
 brasileiro (`1.234,56`) ou como float — o PHP aceita os dois. Datas aceitas em
 `dd/mm/aaaa hh:mm:ss` ou ISO.
 
-**4. No ramo de erro** (`Itens Encontrados?` = false), poste no mesmo callback:
+Quando algo falha — sessão recusada, `__VIEWSTATE` ausente, nenhum item extraído —
+o mesmo node posta:
 
 ```json
 { "nota_id": 123, "token": "<n8n_token>", "status": "erro", "erro": "descrição do problema" }
 ```
 
-**5. Opcional** — se `guardar_html` for true, inclua o HTML bruto da Consulta Completa
-no campo `html`. O app comprime com gzip (~150 KB por nota) e guarda, para reprocessar
-sem precisar bipar o cupom de novo caso o parser mude.
+Se `guardar_html` estiver ligado no `config.php`, o payload leva junto o HTML bruto da
+Consulta Completa no campo `html`. O app comprime com gzip (~150 KB por nota) e guarda,
+para reprocessar sem precisar bipar o cupom de novo caso o parser mude.
 
 ## Limites conhecidos
 
