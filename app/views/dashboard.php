@@ -20,31 +20,11 @@
     </div>
 
     <div class="numero kpi <?= ($variacao['cmv'] ?? 0) <= 0 ? 'kpi-up' : 'kpi-down' ?>">
-        <span class="kpi-rotulo">CMV (Mercadoria)</span>
+        <span class="kpi-rotulo">Gastos (CMV)</span>
         <strong class="kpi-valor negativo">− <?= moeda($res['cmv']) ?></strong>
         <?php if ($variacao['cmv'] !== null): ?>
             <span class="kpi-var <?= $variacao['cmv'] <= 0 ? 'pos' : 'neg' ?>">
                 <?= $variacao['cmv'] >= 0 ? '+' : '' ?><?= number_format($variacao['cmv'], 1, ',', '.') ?>%
-            </span>
-        <?php endif; ?>
-    </div>
-
-    <div class="numero kpi <?= ($variacao['taxa'] ?? 0) <= 0 ? 'kpi-up' : 'kpi-down' ?>">
-        <span class="kpi-rotulo">Maquininha</span>
-        <strong class="kpi-valor negativo">− <?= moeda($res['taxa']) ?></strong>
-        <?php if ($variacao['taxa'] !== null): ?>
-            <span class="kpi-var <?= $variacao['taxa'] <= 0 ? 'pos' : 'neg' ?>">
-                <?= $variacao['taxa'] >= 0 ? '+' : '' ?><?= number_format($variacao['taxa'], 1, ',', '.') ?>%
-            </span>
-        <?php endif; ?>
-    </div>
-
-    <div class="numero kpi <?= ($variacao['fixos'] ?? 0) <= 0 ? 'kpi-up' : 'kpi-down' ?>">
-        <span class="kpi-rotulo">Energia + Sistema</span>
-        <strong class="kpi-valor negativo">− <?= moeda($res['fixos']) ?></strong>
-        <?php if ($variacao['fixos'] !== null): ?>
-            <span class="kpi-var <?= $variacao['fixos'] <= 0 ? 'pos' : 'neg' ?>">
-                <?= $variacao['fixos'] >= 0 ? '+' : '' ?><?= number_format($variacao['fixos'], 1, ',', '.') ?>%
             </span>
         <?php endif; ?>
     </div>
