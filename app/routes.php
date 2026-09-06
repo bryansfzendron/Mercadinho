@@ -24,14 +24,14 @@ function despachar(string $rota): void
     if ($rota === '/produtos')  { rota_produtos($u); return; }
     if ($rota === '/loja')      { rota_loja($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }
-    if ($rota === '/metas')     { rota_metas($u, $m); return; }
+    if ($rota === '/metas')     { rota_metas($u); return; }
+    if ($rota === '/config' || str_starts_with($rota, '/config/')) { rota_config($u, $m); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
 
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
     if ($rota === '/api/produto' && $m === 'GET')  { rota_api_produto($u); return; }
     if ($rota === '/api/loja/sincronizar' && $m === 'POST') { rota_loja_sincronizar($u); return; }
     if ($rota === '/api/vendas/sincronizar' && $m === 'POST') { rota_vendas_sincronizar($u); return; }
-    if ($rota === '/vendas/custos' && $m === 'POST') { rota_vendas_custos($u); return; }
 
     if (preg_match('#^/api/notas/(\d+)/status$#', $rota, $mm)) {
         rota_api_nota_status($u, (int) $mm[1]);
@@ -521,25 +521,8 @@ function rota_vendas(array $u): void
 }
 
 /** Metas do mes: quanto entrou, quanto falta e se o ritmo chega la. */
-function rota_metas(array $u, string $metodo): void
+function rota_metas(array $u): void
 {
-    if ($metodo === 'POST') {
-        exigir_csrf();
-        custos_salvar($_POST);
-
-        // Quais pontos de venda contam no app. Vem como lista de marcados;
-        // quem nao veio, desliga.
-        if (isset($_POST['pdvs_enviados'])) {
-            $ligados = array_map('intval', (array) ($_POST['pdvs'] ?? []));
-            foreach (loja_pdvs_todos() as $pdv) {
-                loja_pdv_ativo((int) $pdv['id'], in_array((int) $pdv['id'], $ligados, true));
-            }
-        }
-
-        flash('ok', 'Metas atualizadas.');
-        redirecionar('/metas');
-    }
-
     $p = custos_parametros();
 
     // O mes corrente inteiro, do dia 1 ate hoje. Os PDVs desligados ja saem
@@ -556,17 +539,47 @@ function rota_metas(array $u, string $metodo): void
               'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
     $mes = $meses[(int) date('n')] . ' de ' . date('Y');
 
-    $pdvs = loja_pdvs_todos();
-    ver('metas', compact('fat', 'luc', 'p', 'mes', 'pdvs'), 'Metas');
+    ver('metas', compact('fat', 'luc', 'p', 'mes'), 'Metas');
 }
 
-/** Salva as taxas e os custos fixos editados na propria tela. */
-function rota_vendas_custos(array $u): void
+/**
+ * Configuracoes: tudo que e botao e ajuste, junto e longe das telas de numero.
+ * Cada aba grava na propria rota e volta para ela.
+ */
+function rota_config(array $u, string $metodo): void
 {
-    exigir_csrf();
-    $n = custos_salvar($_POST);
-    flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Custos atualizados.' : 'Nada para salvar.');
-    redirecionar('/vendas');
+    $aba = ['/config' => 'sync', '/config/pdvs' => 'pdvs',
+            '/config/metas' => 'metas', '/config/taxas' => 'taxas'][rota_atual()] ?? null;
+    if ($aba === null) {
+        http_response_code(404);
+        ver('erro', ['codigo' => 404, 'mensagem' => 'Pagina nao encontrada'], 'Nao encontrado');
+    }
+
+    if ($metodo === 'POST') {
+        exigir_csrf();
+
+        // Quais pontos de venda contam no app. Vem a lista dos marcados; quem
+        // nao veio, desliga.
+        if ($aba === 'pdvs' && isset($_POST['pdvs_enviados'])) {
+            $ligados = array_map('intval', (array) ($_POST['pdvs'] ?? []));
+            foreach (loja_pdvs_todos() as $pdv) {
+                loja_pdv_ativo((int) $pdv['id'], in_array((int) $pdv['id'], $ligados, true));
+            }
+            flash('ok', 'Pontos de venda atualizados.');
+        } else {
+            $n = custos_salvar($_POST);
+            flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Salvo.' : 'Nada para salvar.');
+        }
+
+        redirecionar(rota_atual());
+    }
+
+    $p      = custos_parametros();
+    $pdvs   = loja_pdvs_todos();
+    $loja   = loja_resumo();
+    $vendas = vendas_resumo();
+
+    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas'), 'Configuracoes');
 }
 
 /**

@@ -79,6 +79,10 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 .topo-dir { display: flex; gap: .75rem; align-items: center; font-size: .85rem; }
 .quem { opacity: .85; }
 .sair { color: #fde68a; }
+.engrenagem { display: flex; color: #fff; opacity: .85; padding: .1rem; }
+.engrenagem svg { width: 20px; height: 20px; }
+.engrenagem:hover { opacity: 1; }
+.centro a { white-space: nowrap; }
 
 .conteudo { padding: 1rem; max-width: 720px; margin: 0 auto; }
 

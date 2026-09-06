@@ -10,7 +10,7 @@ $flashes = flash_pegar();
 <meta name="theme-color" content="#1c1917">
 <title><?= e($titulo) ?> · Mercadinho</title>
 <link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/assets/app.css?v=13">
+<link rel="stylesheet" href="/assets/app.css?v=14">
 </head>
 <body>
 
@@ -19,6 +19,15 @@ $flashes = flash_pegar();
     <a class="marca" href="/">Mercadinho</a>
     <div class="topo-dir">
         <span class="quem"><?= e($usuario['nome']) ?></span>
+        <?php // Engrenagem no topo em vez de um quinto item na barra de baixo:
+              // configuracao nao e destino frequente, e a barra ja tem quatro. ?>
+        <a class="engrenagem" href="/config" aria-label="Configurações" title="Configurações">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3.2"/>
+                <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>
+            </svg>
+        </a>
         <a class="sair" href="/logout">Sair</a>
     </div>
 </header>

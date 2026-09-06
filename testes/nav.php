@@ -74,6 +74,12 @@ foreach ($rotas as $rota => $esperado) {
     checar("menu em $rota", ativos($rota), [$esperado]);
 }
 
+// Configuracoes mora na engrenagem do topo, nao na barra de baixo: nenhum
+// item pode acender, senao o usuario acha que esta dentro daquela secao.
+foreach (['/config', '/config/pdvs', '/config/metas', '/config/taxas'] as $rota) {
+    checar("menu em $rota nao acende nada", ativos($rota), []);
+}
+
 // Os itens "Nota" e "Bipar" separados nao existem mais.
 $_SERVER['REQUEST_URI'] = '/notas';
 $conteudo = ''; $titulo = 'teste';

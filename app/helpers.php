@@ -317,16 +317,33 @@ function url(string $caminho = '/'): string
 }
 
 /**
- * Submenu da secao Loja. Tres telas dentro do mesmo item do menu de baixo,
- * porque cabem juntas: catalogo, o que vendeu e para onde ele quer chegar.
+ * Submenu de uma secao: varias telas dentro do mesmo lugar do menu principal.
+ *
+ * @param array<string,string> $abas  href => rotulo
  */
-function abas_loja(string $atual): string
+function abas(array $abas, string $atual): string
 {
-    $abas = ['/loja' => 'Catálogo', '/vendas' => 'Vendas', '/metas' => 'Metas'];
     $html = '<nav class="abas">';
     foreach ($abas as $href => $rotulo) {
-        $html .= '<a class="aba' . ($href === $atual ? ' ativo' : '') . '" href="' . $href . '">'
+        $html .= '<a class="aba' . ($href === $atual ? ' ativo' : '') . '" href="' . e($href) . '">'
                . e($rotulo) . '</a>';
     }
     return $html . '</nav>';
+}
+
+/** Loja: catalogo, o que vendeu e para onde ele quer chegar. */
+function abas_loja(string $atual): string
+{
+    return abas(['/loja' => 'Catálogo', '/vendas' => 'Vendas', '/metas' => 'Metas'], $atual);
+}
+
+/** Configuracoes: tudo que e botao e ajuste, longe das telas de numero. */
+function abas_config(string $atual): string
+{
+    return abas([
+        '/config'         => 'Sincronizar',
+        '/config/pdvs'    => 'PDVs',
+        '/config/metas'   => 'Metas',
+        '/config/taxas'   => 'Taxas',
+    ], $atual);
 }

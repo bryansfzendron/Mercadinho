@@ -175,49 +175,6 @@
     </ul>
 <?php endif; ?>
 
-<details class="colar">
-    <summary>Custos e taxas</summary>
-    <form method="post" action="/vendas/custos">
-        <?= csrf_campo() ?>
-        <div class="filtros">
-            <label>Condomínio (% do bruto)
-                <input type="text" inputmode="decimal" name="condominio_pct" value="<?= e(number_format($r['parametros']['condominio_pct'], 2, ',', '')) ?>">
-            </label>
-            <label>Franquia (% do bruto)
-                <input type="text" inputmode="decimal" name="franquia_pct" value="<?= e(number_format($r['parametros']['franquia_pct'], 2, ',', '')) ?>">
-            </label>
-        </div>
-        <div class="filtros">
-            <label>Taxa débito (%)
-                <input type="text" inputmode="decimal" name="taxa_debito" value="<?= e(number_format($r['parametros']['taxa_debito'], 2, ',', '')) ?>">
-            </label>
-            <label>Taxa crédito (%)
-                <input type="text" inputmode="decimal" name="taxa_credito" value="<?= e(number_format($r['parametros']['taxa_credito'], 2, ',', '')) ?>">
-            </label>
-        </div>
-        <div class="filtros">
-            <label>Taxa Pix (%)
-                <input type="text" inputmode="decimal" name="taxa_pix" value="<?= e(number_format($r['parametros']['taxa_pix'], 2, ',', '')) ?>">
-            </label>
-            <label>Taxa voucher (%)
-                <input type="text" inputmode="decimal" name="taxa_voucher" value="<?= e(number_format($r['parametros']['taxa_voucher'], 2, ',', '')) ?>">
-            </label>
-        </div>
-        <div class="filtros">
-            <label>Energia (R$/mês)
-                <input type="text" inputmode="decimal" name="fixo_energia" value="<?= e(number_format($r['parametros']['fixo_energia'], 2, ',', '')) ?>">
-            </label>
-            <label>Sistema (R$/mês)
-                <input type="text" inputmode="decimal" name="fixo_sistema" value="<?= e(number_format($r['parametros']['fixo_sistema'], 2, ',', '')) ?>">
-            </label>
-        </div>
-        <label>CMV padrão, para produto sem nota (%)
-            <input type="text" inputmode="decimal" name="cmv_padrao_pct" value="<?= e(number_format($r['parametros']['cmv_padrao_pct'], 2, ',', '')) ?>">
-        </label>
-        <p class="ajuda">
-            As taxas vêm da tabela do PagBank e mudam com o seu faturamento e com o fim da
-            promoção. Confira no app da maquininha e corrija aqui.
-        </p>
-        <button type="submit" class="botao">Salvar</button>
-    </form>
-</details>
+<p class="ajuda centro">
+    <a href="/config/taxas">Ajustar custos e taxas</a>
+</p>

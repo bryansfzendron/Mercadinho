@@ -421,6 +421,21 @@ Dois detalhes que não são estéticos:
 - **Lucro continua verde e prejuízo vermelho** (`--positivo` / `--vermelho`). Sinal
   financeiro não é marca: com tudo dourado, o relatório perde a leitura de um relance.
 
+## Configurações
+
+Engrenagem no topo, não um quinto item na barra de baixo — configuração não é destino
+frequente e a barra já tem quatro. Quatro abas, com o mesmo submenu da Loja:
+
+- **Sincronizar** — atualizar preços e estoque, e buscar vendas novas. Os dois com o
+  estado atual do lado (o que já entrou, de quando é).
+- **PDVs** — liga e desliga cada ponto de venda no app.
+- **Metas** — os alvos do mês; o progresso continua em Loja → Metas.
+- **Taxas** — maquininha por forma de pagamento, condomínio, franquia, fixos e o CMV padrão.
+
+A regra é: **tela de número não tem botão de ajuste**. Antes disso os dois sync viviam na
+tela inicial, as metas num formulário embaixo do progresso e as taxas num `<details>` no pé
+do relatório — cada coisa num canto, e o dono do app não achava.
+
 ## A seção Loja
 
 O item **Loja R$** do menu de baixo tem três telas, num submenu no feitio do segmented
