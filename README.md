@@ -519,12 +519,17 @@ trava as duas propriedades que impedem isso de voltar.
 a cada 5 minutos:
 
 ```
-*/5 * * * *  php ~/domains/bryanzendron.com.br/public_html/mercadinho/cron.php
+*/5 * * * *  php /home/uXXXXXXXX/domains/bryanzendron.com.br/public_html/mercadinho/cron.php
 ```
+
+Caminho absoluto, não `~` — o campo do hPanel já é assim.
 
 O app fica num subdiretório do `public_html` do domínio raiz, e o subdomínio
 `mercadinho.` aponta para lá — por isso o caminho do arquivo e a URL não se
-parecem.
+parecem. **É onde o `/mercadinho` cai fora sem ninguém notar**: apontando para
+`public_html/cron.php` a tarefa roda todo dia, num arquivo que não existe, e o
+"Could not open input file" some no e-mail do cron. Se o cartão *Automático*
+disser que ele nunca passou, confira o caminho antes de qualquer outra coisa.
 
 Também responde por HTTP, para quem preferir chamar de fora — aí exige o `cron_token`:
 
