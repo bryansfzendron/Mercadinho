@@ -52,7 +52,12 @@ if (!Array.isArray(pdvsBrutos) || pdvsBrutos.length === 0) {
 const filtro = Array.isArray(entrada.pos_ids) ? entrada.pos_ids : [];
 const pdvs = filtro.length ? pdvsBrutos.filter((p) => filtro.includes(p.id)) : pdvsBrutos;
 
-const hoje = new Date().toISOString().slice(0, 10);
+// O inventario e pedido para um instante. Antes ia a meia-noite do dia UTC
+// ("2026-09-07T00:00:00.000Z"), o que trazia a foto do estoque no comeco do
+// dia: o numero nao mexia conforme o pessoal comprava. E depois das 21h de
+// Brasilia o dia UTC ja e o seguinte, entao pedia um dia que nem comecou.
+// Agora vai o instante de agora, que e o que a tela do TouchPay mostra.
+const agora = new Date().toISOString();
 const saida = [];
 
 for (const pdv of pdvs) {
@@ -93,8 +98,8 @@ for (const pdv of pdvs) {
         const url =
             '/api/web/inventory/items?page=' + pagina + '&pageSize=' + POR_PAGINA +
             '&sortOrder=quantity&descending=false&search=&inventoryIds=' + inventarioId +
-            '&productId=&inventoryTypes=pointOfSale&date=' + hoje +
-            'T00%3A00%3A00.000Z&timezoneOffset=180&showTotals=false';
+            '&productId=&inventoryTypes=pointOfSale&date=' + encodeURIComponent(agora) +
+            '&timezoneOffset=180&showTotals=false';
         const pag = await pegar.call(this, url);
         const lista = (pag && pag.items) || [];
         total = pag && typeof pag.totalItems === 'number' ? pag.totalItems : total;
