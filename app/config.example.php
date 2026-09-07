@@ -53,6 +53,23 @@ return [
     'touchpay_senha' => '',
 
     // ---------------------------------------------------------------
+    // Sincronizacao automatica (cron.php)
+    // ---------------------------------------------------------------
+    // No hPanel da Hostinger, Avancado > Cron Jobs, a cada 5 minutos:
+    //   php /home/USUARIO/domains/SEU-DOMINIO/public_html/cron.php
+    //
+    // Chamando por HTTP em vez do CLI, exige este token:
+    //   curl "https://SEU-DOMINIO/cron.php?token=..."
+    // Gere com: php -r "echo bin2hex(random_bytes(16));"
+    'cron_token' => 'TROQUE-ME',
+
+    // Intervalo minimo de cada fonte, em minutos. O cron pode rodar de 5 em 5
+    // que o resto e ignorado: venda muda o tempo todo, preco e estoque nao, e
+    // a coleta do estoque e pesada (o inventario inteiro de cada PDV).
+    'cron_vendas_min' => 5,
+    'cron_loja_min'   => 30,
+
+    // ---------------------------------------------------------------
     // Token da pagina de instalacao/diagnostico (setup.php).
     // Acesse: /setup.php?token=SEU-TOKEN
     // Depois de instalar, troque por uma string aleatoria ou remova o arquivo.

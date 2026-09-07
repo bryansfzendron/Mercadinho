@@ -105,3 +105,39 @@ function sync_formatar(?array $r, ?string $agora = null): array
         'rodando'  => $status === 'rodando',
     ];
 }
+
+/**
+ * Por que NAO disparar esta fonte agora — ou null quando pode ir.
+ *
+ * Funcao pura: recebe a linha do banco e a hora, e nada mais. E o que o cron
+ * chama a cada 5 minutos, entao ela precisa ser barata e obvia.
+ *
+ * Duas travas:
+ *  - carga ainda correndo nao ganha companhia. Uma que travou (sem noticia
+ *    ha mais de SYNC_TETO_MINUTOS) nao segura a fila para sempre;
+ *  - intervalo minimo por fonte, contado do INICIO da ultima carga: sem isso
+ *    um cron mal configurado martelaria a API do TouchPay.
+ */
+function sync_motivo_para_pular(?array $estado, int $minutos, ?string $agora = null): ?string
+{
+    if (!$estado) {
+        return null;
+    }
+
+    $ref = $agora !== null ? strtotime($agora) : time();
+    $e   = sync_formatar($estado, $agora);
+
+    if ($e['rodando']) {
+        return 'ainda rodando (lote ' . $e['lote'] . ' de ' . ($e['lotes'] ?: '?') . ')';
+    }
+
+    $inicio = strtotime((string) ($estado['iniciado_em'] ?? '')) ?: 0;
+    if ($inicio > 0) {
+        $faltam = $minutos * 60 - ($ref - $inicio);
+        if ($faltam > 0) {
+            return 'ultima carga ha menos de ' . $minutos . ' min (faltam ' . (int) ceil($faltam / 60) . ')';
+        }
+    }
+
+    return null;
+}

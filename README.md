@@ -492,6 +492,38 @@ dias da **janela** (que no mês corrente termina hoje) em vez dos dias do **mês
 inflava a meta diária quanto mais cedo no mês você abrisse a tela. `testes/breakdown.php`
 trava as duas propriedades que impedem isso de voltar.
 
+## Sincronização automática
+
+`cron.php` dispara as duas cargas sozinho. No hPanel da Hostinger, **Avançado → Cron Jobs**,
+a cada 5 minutos:
+
+```
+*/5 * * * *  php /home/USUARIO/domains/SEU-DOMINIO/public_html/cron.php
+```
+
+Também responde por HTTP, para quem preferir chamar de fora — aí exige o `cron_token`:
+
+```
+curl "https://SEU-DOMINIO/cron.php?token=SEU-CRON-TOKEN"
+```
+
+Por que aqui e não um Schedule Trigger no n8n: as credenciais do TouchPay moram só no
+`config.php` e vão no corpo do disparo. Um gatilho de horário dentro do n8n não teria
+corpo nenhum, e a senha passaria a viver lá dentro — que é justamente o que o desenho
+evita.
+
+Duas travas, ambas em `sync_motivo_para_pular()`:
+
+- **carga correndo não ganha companhia** — e uma que travou (sem notícia há mais de 10
+  minutos) não segura a fila para sempre;
+- **intervalo mínimo por fonte**, contado do início da última carga: `cron_vendas_min`
+  (5 min) e `cron_loja_min` (30 min). Venda muda o tempo todo; preço e estoque não, e a
+  coleta do estoque é pesada — é o inventário inteiro de cada PDV. Assim o cron pode
+  bater de 5 em 5 que o resto se ignora sozinho.
+
+Cada execução escreve uma linha do que fez ou por que pulou. `?forcar=1` (ou `--forcar`
+no CLI) ignora o intervalo.
+
 ## Configurações
 
 Engrenagem no topo, não um quinto item na barra de baixo — configuração não é destino
@@ -506,7 +538,8 @@ frequente e a barra já tem quatro. Quatro abas, com o mesmo submenu da Loja:
   relógio para sozinho quando ninguém está importando.
 - **PDVs** — liga e desliga cada ponto de venda no app.
 - **Metas** — os alvos do mês; o progresso continua em Loja → Metas.
-- **Taxas** — maquininha por forma de pagamento, condomínio, franquia, fixos e o CMV padrão.
+- **Taxas** — maquininha por forma de pagamento, condomínio, franquia, os fixos do mês
+  (energia, sistema e internet) e o CMV padrão.
 
 A regra é: **tela de número não tem botão de ajuste**. Antes disso os dois sync viviam na
 tela inicial, as metas num formulário embaixo do progresso e as taxas num `<details>` no pé

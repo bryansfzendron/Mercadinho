@@ -12,9 +12,9 @@ declare(strict_types=1);
  *  2. **Percentuais sobre o faturamento** — condominio, franquia e a taxa da
  *     maquininha. A taxa depende da forma de pagamento, que vem em cada
  *     transacao, entao ela e calculada venda a venda e nao por media chutada.
- *  3. **Custos fixos do mes** — energia e sistema. Nao se dividem por produto
- *     sem inventar rateio, entao entram so no resultado do periodo, rateados
- *     por dia.
+ *  3. **Custos fixos do mes** — energia, sistema e internet. Nao se dividem
+ *     por produto sem inventar rateio, entao entram so no resultado do
+ *     periodo, rateados por dia.
  */
 
 /** Valores iniciais. Os do TouchPay/PagBank sao os de tabela — confira no app. */
@@ -31,9 +31,11 @@ function custos_padrao(): array
         'taxa_voucher'    => 3.50,
         // Custo da mercadoria para produto sem nota fiscal ainda.
         'cmv_padrao_pct'  => 55.0,
-        // Fixos do mes inteiro, em reais.
+        // Fixos do mes inteiro, em reais. Quem paga por container (a internet
+        // de cada um, por exemplo) soma os containers e poe o total aqui.
         'fixo_energia'    => 300.0,
         'fixo_sistema'    => 149.0,
+        'fixo_internet'   => 0.0,
     ];
 }
 
@@ -75,6 +77,20 @@ function custos_salvar(array $novos): int
     return $n;
 }
 
+/**
+ * O que sai todo mes independente de vender: energia, sistema e internet.
+ *
+ * Uma funcao so soma os tres para o proximo custo que aparecer mexer aqui e
+ * mais nada — os containers novos ja trouxeram a internet, e nao serao os
+ * ultimos.
+ */
+function custos_fixos_mensais(array $p): float
+{
+    return (float) ($p['fixo_energia'] ?? 0)
+         + (float) ($p['fixo_sistema'] ?? 0)
+         + (float) ($p['fixo_internet'] ?? 0);
+}
+
 /** A taxa da maquininha daquela forma de pagamento, em percentual. */
 function custo_taxa_da_forma(?string $forma, array $p): float
 {
@@ -113,7 +129,7 @@ function custos_resultado(array $por_forma, float $cmv, int $dias, array $p): ar
     $franquia   = $receita * (float) $p['franquia_pct'] / 100;
     // Mes comercial de 30 dias: o periodo filtrado quase nunca e um mes
     // fechado, e ratear por dia e o unico jeito honesto de comparar.
-    $fixos = ((float) $p['fixo_energia'] + (float) $p['fixo_sistema']) * max(1, $dias) / 30;
+    $fixos = custos_fixos_mensais($p) * max(1, $dias) / 30;
 
     $lucro = $receita - $cmv - $taxa - $condominio - $franquia - $fixos;
 
@@ -184,7 +200,7 @@ function custos_variavel_atual(int $dias = 90): array
  * pareca o dobro do custo.
  *
  * O segundo corte poe o custo fixo do mes na conta como percentual do
- * faturamento: com R$ 449 de energia e sistema sobre R$ 14,7 mil, sao mais
+ * faturamento: com R$ 449 de fixos sobre R$ 14,7 mil, sao mais
  * 3,05%, e o fator saudavel sobe para 1,173x.
  *
  * @param float      $pct_variavel  maquininha + condominio + franquia
@@ -254,5 +270,5 @@ function custos_pct_fixo(?float $faturamento_mes, ?array $p = null): ?float
     // Os parametros vem de fora quando quem chama ja os tem em maos — e e o
     // que deixa esta funcao testavel sem banco.
     $p = $p ?? custos_parametros();
-    return ((float) $p['fixo_energia'] + (float) $p['fixo_sistema']) / $faturamento_mes * 100;
+    return custos_fixos_mensais($p) / $faturamento_mes * 100;
 }

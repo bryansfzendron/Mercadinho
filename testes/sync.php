@@ -83,5 +83,48 @@ checar('sem linha o status e parado', $nada['status'], 'parado');
 checar('sem linha nao esta rodando', $nada['rodando'], false);
 checar('sem linha o percentual e zero', $nada['pct'], 0);
 
+// ---------------------------------------------------- o portao do cron
+// O cron roda de 5 em 5 minutos; quem decide se dispara e esta funcao.
+$agora = '2026-09-06 18:00:30';
+
+// Nunca sincronizou: pode ir.
+checar('sem historico dispara', sync_motivo_para_pular(null, 5, $agora), null);
+
+// Carga correndo nao ganha companhia.
+$correndo = sync_motivo_para_pular(linha(['atualizado_em' => '2026-09-06 18:00:20']), 5, $agora);
+checar('carga rodando segura o cron', is_string($correndo), true);
+checar('e diz em que lote esta', str_contains((string) $correndo, 'lote 7 de 25'), true);
+
+// Carga travada nao pode segurar a fila para sempre.
+checar('carga travada libera',
+    sync_motivo_para_pular(linha(['atualizado_em' => '2026-09-06 17:30:00']), 5, $agora) === null
+    || !str_contains((string) sync_motivo_para_pular(linha(['atualizado_em' => '2026-09-06 17:30:00']), 5, $agora), 'rodando'),
+    true);
+
+// Terminou ha 2 minutos, intervalo de 5: espera.
+$cedo = sync_motivo_para_pular(
+    linha(['status' => 'ok', 'iniciado_em' => '2026-09-06 17:58:30', 'atualizado_em' => '2026-09-06 17:58:40']),
+    5, $agora
+);
+checar('cedo demais segura', is_string($cedo), true);
+checar('e diz quanto falta', str_contains((string) $cedo, 'faltam'), true);
+
+// Terminou ha 6 minutos, intervalo de 5: vai.
+checar('passado o intervalo, dispara', sync_motivo_para_pular(
+    linha(['status' => 'ok', 'iniciado_em' => '2026-09-06 17:54:00', 'atualizado_em' => '2026-09-06 17:55:00']),
+    5, $agora
+), null);
+
+// Estoque tem intervalo proprio: 30 min segura o que 5 liberaria.
+$doze_min = linha(['status' => 'ok', 'iniciado_em' => '2026-09-06 17:48:00', 'atualizado_em' => '2026-09-06 17:49:00']);
+checar('com 5 min ja podia', sync_motivo_para_pular($doze_min, 5, $agora), null);
+checar('com 30 min ainda nao', is_string(sync_motivo_para_pular($doze_min, 30, $agora)), true);
+
+// Carga que falhou nao fica de castigo alem do intervalo.
+checar('erro nao bloqueia depois do intervalo', sync_motivo_para_pular(
+    linha(['status' => 'erro', 'iniciado_em' => '2026-09-06 17:50:00', 'atualizado_em' => '2026-09-06 17:50:10']),
+    5, $agora
+), null);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

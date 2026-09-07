@@ -20,7 +20,7 @@
         Vender por V o que custou C sobra <code>V − C − V×<?= number_format($min['pct_variavel'], 2, ',', '.') ?>%</code>,
         e isso zera no fator <?= $min['prejuizo'] === null ? '—' : number_format($min['prejuizo'], 2, ',', '.') . 'x' ?>.
         <?php if ($min['pct_fixo'] !== null): ?>
-            Somando energia e sistema, que hoje pesam
+            Somando os fixos do mês (energia, sistema, internet), que hoje pesam
             <?= number_format($min['pct_fixo'], 2, ',', '.') ?>% do faturamento, o piso saudável sobe para
             <?= number_format($min['operacao'], 2, ',', '.') ?>x.
         <?php else: ?>

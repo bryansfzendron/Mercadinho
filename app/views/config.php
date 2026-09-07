@@ -271,6 +271,15 @@
                     <input type="text" inputmode="decimal" name="fixo_sistema" value="<?= e(number_format($p['fixo_sistema'], 2, ',', '')) ?>">
                 </label>
             </div>
+            <label>Internet (R$/mês)
+                <input type="text" inputmode="decimal" name="fixo_internet" value="<?= e(number_format($p['fixo_internet'], 2, ',', '')) ?>">
+            </label>
+            <p class="ajuda">
+                Se você paga internet por container, some todos e ponha o total — é assim
+                que energia e sistema também entram. Os três viram um percentual do
+                faturamento na hora de julgar se um produto paga a operação, então o total
+                é o que importa, não como está dividido.
+            </p>
             <label>CMV padrão, para produto sem nota (%)
                 <input type="text" inputmode="decimal" name="cmv_padrao_pct" value="<?= e(number_format($p['cmv_padrao_pct'], 2, ',', '')) ?>">
             </label>

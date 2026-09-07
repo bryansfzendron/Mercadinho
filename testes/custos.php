@@ -238,5 +238,28 @@ checar('sem segundo corte nao ha sobra apos fixo',
 checar('rotulo do prejuizo', custo_veredito_rotulo('prejuizo')[0], 'Prejuízo');
 checar('rotulo do saudavel', custo_veredito_rotulo('ok')[0], 'Saudável');
 
+// ------------------------------------------------------ fixos com internet
+// Os containers novos trouxeram a internet; a soma dos fixos mora num lugar so.
+$comNet = custos_padrao();
+$comNet['fixo_internet'] = 120.0;
+quase('os tres fixos somam', custos_fixos_mensais($comNet), 300.0 + 149.0 + 120.0);
+quase('sem internet continua a soma antiga', custos_fixos_mensais(custos_padrao()), 449.0);
+checar('internet comeca zerada', custos_padrao()['fixo_internet'], 0.0);
+// Parametro que nao existe nao pode virar erro: a soma trata como zero.
+quase('parametro faltando conta como zero',
+    custos_fixos_mensais(['fixo_energia' => 100.0]), 100.0);
+
+// A internet entra no rateio do periodo e no piso da operacao.
+quase('mes cheio com internet',
+    custos_resultado([['forma' => 'Pix', 'total' => 1000.0]], 0.0, 30, $comNet)['fixos'], 569.0);
+quase('meio mes com internet',
+    custos_resultado([['forma' => 'Pix', 'total' => 1000.0]], 0.0, 15, $comNet)['fixos'], 284.5);
+quase('internet pesa no percentual do fixo',
+    (float) custos_pct_fixo(14706.0, $comNet), 569.0 / 14706.0 * 100, 0.001);
+// Com mais fixo, o piso saudavel sobe.
+$antes  = custos_minimos(11.68, custos_pct_fixo(14706.0, custos_padrao()));
+$depois = custos_minimos(11.68, custos_pct_fixo(14706.0, $comNet));
+checar('mais fixo, piso mais alto', $depois['operacao'] > $antes['operacao'], true);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

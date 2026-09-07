@@ -102,7 +102,7 @@
         <div><dt>Maquininha</dt><dd class="valor negativo">− <?= moeda($res['taxa']) ?></dd></div>
         <div><dt>Condomínio</dt><dd class="valor negativo">− <?= moeda($res['condominio']) ?></dd></div>
         <div><dt>Franquia</dt><dd class="valor negativo">− <?= moeda($res['franquia']) ?></dd></div>
-        <div><dt>Energia + sistema</dt><dd class="valor negativo">− <?= moeda($res['fixos']) ?></dd></div>
+        <div><dt>Energia, sistema e internet</dt><dd class="valor negativo">− <?= moeda($res['fixos']) ?></dd></div>
     </dl>
 
     <div class="margem <?= $res['lucro'] >= 0 ? 'margem-boa' : 'margem-ruim' ?>">

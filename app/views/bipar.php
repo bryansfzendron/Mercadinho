@@ -146,7 +146,7 @@
         }
         if (min.operacao && fator < min.operacao) {
             return '<p class="aviso aviso-info"><strong>Não paga a operação.</strong> Cobre o ' +
-                'que sai de cada venda, mas não ajuda com energia e sistema — para isso o ' +
+                'que sai de cada venda, mas não ajuda a pagar os fixos do mês — para isso o ' +
                 'fator precisa passar de ' + num(min.operacao) + 'x. ' +
                 '<a href="/margens">Ver todos assim</a>.</p>';
         }
@@ -218,7 +218,7 @@
         let conta = 'Você vende por <strong>' + moeda(venda) + '</strong>. A conta tira ' +
             num(min.pct_variavel || custos.pct) + '% de maquininha, condomínio e franquia';
         if (min.pct_fixo != null) {
-            conta += ', e mais ' + num(min.pct_fixo) + '% de energia e sistema — que é o ' +
+            conta += ', e mais ' + num(min.pct_fixo) + '% dos fixos do mês — que é o ' +
                 'peso deles sobre o seu faturamento';
         }
         conta += '.';

@@ -52,7 +52,7 @@ $margem = $venda !== null && $pago > 0 ? $venda - $pago : null;
                     tira dinheiro do bolso: sobram <?= moeda($diag['sobra']) ?> por unidade
                     depois da maquininha, do condomínio e da franquia.
                 <?php else: ?>
-                    Cobre o que sai de cada venda, mas não ajuda a pagar energia e sistema —
+                    Cobre o que sai de cada venda, mas não ajuda a pagar os fixos do mês —
                     para isso o fator precisa passar de <?= number_format($min['operacao'], 2, ',', '.') ?>x.
                 <?php endif; ?>
                 <a href="/margens">Ver todos assim</a>.
