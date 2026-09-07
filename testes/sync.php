@@ -126,5 +126,40 @@ checar('erro nao bloqueia depois do intervalo', sync_motivo_para_pular(
     5, $agora
 ), null);
 
+// ------------------------------------------------------- batimento do cron
+// Sem isto o cron e uma caixa preta: quando ele nao roda, a tela fica igual a
+// quando ele roda e nao acha nada novo.
+$agora = '2026-09-06 18:00:30';
+
+$nunca = cron_formatar(null, $agora);
+checar('sem batimento o cron nunca passou', $nunca['nunca'], true);
+checar('e isso conta como atrasado', $nunca['atrasado'], true);
+checar('sem batimento nao ha minutos', $nunca['minutos'], null);
+
+$agorinha = cron_formatar(
+    ['status' => 'ok', 'mensagem' => 'vendas disparado', 'atualizado_em' => '2026-09-06 17:57:30'],
+    $agora
+);
+checar('passou ha 3 minutos', $agorinha['minutos'], 3);
+checar('e nao esta atrasado', $agorinha['atrasado'], false);
+checar('conta o que fez', $agorinha['mensagem'], 'vendas disparado');
+checar('sem erro', $agorinha['erro'], false);
+
+// Tres rodadas perdidas: ou o cron nao esta configurado, ou o PHP dele morre
+// antes de chegar la.
+checar('meia hora calado esta atrasado',
+    cron_formatar(['status' => 'ok', 'atualizado_em' => '2026-09-06 17:30:00'], $agora)['atrasado'], true);
+checar('no limite ainda nao acusa',
+    cron_formatar(['status' => 'ok', 'atualizado_em' => '2026-09-06 17:40:31'], $agora)['atrasado'], false);
+
+// Disparo que falhou aparece como erro, mesmo com o cron passando na hora: sao
+// duas coisas diferentes, e a tela precisa distinguir.
+$ruim = cron_formatar(
+    ['status' => 'erro', 'mensagem' => 'vendas: n8n respondeu HTTP 500', 'atualizado_em' => '2026-09-06 17:58:00'],
+    $agora
+);
+checar('disparo que falhou marca erro', $ruim['erro'], true);
+checar('mas o cron passou', $ruim['atrasado'], false);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

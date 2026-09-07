@@ -549,6 +549,30 @@ Duas travas, ambas em `sync_motivo_para_pular()`:
 Cada execução escreve uma linha do que fez ou por que pulou. `?forcar=1` (ou `--forcar`
 no CLI) ignora o intervalo.
 
+### Saber se ele está rodando
+
+Um cron que não roda não roda em silêncio — e a tela fica igual à de um cron que roda e
+não acha nada novo. Por isso cada execução deixa um batimento em `sync_estado` com
+`fonte = 'cron'`, e **Configurações → Sincronizar** mostra "última passagem há X min" mais
+o que ele fez. Passando de 20 minutos (três rodadas perdidas), a tela avisa.
+
+Quando ele não passa, a causa quase sempre é o **PHP do cron**: a hospedagem tem mais de
+uma versão instalada e o `php` do agendador nem sempre é o do site. O app precisa de 8.0
+para cima; num PHP velho ele morria no meio de um `require` e o cron mandava um e-mail em
+branco. Agora `cron.php` confere a versão na primeira linha e diz qual está rodando, e no
+CLI liga o `display_errors` — o `config.php` deixa ele desligado para o site, e sem isso
+qualquer erro sumia junto.
+
+Para ver na hora:
+
+```
+php ~/domains/bryanzendron.com.br/public_html/mercadinho/cron.php
+```
+
+Se aparecer a mensagem da versão, troque o `php` do Cron Job pelo caminho completo do
+binário certo (`/usr/bin/php8.2`, `/opt/alt/php82/usr/bin/php` — o hPanel mostra qual).
+Disparo que falha devolve **saída 1**, para o agendador saber que deu errado.
+
 ## Configurações
 
 Engrenagem no topo, não um quinto item na barra de baixo — configuração não é destino

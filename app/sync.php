@@ -141,3 +141,63 @@ function sync_motivo_para_pular(?array $estado, int $minutos, ?string $agora = n
 
     return null;
 }
+
+// ---------------------------------------------------------------------
+// O cron
+// ---------------------------------------------------------------------
+
+/** Depois disto o cron de 5 em 5 minutos ja devia ter passado tres vezes. */
+const CRON_TETO_MINUTOS = 20;
+
+/**
+ * Marca que o cron passou por aqui.
+ *
+ * Sem isto ele e uma caixa preta: quando nao roda, nao roda em silencio, e a
+ * unica pista e uma tela que simplesmente nao muda — o que tambem acontece
+ * quando ele roda e nao tem nada de novo. A linha mora na mesma tabela do
+ * progresso, com fonte 'cron'.
+ */
+function cron_bateu(string $resumo, bool $ok = true): void
+{
+    $agora = date('Y-m-d H:i:s');
+    exec_sql(
+        'INSERT INTO sync_estado (fonte, status, lote, lotes, itens, mensagem, iniciado_em, atualizado_em)
+              VALUES (?, ?, 0, 0, 0, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE status = VALUES(status), mensagem = VALUES(mensagem),
+              iniciado_em = VALUES(iniciado_em), atualizado_em = VALUES(atualizado_em)',
+        ['cron', $ok ? 'ok' : 'erro', mb_substr($resumo, 0, 255), $agora, $agora]
+    );
+}
+
+/**
+ * O batimento do cron, pronto para a tela. Funcao pura.
+ *
+ * @param array|null $r linha de sync_estado com fonte 'cron'
+ */
+function cron_formatar(?array $r, ?string $agora = null): array
+{
+    if (!$r) {
+        return [
+            'nunca'    => true,
+            'atrasado' => true,
+            'minutos'  => null,
+            'quando'   => null,
+            'mensagem' => null,
+            'erro'     => false,
+        ];
+    }
+
+    $ref = $agora !== null ? strtotime($agora) : time();
+    $min = (int) floor(max(0, $ref - (strtotime((string) ($r['atualizado_em'] ?? '')) ?: $ref)) / 60);
+
+    return [
+        'nunca'    => false,
+        // Passou da hora tres vezes seguidas: ou o cron nao esta configurado,
+        // ou o PHP dele morre antes de chegar aqui.
+        'atrasado' => $min > CRON_TETO_MINUTOS,
+        'minutos'  => $min,
+        'quando'   => (string) $r['atualizado_em'],
+        'mensagem' => isset($r['mensagem']) ? (string) $r['mensagem'] : null,
+        'erro'     => ($r['status'] ?? '') === 'erro',
+    ];
+}

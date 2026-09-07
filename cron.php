@@ -23,7 +23,22 @@ declare(strict_types=1);
  * estoque não. E nada dispara enquanto a carga anterior ainda está correndo.
  */
 
+// A hospedagem tem mais de um PHP instalado e o do cron nem sempre e o do site.
+// Sem esta linha, um PHP velho morre no meio de um require e o cron manda um
+// e-mail em branco — que e exatamente a cara de "o cron nao roda".
+if (PHP_VERSION_ID < 80000) {
+    echo 'Este app precisa de PHP 8. O cron esta rodando com ' . PHP_VERSION . ".\n"
+       . "Aponte o caminho completo do binario certo (ex.: /usr/bin/php8.2).\n";
+    exit(1);
+}
+
 require __DIR__ . '/app/bootstrap.php';
+
+// No cron, erro escondido e erro perdido: o config deixa display_errors em 0
+// para o site, mas aqui a saida vai para o e-mail de quem configurou.
+if (PHP_SAPI === 'cli') {
+    ini_set('display_errors', '1');
+}
 
 $pelo_cli = PHP_SAPI === 'cli';
 if (!$pelo_cli) {
@@ -61,12 +76,16 @@ $fontes = [
     ],
 ];
 
+$resumo = [];
+$falhou = false;
+
 foreach ($fontes as $fonte => $cfg) {
     $estado = q1('SELECT * FROM sync_estado WHERE fonte = ?', [$fonte]);
     $motivo = sync_motivo_para_pular($estado, $cfg['minutos'], $agora);
 
     if ($motivo !== null && !$forcar) {
         dizer($cfg['nome'] . ': pulou — ' . $motivo);
+        $resumo[] = $cfg['nome'] . ' pulou';
         continue;
     }
 
@@ -74,7 +93,19 @@ foreach ($fontes as $fonte => $cfg) {
     if ($r['ok']) {
         $janela = isset($r['desde']) ? ' (' . $r['desde'] . ' a ' . $r['ate'] . ')' : '';
         dizer($cfg['nome'] . ': disparado' . $janela);
+        $resumo[] = $cfg['nome'] . ' disparado';
     } else {
         dizer($cfg['nome'] . ': FALHOU — ' . ($r['erro'] ?? 'sem detalhe'));
+        $resumo[] = $cfg['nome'] . ': ' . ($r['erro'] ?? 'sem detalhe');
+        $falhou = true;
     }
+}
+
+// O batimento fica no banco para a tela poder dizer "o cron passou ha 3 min".
+// Enquanto isso nao existia, a unica forma de saber era pedir a saida do
+// comando — e um cron que nunca roda nao tem saida nenhuma.
+cron_bateu(implode(' · ', $resumo), !$falhou);
+
+if ($falhou) {
+    exit(1);
 }

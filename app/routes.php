@@ -714,8 +714,9 @@ function rota_config(array $u, string $metodo): void
     // Estado inicial no proprio HTML: recarregar no meio de uma importacao ja
     // mostra a barra andando, sem esperar o primeiro polling.
     $sync   = ['loja' => sync_estado('loja'), 'vendas' => sync_estado('vendas')];
+    $cron   = cron_formatar(q1('SELECT * FROM sync_estado WHERE fonte = ?', ['cron']));
 
-    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas', 'sync', 'ativos', 'pdv_taxas', 'overrides'), 'Configuracoes');
+    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides'), 'Configuracoes');
 }
 
 /**

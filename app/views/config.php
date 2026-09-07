@@ -6,6 +6,7 @@
  * @var array  $loja
  * @var array  $vendas
  * @var array  $sync
+ * @var array  $cron
  */
 ?>
 <h1>Configurações</h1>
@@ -61,6 +62,40 @@
             corrigir um período mais antigo, use <a href="/vendas">Reconferir este período</a>
             na aba Vendas.
         </p>
+    </div>
+
+    <div class="cartao">
+        <h2 class="sem-topo">Automático</h2>
+        <?php if ($cron['nunca']): ?>
+            <p class="aviso aviso-info">
+                O cron nunca passou por aqui. Enquanto isso, preços, estoque e vendas só
+                atualizam quando você clica nos botões acima.
+            </p>
+        <?php else: ?>
+            <dl class="dados">
+                <div>
+                    <dt>Última passagem</dt>
+                    <dd><?= $cron['minutos'] < 60
+                            ? 'há ' . (int) $cron['minutos'] . ' min'
+                            : data_fmt($cron['quando'], true) ?></dd>
+                </div>
+                <?php if ($cron['mensagem'] !== null && $cron['mensagem'] !== ''): ?>
+                    <div><dt>Fez</dt><dd><?= e($cron['mensagem']) ?></dd></div>
+                <?php endif; ?>
+            </dl>
+            <?php if ($cron['atrasado']): ?>
+                <p class="aviso aviso-info">
+                    Devia passar de 5 em 5 minutos. Confira a tarefa no painel da hospedagem —
+                    o caminho do PHP costuma ser o culpado.
+                </p>
+            <?php endif; ?>
+        <?php endif; ?>
+        <p class="ajuda">
+            A tarefa agendada chama <code>cron.php</code>, que dispara vendas a cada 5 minutos
+            e preços e estoque a cada 30 — e não dispara nada enquanto a carga anterior ainda
+            está correndo. Para ver o que ele responde:
+        </p>
+        <p class="ajuda"><code>php ~/domains/bryanzendron.com.br/public_html/mercadinho/cron.php</code></p>
     </div>
 
     <script>
