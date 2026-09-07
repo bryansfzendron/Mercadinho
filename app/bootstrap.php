@@ -18,10 +18,23 @@ if (!is_file(APP . '/config.php')) {
     exit;
 }
 
-$GLOBALS['cfg'] = require APP . '/config.php';
-
-function cfg(string $chave, $padrao = null) {
-    return $GLOBALS['cfg'][$chave] ?? $padrao;
+/**
+ * Um valor do config.php.
+ *
+ * O array mora DENTRO da funcao, e nao numa variavel global. `$cfg` no escopo
+ * global e o mesmo `$cfg` de qualquer script solto: um `foreach (... as $cfg)`
+ * apagava a configuracao inteira sem dizer nada, e a proxima conexao ia ao
+ * MySQL com usuario e senha vazios. Foi o que manteve o cron morto desde o
+ * primeiro dia.
+ */
+function cfg(string $chave, $padrao = null)
+{
+    static $valores = null;
+    if ($valores === null) {
+        $lido = require APP . '/config.php';
+        $valores = is_array($lido) ? $lido : [];
+    }
+    return $valores[$chave] ?? $padrao;
 }
 
 // ---------------------------------------------------------------------

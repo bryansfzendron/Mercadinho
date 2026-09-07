@@ -556,7 +556,14 @@ não acha nada novo. Por isso cada execução deixa um batimento em `sync_estado
 `fonte = 'cron'`, e **Configurações → Sincronizar** mostra "última passagem há X min" mais
 o que ele fez. Passando de 20 minutos (três rodadas perdidas), a tela avisa.
 
-Quando ele não passa, a causa quase sempre é o **PHP do cron**: a hospedagem tem mais de
+A primeira coisa que esse batimento revelou: o cron **nunca** tinha funcionado. O laço
+das fontes usava `$cfg` como variável, e `$cfg` no escopo global de um script é o mesmo
+`$cfg` que guardava o `config.php` inteiro — a primeira volta do `foreach` apagava a
+configuração, e a conexão seguinte ia ao MySQL com usuário e senha vazios. Com
+`display_errors` em 0, isso acontecia em silêncio. Hoje a configuração mora dentro da
+própria `cfg()`, num `static`, então não há global para ninguém pisar.
+
+Quando ele não passa, a outra causa comum é o **PHP do cron**: a hospedagem tem mais de
 uma versão instalada e o `php` do agendador nem sempre é o do site. O app precisa de 8.0
 para cima; num PHP velho ele morria no meio de um `require` e o cron mandava um e-mail em
 branco. Agora `cron.php` confere a versão na primeira linha e diz qual está rodando, e no
@@ -637,6 +644,7 @@ php testes/custos.php       # taxa por forma de pagamento, resultado do período
 php testes/sync.php         # a conta da barra de progresso e o fluxo dado por perdido
 php testes/breakdown.php    # o plano diário da meta: linha reta e meta recalculada
 php testes/nav.php          # o menu de baixo acende um item por rota
+php testes/config.php       # a configuração sobrevive a um $cfg no escopo global
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 node n8n/teste-vendas.js    # o coletor de vendas: lotes, devolução e total da linha

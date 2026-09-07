@@ -79,24 +79,24 @@ $fontes = [
 $resumo = [];
 $falhou = false;
 
-foreach ($fontes as $fonte => $cfg) {
+foreach ($fontes as $fonte => $como) {
     $estado = q1('SELECT * FROM sync_estado WHERE fonte = ?', [$fonte]);
-    $motivo = sync_motivo_para_pular($estado, $cfg['minutos'], $agora);
+    $motivo = sync_motivo_para_pular($estado, $como['minutos'], $agora);
 
     if ($motivo !== null && !$forcar) {
-        dizer($cfg['nome'] . ': pulou — ' . $motivo);
-        $resumo[] = $cfg['nome'] . ' pulou';
+        dizer($como['nome'] . ': pulou — ' . $motivo);
+        $resumo[] = $como['nome'] . ' pulou';
         continue;
     }
 
-    $r = $cfg['disparar']();
+    $r = $como['disparar']();
     if ($r['ok']) {
         $janela = isset($r['desde']) ? ' (' . $r['desde'] . ' a ' . $r['ate'] . ')' : '';
-        dizer($cfg['nome'] . ': disparado' . $janela);
-        $resumo[] = $cfg['nome'] . ' disparado';
+        dizer($como['nome'] . ': disparado' . $janela);
+        $resumo[] = $como['nome'] . ' disparado';
     } else {
-        dizer($cfg['nome'] . ': FALHOU — ' . ($r['erro'] ?? 'sem detalhe'));
-        $resumo[] = $cfg['nome'] . ': ' . ($r['erro'] ?? 'sem detalhe');
+        dizer($como['nome'] . ': FALHOU — ' . ($r['erro'] ?? 'sem detalhe'));
+        $resumo[] = $como['nome'] . ': ' . ($r['erro'] ?? 'sem detalhe');
         $falhou = true;
     }
 }
