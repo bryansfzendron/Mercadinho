@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 define('APP', dirname(__DIR__) . '/app');
 require APP . '/helpers.php';
+require APP . '/produtos.php';
 
 $ok = 0; $falhou = 0;
 
@@ -89,6 +90,46 @@ checar('qtd 2',   qtd_fmt(2.0), '2');
 checar('qtd 1,5', qtd_fmt(1.5), '1,5');
 checar('qtd 0,25', qtd_fmt(0.25), '0,25');
 checar('cnpj',    cnpj_fmt('46029724000673'), '46.029.724/0006-73');
+
+// ------------------------------------------- custo do que esta na prateleira
+// "Quanto custou da ultima vez" nao e "quanto vale o que eu tenho": quem
+// comprou 12 a R$ 1,00 depois de 6 a R$ 0,80 e tem 15 na prateleira nao tem
+// 15 a R$ 1,00.
+function compra(float $unitario, float $qtd): array
+{
+    return ['valor_unitario_liquido' => $unitario, 'quantidade' => $qtd];
+}
+$hist = [compra(1.00, 12), compra(0.80, 6), compra(0.70, 20)];
+
+$c = produto_custo_estoque($hist, 15.0);
+// 12 a 1,00 + 3 a 0,80 = 14,40 / 15 = 0,96
+checar('custo por camada',        $c['custo'], 0.96);
+checar('cobriu o estoque todo',   $c['coberto'], 15.0);
+checar('usou duas notas',         $c['notas'], 2);
+checar('marcado como completo',   $c['completo'], true);
+
+// Estoque menor que a ultima compra: so a camada de cima conta.
+checar('estoque dentro da ultima nota', produto_custo_estoque($hist, 5.0)['custo'], 1.00);
+// Estoque exatamente igual a ultima nota.
+checar('estoque igual a ultima nota', produto_custo_estoque($hist, 12.0)['custo'], 1.00);
+
+// Historico curto demais: vale para a parte coberta, e avisa.
+$curto = produto_custo_estoque([compra(1.00, 4)], 10.0);
+checar('historico curto cobre so o que da', $curto['coberto'], 4.0);
+checar('e avisa que nao fechou',            $curto['completo'], false);
+checar('mas o custo da parte vale',         $curto['custo'], 1.00);
+
+// Sem estoque nao ha custo de estoque — a tela cai no ultimo preco pago.
+checar('sem estoque nao ha custo',   produto_custo_estoque($hist, 0.0)['custo'], null);
+checar('estoque negativo tambem',    produto_custo_estoque($hist, -3.0)['custo'], null);
+checar('sem historico nao ha custo', produto_custo_estoque([], 10.0)['custo'], null);
+
+// Linha suja na nota (valor ou quantidade zerada) nao entra na media.
+$sujo = produto_custo_estoque([compra(0.0, 5), compra(2.00, 10), compra(1.00, 0)], 4.0);
+checar('linha sem valor e ignorada', $sujo['custo'], 2.00);
+
+// Fracionado (granel) tambem fecha.
+checar('quantidade fracionada', produto_custo_estoque([compra(10.0, 1.5)], 1.5)['custo'], 10.0);
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

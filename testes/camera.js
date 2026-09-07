@@ -138,8 +138,16 @@ async function abrir(navegador, rota, opcoes = {}) {
         checar('bipar: margem em fator', margem.includes('1,94') && margem.includes('x'), margem);
         checar('bipar: margem tambem em %', margem.includes('+94%'), margem);
         checar('bipar: margem com o lucro', margem.includes('+R$ 0,94'), margem);
+        // O custo tem que ser o do que esta na prateleira, nao o da ultima nota.
+        checar('bipar: usa o custo do estoque', /custo do estoque R\$ 1,00/.test(margem), margem);
+        checar('bipar: nao chama de ultima nota', !/última nota/.test(margem), margem);
         checar('bipar: margem no verde',
             await pag.locator('.margem').evaluate(el => el.classList.contains('margem-boa')));
+
+        // O teclado nao pode subir sozinho quando o cartao aparece. Antes de
+        // tocar em qualquer coisa, senao a checagem mede o proprio teste.
+        checar('vale: campo novo nao rouba o foco',
+            await pag.evaluate(() => document.activeElement !== document.getElementById('custo-agora')));
 
         // "Vale a pena comprar por X?": a conta tem que descontar os 11,68%
         // que saem de toda venda, senao diz que vale quando nao vale.
@@ -152,7 +160,8 @@ async function abrir(navegador, rota, opcoes = {}) {
         checar('vale: sobra depois das taxas', /R\$ 0,71 depois das taxas/.test(vale), vale);
         // e menos 3,05% de energia e sistema: 0,71 - 0,06 = 0,65
         checar('vale: e depois da operacao', /R\$ 0,65 depois da operação/.test(vale), vale);
-        checar('vale: compara com o ultimo pago', /vs\. os R\$ 1,00/.test(vale), vale);
+        checar('vale: compara com a mesma base do cartao',
+            /vs\. os R\$ 1,00 que o estoque custou/.test(vale), vale);
 
         // Entre os dois cortes: cobre as taxas, nao paga a operacao.
         // 1,94 - 1,70 - 0,23 = 0,01 de sobra; menos 0,06 de fixo = -0,05.
@@ -178,18 +187,15 @@ async function abrir(navegador, rota, opcoes = {}) {
             /11,68% de maquininha, condomínio e franquia/.test(explicacao), explicacao);
         checar('vale: explica o fixo', /3,05% de energia e sistema/.test(explicacao), explicacao);
 
-        // Campo vazio nao pode mostrar resposta nenhuma. Limpa pelo teclado:
-        // fill('') nao dispara o evento input neste Chrome, e o teste passaria
-        // a testar o Playwright em vez da tela.
+        // Campo vazio nao pode mostrar resposta nenhuma. Limpa como um dedo
+        // limpa: toca no campo (foco programatico o sem-teclado.js desfaz, de
+        // proposito) e apaga pelo teclado — fill('') nao dispara o input.
+        await pag.locator('#custo-agora').tap();
         await pag.locator('#custo-agora').press('Control+a');
         await pag.locator('#custo-agora').press('Backspace');
-        await pag.waitForTimeout(120);
-        checar('vale: sem valor nao responde',
-            (await pag.locator('#vale-resposta').innerText()).trim(), '');
-
-        // O teclado nao pode subir sozinho por causa do campo novo.
-        checar('vale: campo novo nao rouba o foco',
-            await pag.evaluate(() => document.activeElement !== document.getElementById('custo-agora')));
+        await pag.waitForTimeout(150);
+        const limpo = (await pag.locator('#vale-resposta').innerText()).trim();
+        checar('vale: sem valor nao responde', limpo === '', JSON.stringify(limpo));
 
         await pag.screenshot({ path: require('path').join(__dirname, 'telas', 'tela-bipar.png') });
         checar('bipar: sem erro no console', erros.length === 0, erros.join(' | '));

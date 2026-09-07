@@ -79,6 +79,8 @@ http.createServer((req, res) => {
             // 1,68% de maquininha + 5% de condominio + 5% de franquia.
             custos: { pct: 11.68, condominio: 5, franquia: 5, tem_mix: true },
             minimos: { pct_variavel: 11.68, pct_fixo: 3.05, prejuizo: 1.1323, operacao: 1.1729 },
+            // 4 na prateleira: 2 da nota de R$ 1,10 e 2 da de R$ 0,90 -> R$ 1,00.
+            custo_estoque: { custo: 1.0, coberto: 4, notas: 2, completo: true, estoque: 4 },
         }));
     }
     // Produto com preco baixo demais: o aviso de fator tem que aparecer.

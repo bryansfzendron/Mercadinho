@@ -83,13 +83,35 @@
         return '<h2>Na loja agora</h2><ul class="lista">' + linhas + '</ul>';
     }
 
-    /** A conta que interessa: vendo por X, paguei Y. */
-    function blocoMargem(loja, stats, min) {
-        if (!loja || !loja.length || !stats || !stats.ultimo) return '';
+    /**
+     * Qual custo usar: o das unidades que estao na prateleira, quando da para
+     * saber, e so entao o da ultima nota.
+     *
+     * Sao perguntas diferentes. "Quanto custou da ultima vez" nao e "quanto
+     * vale o que eu tenho": quem comprou 12 a R$ 1,00 depois de 6 a R$ 0,80 e
+     * tem 15 na prateleira nao tem 15 a R$ 1,00.
+     */
+    function custoDaPrateleira(d) {
+        const ce = d.custo_estoque;
+        if (ce && ce.custo > 0) {
+            return {
+                valor: Number(ce.custo),
+                fonte: 'estoque',
+                unidades: Number(ce.coberto || 0),
+                completo: ce.completo !== false,
+            };
+        }
+        const ultimo = d.stats && Number(d.stats.ultimo);
+        return ultimo > 0 ? { valor: ultimo, fonte: 'ultima', unidades: 0, completo: true } : null;
+    }
+
+    /** A conta que interessa: vendo por X, o que esta na prateleira custou Y. */
+    function blocoMargem(loja, stats, min, base) {
+        if (!loja || !loja.length || !base) return '';
         const comPreco = loja.filter(l => l.preco != null);
         if (!comPreco.length) return '';
         const venda = Math.max(...comPreco.map(l => l.preco));
-        const custo = Number(stats.ultimo);
+        const custo = base.valor;
         if (!(custo > 0)) return '';
         const margem = venda - custo;
         const sinal = margem >= 0 ? '+' : '−';
@@ -100,7 +122,11 @@
             '<div class="margem-conta">' +
             '<span class="margem-lucro">' + sinal + moeda(Math.abs(margem)) +
             ' <span class="margem-perc">' + sinal + perc.toFixed(0) + '%</span></span>' +
-            '<span class="margem-linha">vende ' + moeda(venda) + ' · pagou ' + moeda(custo) + '</span>' +
+            '<span class="margem-linha">vende ' + moeda(venda) + ' · ' +
+            (base.fonte === 'estoque'
+                ? ('custo do estoque ' + moeda(custo) +
+                   (base.completo ? '' : ' (parte sem nota)'))
+                : ('pagou ' + moeda(custo) + ' na última nota')) + '</span>' +
             '</div></div>' +
             avisoDeFator(venda / custo, min);
     }
@@ -224,7 +250,11 @@
         // Os cortes vem calculados do servidor: mix de pagamento real dos
         // ultimos 90 dias e peso do custo fixo sobre o faturamento do mes.
         const min = d.minimos || { pct_variavel: (d.custos && d.custos.pct) || 0, pct_fixo: null };
-        const ultimo = (d.stats && Number(d.stats.ultimo)) || 0;
+        // A comparacao "vs. o que voce pagou" usa a mesma base do cartao acima,
+        // senao a tela mostra dois custos diferentes para o mesmo produto.
+        const base = custoDaPrateleira(d);
+        const ultimo = base ? base.valor : 0;
+        const comoChamar = base && base.fonte === 'estoque' ? 'o estoque custou' : 'você pagou';
 
         function responder() {
             const v = valeAPena(numero(campo.value), venda, min, ultimo);
@@ -245,7 +275,7 @@
             if (v.versusUltimo != null) {
                 const sinal = v.versusUltimo >= 0 ? '+' : '−';
                 linhas += ' · ' + sinal + Math.abs(v.versusUltimo).toFixed(0) +
-                          '% vs. os ' + moeda(ultimo) + ' que você pagou';
+                          '% vs. os ' + moeda(ultimo) + ' que ' + comoChamar;
             }
 
             alvoR.innerHTML =
@@ -374,7 +404,7 @@
                 '<div class="numero"><strong>' + moeda(d.stats.max) + '</strong><span>maior</span></div>' +
                 '</div>' +
                 '<p class="ajuda">' + d.stats.n + ' compra(s) registradas</p>' +
-                blocoMargem(d.loja, d.stats, d.minimos) +
+                blocoMargem(d.loja, d.stats, d.minimos, custoDaPrateleira(d)) +
                 '</div>' +
                 blocoVale(d) +
                 blocoLoja(d.loja) +

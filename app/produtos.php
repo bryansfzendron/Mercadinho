@@ -226,3 +226,64 @@ function produto_estatisticas(array $historico): array
         'media'  => array_sum($precos) / count($precos),
     ];
 }
+
+/**
+ * O custo das unidades que estao na prateleira AGORA, e nao o da ultima nota.
+ *
+ * O ultimo preco pago responde "quanto custou da ultima vez"; a pergunta do
+ * bipe e outra: "quanto vale o que eu tenho". Se voce comprou 12 a R$ 1,00 e
+ * antes 6 a R$ 0,80, e tem 15 na prateleira, o custo delas nao e R$ 1,00 —
+ * sao 12 a 1,00 e 3 a 0,80.
+ *
+ * Anda do mais novo para o mais velho ate cobrir a quantidade em estoque, e
+ * faz a media ponderada. E o custo da ultima camada, que e como estoque de
+ * mercearia funciona na pratica: o que entrou por ultimo esta na frente.
+ *
+ * @param array $historico saida de produto_historico(), do mais novo ao mais velho
+ * @param float $estoque   unidades em estoque hoje
+ * @return array{custo:?float, coberto:float, notas:int, completo:bool}
+ */
+function produto_custo_estoque(array $historico, float $estoque): array
+{
+    $vazio = ['custo' => null, 'coberto' => 0.0, 'notas' => 0, 'completo' => false];
+    if ($estoque <= 0) {
+        return $vazio;
+    }
+
+    $falta = $estoque;
+    $soma  = 0.0;
+    $notas = 0;
+
+    foreach ($historico as $h) {
+        $unitario = (float) ($h['valor_unitario_liquido'] ?? 0);
+        $qtd      = (float) ($h['quantidade'] ?? 0);
+        if ($unitario <= 0 || $qtd <= 0) {
+            continue;
+        }
+
+        // A ultima camada pode cobrir so parte do que resta.
+        $usa = min($qtd, $falta);
+        $soma  += $usa * $unitario;
+        $falta -= $usa;
+        $notas++;
+
+        if ($falta <= 0.0001) {
+            break;
+        }
+    }
+
+    $coberto = $estoque - max(0.0, $falta);
+    if ($coberto <= 0) {
+        return $vazio;
+    }
+
+    return [
+        // Media ponderada do que deu para cobrir. Quando o historico nao
+        // alcanca o estoque inteiro (compra antiga fora das notas escaneadas),
+        // o custo vale para a parte coberta e `completo` avisa.
+        'custo'    => round($soma / $coberto, 4),
+        'coberto'  => round($coberto, 3),
+        'notas'    => $notas,
+        'completo' => $falta <= 0.0001,
+    ];
+}

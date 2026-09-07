@@ -455,6 +455,13 @@ function rota_api_produto(array $u): void
     $hist  = produto_historico((int) $p['id'], (int) $u['id']);
     $stats = produto_estatisticas($hist);
     $loja  = loja_resposta_api($p['ean'], (int) $p['id']);
+    // O custo que interessa na prateleira e o do que esta la, nao o da ultima
+    // nota: ver produto_custo_estoque().
+    $estoque = 0.0;
+    foreach ($loja as $l) {
+        $estoque += (float) ($l['estoque'] ?? 0);
+    }
+    $custo_estoque = produto_custo_estoque($hist, $estoque);
     if (!$hist) {
         json_resposta([
             'encontrado' => false,
@@ -471,6 +478,7 @@ function rota_api_produto(array $u): void
         // uma ida ao servidor por tecla digitada.
         'custos'     => custos_variavel_atual(),
         'minimos'    => margens_minimos(),
+        'custo_estoque' => $custo_estoque + ['estoque' => $estoque],
         'produto_id' => (int) $p['id'],
         'descricao'  => $p['descricao'],
         'ean'        => $p['ean'],

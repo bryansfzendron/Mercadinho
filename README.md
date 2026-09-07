@@ -401,6 +401,19 @@ no aperto, saudáveis, sem custo de nota). E o mesmo aviso aparece inline ao bip
 do produto, com link para a lista — o alerta chega onde você já está olhando, e a auditoria
 tem tela própria.
 
+## O custo é o do que está na prateleira
+
+Ao bipar, o custo comparado com o preço de venda é o das **unidades em estoque**, não o da
+última nota. São perguntas diferentes: quem comprou 12 a R$ 1,00 depois de 6 a R$ 0,80 e
+tem 15 na prateleira não tem 15 a R$ 1,00.
+
+`produto_custo_estoque()` anda do mais novo para o mais velho até cobrir a quantidade em
+estoque e faz a média ponderada — o custo da última camada, que é como estoque de mercearia
+se comporta: o que entrou por último está na frente. Quando o histórico de notas não alcança
+o estoque inteiro, o custo vale para a parte coberta e a tela escreve *(parte sem nota)* em
+vez de fingir precisão. Sem estoque, cai no último preço pago, e a tela diz qual dos dois
+está usando.
+
 ## Vale a pena comprar por X?
 
 Ao bipar, além do histórico, a tela pergunta **quanto estão cobrando agora** e responde na
