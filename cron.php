@@ -5,14 +5,14 @@ declare(strict_types=1);
  * Sincronização automática, para rodar no cron da Hostinger — de 5 em 5
  * minutos, apontando para este arquivo:
  *
- *   php /home/USUARIO/domains/SEU-DOMINIO/public_html/cron.php
+ *   php ~/domains/bryanzendron.com.br/public_html/mercadinho/cron.php
  *
  * (a expressão do crontab está no README; ela não cabe num comentário de
  * bloco do PHP, porque a barra do "a cada 5" fecha o comentário)
  *
  * Também responde por HTTP, para quem preferir chamar de fora:
  *
- *   curl "https://SEU-DOMINIO/cron.php?token=SEU-CRON-TOKEN"
+ *   curl "https://mercadinho.bryanzendron.com.br/cron.php?token=SEU-CRON-TOKEN"
  *
  * Por que aqui e não um Schedule Trigger no n8n: as credenciais do TouchPay
  * moram só no config.php, e o disparo as manda no corpo. Um gatilho de

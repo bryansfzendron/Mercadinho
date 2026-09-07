@@ -56,10 +56,10 @@ return [
     // Sincronizacao automatica (cron.php)
     // ---------------------------------------------------------------
     // No hPanel da Hostinger, Avancado > Cron Jobs, a cada 5 minutos:
-    //   php /home/USUARIO/domains/SEU-DOMINIO/public_html/cron.php
+    //   php ~/domains/bryanzendron.com.br/public_html/mercadinho/cron.php
     //
     // Chamando por HTTP em vez do CLI, exige este token:
-    //   curl "https://SEU-DOMINIO/cron.php?token=..."
+    //   curl "https://mercadinho.bryanzendron.com.br/cron.php?token=..."
     // Gere com: php -r "echo bin2hex(random_bytes(16));"
     'cron_token' => 'TROQUE-ME',
 

@@ -498,13 +498,17 @@ trava as duas propriedades que impedem isso de voltar.
 a cada 5 minutos:
 
 ```
-*/5 * * * *  php /home/USUARIO/domains/SEU-DOMINIO/public_html/cron.php
+*/5 * * * *  php ~/domains/bryanzendron.com.br/public_html/mercadinho/cron.php
 ```
+
+O app fica num subdiretório do `public_html` do domínio raiz, e o subdomínio
+`mercadinho.` aponta para lá — por isso o caminho do arquivo e a URL não se
+parecem.
 
 Também responde por HTTP, para quem preferir chamar de fora — aí exige o `cron_token`:
 
 ```
-curl "https://SEU-DOMINIO/cron.php?token=SEU-CRON-TOKEN"
+curl "https://mercadinho.bryanzendron.com.br/cron.php?token=SEU-CRON-TOKEN"
 ```
 
 Por que aqui e não um Schedule Trigger no n8n: as credenciais do TouchPay moram só no
