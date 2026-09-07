@@ -711,6 +711,122 @@ function vendas_relatorio(array $f): array
     ];
 }
 
+// ---------------------------------------------------------------------
+// Transacoes, uma a uma
+// ---------------------------------------------------------------------
+
+/** Quantas transacoes cabem numa tela antes de virar rolagem infinita. */
+const VENDAS_POR_PAGINA = 50;
+
+/**
+ * Em quantas paginas cabe o total, e em qual delas estamos.
+ *
+ * Funcao pura, separada porque e onde mora o erro de um: pagina 0, pagina alem
+ * do fim e lista vazia precisam todos devolver algo que a tela saiba desenhar.
+ */
+function vendas_paginacao(int $total, int $pagina, int $por_pagina = VENDAS_POR_PAGINA): array
+{
+    $por_pagina = max(1, $por_pagina);
+    // Lista vazia ainda tem uma pagina: a que diz "nenhuma venda".
+    $paginas = max(1, (int) ceil($total / $por_pagina));
+    $pagina  = min($paginas, max(1, $pagina));
+
+    return [
+        'pagina'  => $pagina,
+        'paginas' => $paginas,
+        'total'   => max(0, $total),
+        'de'      => $total > 0 ? ($pagina - 1) * $por_pagina + 1 : 0,
+        'ate'     => min($total, $pagina * $por_pagina),
+        'offset'  => ($pagina - 1) * $por_pagina,
+        'limite'  => $por_pagina,
+    ];
+}
+
+/**
+ * O filtro da lista de transacoes.
+ *
+ * A busca aqui procura DENTRO da compra: digitar "coca" traz as transacoes que
+ * levaram Coca, nao os itens soltos. Por isso EXISTS, e nao um JOIN — com JOIN
+ * a mesma venda apareceria uma vez por item que casasse.
+ */
+function vendas_transacoes_filtro(array $f): array
+{
+    [$onde, $args] = vendas_filtro_sql($f);
+
+    $busca = trim((string) ($f['busca'] ?? ''));
+    if ($busca !== '') {
+        $curinga = '%' . $busca . '%';
+        $onde .= ' AND (v.codigo LIKE ? OR EXISTS (
+                        SELECT 1 FROM venda_itens vi WHERE vi.venda_id = v.id
+                           AND (vi.descricao LIKE ? OR vi.ean LIKE ? OR vi.codigo LIKE ?)))';
+        array_push($args, $curinga, $curinga, $curinga, $curinga);
+    }
+    return [$onde, $args];
+}
+
+/** Quantas transacoes o filtro pega, para a paginacao. */
+function vendas_transacoes_contar(array $f): int
+{
+    [$onde, $args] = vendas_transacoes_filtro($f);
+    return (int) qv('SELECT COUNT(*) FROM vendas v WHERE ' . $onde, $args);
+}
+
+/**
+ * Uma pagina de transacoes, da mais recente para a mais antiga.
+ *
+ * Ordem cronologica de proposito: esta tela responde "o que saiu agora ha
+ * pouco", enquanto o resumo responde "o que vende mais".
+ */
+function vendas_transacoes(array $f, array $pag): array
+{
+    [$onde, $args] = vendas_transacoes_filtro($f);
+
+    return q(
+        'SELECT v.id, v.data_hora, v.forma_pagamento, v.bandeira, v.valor_pago,
+                v.valor_total, v.codigo, COALESCE(p.nome, ?) AS pdv
+           FROM vendas v
+      LEFT JOIN loja_pdvs p ON p.id = v.pdv_id
+          WHERE ' . $onde . '
+       ORDER BY v.data_hora DESC, v.id DESC
+          LIMIT ' . (int) $pag['limite'] . ' OFFSET ' . (int) $pag['offset'],
+        array_merge(['sem PDV'], $args)
+    );
+}
+
+/**
+ * Os itens das transacoes da pagina, numa consulta so.
+ *
+ * @param int[] $ids
+ * @return array<int,array> venda_id => itens
+ */
+function vendas_itens_das(array $ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) {
+        return [];
+    }
+    $marcas = implode(',', array_fill(0, count($ids), '?'));
+
+    return vendas_itens_por_venda(q(
+        'SELECT vi.venda_id, vi.produto_id, vi.descricao, vi.categoria, vi.ean,
+                vi.quantidade, vi.valor_total, vi.valor_unitario
+           FROM venda_itens vi
+          WHERE vi.venda_id IN (' . $marcas . ')
+       ORDER BY vi.venda_id, vi.valor_total DESC',
+        $ids
+    ));
+}
+
+/** Dobra a lista de itens por transacao. Funcao pura. */
+function vendas_itens_por_venda(array $linhas): array
+{
+    $mapa = [];
+    foreach ($linhas as $l) {
+        $mapa[(int) $l['venda_id']][] = $l;
+    }
+    return $mapa;
+}
+
 /** PDVs que tem venda, para o filtro da tela. */
 function vendas_pdvs(): array
 {

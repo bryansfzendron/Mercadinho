@@ -609,13 +609,14 @@ do relatório — cada coisa num canto, e o dono do app não achava.
 
 ## A seção Loja
 
-O item **Loja R$** do menu de baixo tem três telas, num submenu no feitio do segmented
+O item **Loja R$** do menu de baixo tem quatro telas, num submenu no feitio do segmented
 control do iOS — o padrão de quem precisa de mais função do que cabe numa aba só:
 
 - **Catálogo** (`/loja`) — tudo que está nos PDVs. Filtro de estoque em pílulas
   (todos / com estoque / sem estoque); "sem estoque" é a lista de reposição.
 - **Vendas** (`/vendas`) — o relatório acima, com atalhos de período (mês corrente,
-  mês passado, 30 dias, hoje).
+  mês passado, 30 dias, hoje). Tem um segundo segmented control por dentro:
+  **Resumo** e **Transações**.
 - **Metas** (`/metas`) — meta de faturamento e de lucro do mês, com barra de progresso,
   ritmo diário, projeção de fechamento e quanto falta por dia. Zero desliga a meta e
   deixa só a projeção. As metas moram na mesma tabela dos parâmetros de custo.
@@ -626,6 +627,28 @@ app inteiro (catálogo, bipe, vendas, metas e tela inicial) via `loja_pdvs.ativo
 continua trazendo os dados, as telas é que ignoram. É por isso que toda leitura de
 `loja_itens` passa por `loja_pdvs` — sem o JOIN, o preço de venda de um PDV alheio
 apareceria ao bipar.
+
+### Transações, uma a uma
+
+`/vendas/transacoes` lista cada compra do período, da mais recente para a mais antiga, e
+abre mostrando os produtos que saíram nela — um `<details>` nativo, sem JavaScript. O
+Resumo responde *o que vende mais*; esta tela responde *o que saiu agora há pouco* e *o que
+essa pessoa levou junto*.
+
+Os filtros são os mesmos das duas telas (`vendas_filtros_da_url()`), então trocar de aba
+não perde o período nem o PDV. A busca aqui procura **dentro** da compra: digitar um
+produto traz as compras que o levaram, com tudo o que foi junto. É `EXISTS` e não `JOIN` —
+com `JOIN`, a mesma compra apareceria uma vez por item que casasse.
+
+Página de 50, e `vendas_paginacao()` é função pura porque é ali que mora o erro de um:
+página zero, página além do fim e lista vazia precisam todas devolver algo que a tela saiba
+desenhar.
+
+**Ainda não dá para agrupar por cliente.** O TouchPay tem `customerId`, `cardHolder` e
+`cpf` na transação, mas o coletor não traz nenhum dos três e a tabela `vendas` não tem onde
+guardá-los. Cada linha é uma compra, não uma pessoa. Para ligar compras do mesmo cliente
+seriam três passos: colunas novas em `vendas`, o mapeamento no `n8n/codigo/vd-03`, e uma
+reimportação para preencher o que já está gravado.
 
 **Reconferir um período.** O sync automático só volta 3 dias da última venda gravada, então
 um buraco no meio do mês — de um lote perdido, por exemplo — é inalcançável por mais que se
@@ -650,6 +673,7 @@ php testes/sync.php         # a conta da barra de progresso e o fluxo dado por p
 php testes/breakdown.php    # o plano diário da meta: linha reta e meta recalculada
 php testes/nav.php          # o menu de baixo acende um item por rota
 php testes/config.php       # a configuração sobrevive a um $cfg no escopo global
+#   (transações e paginação entram em testes/vendas.php)
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 node n8n/teste-vendas.js    # o coletor de vendas: lotes, devolução e total da linha

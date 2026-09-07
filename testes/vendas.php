@@ -149,5 +149,47 @@ checar('datas viram inicio e fim do dia',
 checar('pdv e forma entram como parametro', [$args2[3], $args2[4]], [3, 'Pix']);
 checar('nada do filtro vai concatenado no SQL', strpos($onde2, '2026-09-01'), false);
 
+// -------------------------------------------------- lista de transacoes
+// A paginacao e onde mora o erro de um: pagina zero, pagina alem do fim e
+// lista vazia precisam todas devolver algo que a tela saiba desenhar.
+$pg = vendas_paginacao(137, 1, 50);
+checar('primeira pagina comeca em 1', $pg['de'], 1);
+checar('e termina em 50', $pg['ate'], 50);
+checar('137 em 50 dao 3 paginas', $pg['paginas'], 3);
+checar('offset da primeira e zero', $pg['offset'], 0);
+
+$ultima = vendas_paginacao(137, 3, 50);
+checar('ultima pagina comeca em 101', $ultima['de'], 101);
+checar('e para no total, nao no multiplo', $ultima['ate'], 137);
+checar('offset da terceira', $ultima['offset'], 100);
+
+// Pagina inventada na URL nao pode virar lista vazia sem explicacao.
+checar('pagina alem do fim volta para a ultima', vendas_paginacao(137, 99, 50)['pagina'], 3);
+checar('pagina zero vira a primeira', vendas_paginacao(137, 0, 50)['pagina'], 1);
+checar('pagina negativa tambem', vendas_paginacao(137, -5, 50)['pagina'], 1);
+
+// Sem venda nenhuma continua havendo uma pagina: a que diz "nenhuma compra".
+$vazia = vendas_paginacao(0, 1, 50);
+checar('lista vazia tem uma pagina', $vazia['paginas'], 1);
+checar('e nao finge que ha um primeiro', $vazia['de'], 0);
+checar('nem um ultimo', $vazia['ate'], 0);
+
+// Exatamente um multiplo nao pode gerar uma pagina extra vazia.
+checar('100 em 50 dao 2 paginas', vendas_paginacao(100, 1, 50)['paginas'], 2);
+
+// Os itens da pagina chegam numa consulta so e sao dobrados por compra.
+$dobrado = vendas_itens_por_venda([
+    ['venda_id' => 7, 'descricao' => 'COCA 350ML', 'valor_total' => 5.0],
+    ['venda_id' => 7, 'descricao' => 'TRIDENT', 'valor_total' => 3.5],
+    ['venda_id' => 9, 'descricao' => 'AGUA 500ML', 'valor_total' => 3.0],
+]);
+checar('duas compras na pagina', count($dobrado), 2);
+checar('a primeira levou dois itens', count($dobrado[7]), 2);
+checar('a segunda levou um', count($dobrado[9]), 1);
+checar('e o item certo', $dobrado[9][0]['descricao'], 'AGUA 500ML');
+// Compra sem item nao inventa chave: a tela decide o que dizer.
+checar('compra sem item nao aparece', isset($dobrado[3]), false);
+checar('lista vazia da mapa vazio', vendas_itens_por_venda([]), []);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

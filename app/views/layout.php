@@ -47,7 +47,7 @@ $flashes = flash_pegar();
     <?php // Escanear, bipar e vendas sao telas de dentro: acendem o item a que pertencem. ?>
     <a href="/notas"     class="<?= str_starts_with($rota, '/notas') || in_array($rota, ['/escanear', '/manual'], true) ? 'ativo' : '' ?>"><span>≡</span>Notas</a>
     <a href="/produtos"  class="<?= str_starts_with($rota, '/produtos') || $rota === '/bipar' ? 'ativo' : '' ?>"><span>☰</span>Produtos</a>
-    <a href="/loja"      class="<?= in_array($rota, ['/loja', '/margens', '/vendas', '/metas'], true) ? 'ativo' : '' ?>"><span>R$</span>Loja</a>
+    <a href="/loja"      class="<?= in_array($rota, ['/loja', '/margens', '/metas'], true) || str_starts_with($rota, '/vendas') ? 'ativo' : '' ?>"><span>R$</span>Loja</a>
 </nav>
 <?php endif; ?>
 

@@ -476,3 +476,40 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 }
 .caixa-marcar input { width: auto; margin: 0; width: 22px; height: 22px; accent-color: var(--marca-forte); }
 .caixa-marcar .ajuda { margin-left: auto; }
+
+/* ---------------------------------------------------------------
+   Transacoes: cada compra abre e mostra o que saiu nela.
+   <details> nativo — abrir e fechar uma lista nao precisa de JS.
+   --------------------------------------------------------------- */
+.compra > summary {
+    padding: .7rem .85rem; cursor: pointer; list-style: none;
+    /* Alvo de dedo: a linha inteira abre. */
+    min-height: 44px;
+}
+.compra > summary::-webkit-details-marker { display: none; }
+.compra > summary::after {
+    content: ''; position: absolute; right: .85rem; margin-top: -1.15rem;
+    width: .5rem; height: .5rem; border-right: 2px solid var(--suave);
+    border-bottom: 2px solid var(--suave); transform: rotate(45deg);
+    transition: transform .15s ease;
+}
+.compra { position: relative; }
+.compra[open] > summary::after { transform: rotate(-135deg); margin-top: -.95rem; }
+/* Espaco para a seta nao encostar no valor. */
+.compra > summary .linha-topo, .compra > summary .linha-baixo { padding-right: 1.1rem; }
+
+.itens-compra { list-style: none; margin: 0; padding: 0 .85rem .6rem; }
+.itens-compra li {
+    display: flex; justify-content: space-between; gap: .6rem;
+    padding: .4rem 0; font-size: .88rem;
+    border-top: 1px solid var(--borda);
+}
+.item-nome { min-width: 0; }
+.item-qtd { color: var(--suave); font-size: .8rem; margin-left: .2rem; }
+.item-valor { white-space: nowrap; color: var(--suave); }
+
+.paginacao {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: .6rem; margin: 1rem 0;
+}
+.paginacao .botao { width: auto; }

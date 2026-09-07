@@ -69,6 +69,8 @@ $rotas = [
     '/loja'        => '/loja',
     '/margens'     => '/loja',
     '/vendas'      => '/loja',
+    // A lista de transacoes e uma tela de dentro de Vendas: acende Loja igual.
+    '/vendas/transacoes' => '/loja',
     '/metas'       => '/loja',
 ];
 

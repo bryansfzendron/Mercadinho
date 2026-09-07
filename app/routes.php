@@ -26,6 +26,7 @@ function despachar(string $rota): void
     if ($rota === '/loja')      { rota_loja($u); return; }
     if ($rota === '/margens')   { rota_margens($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }
+    if ($rota === '/vendas/transacoes') { rota_vendas_transacoes($u); return; }
     if ($rota === '/metas')     { rota_metas($u); return; }
     if ($rota === '/config' || str_starts_with($rota, '/config/')) { rota_config($u, $m); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
@@ -543,9 +544,13 @@ function rota_api_sync_estado(array $u): void
 }
 
 /** Relatorio de vendas: filtros livres e o que sobra depois dos custos. */
-function rota_vendas(array $u): void
+/**
+ * Os filtros da secao Vendas. As duas telas leem os mesmos, entao trocar de
+ * aba nao perde o periodo nem o PDV que a pessoa escolheu.
+ */
+function vendas_filtros_da_url(): array
 {
-    $f = [
+    return [
         // Sem filtro, os ultimos 30 dias — a pergunta de sempre e "e esse mes?".
         'de'      => (string) ($_GET['de'] ?? date('Y-m-d', strtotime('-29 days'))),
         'ate'     => (string) ($_GET['ate'] ?? date('Y-m-d')),
@@ -554,12 +559,41 @@ function rota_vendas(array $u): void
         'agrupar' => (string) ($_GET['agrupar'] ?? 'produto'),
         'busca'   => trim((string) ($_GET['q'] ?? '')),
     ];
+}
+
+/** As formas de pagamento com nome de gente, para os filtros e as listas. */
+function vendas_formas_rotulos(): array
+{
+    return ['Debit' => 'Débito', 'Credit' => 'Crédito', 'Pix' => 'Pix', 'Voucher' => 'Voucher'];
+}
+
+/**
+ * Cada compra do periodo, com os produtos que sairam nela.
+ *
+ * O resumo responde "o que vende mais"; esta tela responde "o que saiu agora ha
+ * pouco" e "o que essa pessoa levou junto".
+ */
+function rota_vendas_transacoes(array $u): void
+{
+    $f = vendas_filtros_da_url();
+
+    $pag = vendas_paginacao(vendas_transacoes_contar($f), (int) ($_GET['p'] ?? 1));
+    $linhas = vendas_transacoes($f, $pag);
+    $itens = vendas_itens_das(array_column($linhas, 'id'));
+
+    $pdvs = vendas_pdvs();
+    $formas = vendas_formas_rotulos();
+
+    ver('vendas_transacoes', compact('linhas', 'itens', 'pag', 'f', 'pdvs', 'formas'), 'Transações');
+}
+
+function rota_vendas(array $u): void
+{
+    $f = vendas_filtros_da_url();
 
     $r = vendas_relatorio($f);
     $pdvs = vendas_pdvs();
-    $formas = [
-        'Debit' => 'Débito', 'Credit' => 'Crédito', 'Pix' => 'Pix', 'Voucher' => 'Voucher',
-    ];
+    $formas = vendas_formas_rotulos();
 
     ver('vendas_relatorio', compact('r', 'f', 'pdvs', 'formas'), 'Vendas');
 }

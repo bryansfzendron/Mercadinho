@@ -1,6 +1,7 @@
 <?php /** @var array $r @var array $f @var array $pdvs @var array $formas */ ?>
 <h1>Loja</h1>
 <?= abas_loja('/vendas') ?>
+<?= abas(['/vendas' => 'Resumo', '/vendas/transacoes' => 'Transações'], '/vendas') ?>
 
 <div class="chips">
     <?php foreach (vendas_periodos() as $chave => [$rotulo, $de, $ate]): ?>
