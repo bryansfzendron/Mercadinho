@@ -125,6 +125,11 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
                             <?php else: ?>
                                 <span class="zerado">sem estoque</span>
                             <?php endif; ?>
+                            <?php // Reservado e o que o TouchPay ja tirou da prateleira mas
+                                  // ainda nao fechou. Sem ele a conta com o painel nao bate. ?>
+                            <?php if ((float) $l['reservado'] > 0): ?>
+                                · <?= qtd_fmt($l['reservado']) ?> reservado
+                            <?php endif; ?>
                             · <?= e($l['pdv']) ?>
                         </span>
                         <span class="mono"><?= $l['ean'] ? e($l['ean']) : e($l['codigo'] ?: 'sem código') ?></span>
