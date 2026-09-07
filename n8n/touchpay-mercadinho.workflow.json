@@ -161,6 +161,12 @@
               "fullResponse": true,
               "neverError": true
             }
+          },
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 0
+            }
           }
         }
       },

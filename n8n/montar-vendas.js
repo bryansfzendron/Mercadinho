@@ -38,6 +38,19 @@ const RESPOSTA_COMPLETA = {
     response: { response: { fullResponse: true, neverError: true } },
 };
 
+/**
+ * O mesmo, mas mandando UM item por vez.
+ *
+ * O padrao do node HTTP e batchSize 50, ou seja: os 25 lotes de uma carga
+ * saem praticamente juntos, e os callbacks se atropelam gravando na mesma
+ * tabela — foi o que produziu "1213 Deadlock found when trying to get lock"
+ * em producao. Um de cada vez, sem intervalo entre eles.
+ */
+const RESPOSTA_EM_FILA = {
+    response: { response: { fullResponse: true, neverError: true } },
+    batching: { batch: { batchSize: 1, batchInterval: 0 } },
+};
+
 function cabecalhos(lista) {
     return { parameters: lista.map(([name, value]) => ({ name, value })) };
 }
@@ -97,7 +110,7 @@ const nodes = [
             sendBody: true,
             specifyBody: 'json',
             jsonBody: '={{ JSON.stringify($json.payload) }}',
-            options: RESPOSTA_COMPLETA,
+            options: RESPOSTA_EM_FILA,
         },
         id: 'devolver-ao-mercadinho',
         name: 'Devolver ao Mercadinho',

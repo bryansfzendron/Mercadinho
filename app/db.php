@@ -121,3 +121,32 @@ function valor_pdo_tipo($v): int
     if (is_bool($v))  return PDO::PARAM_BOOL;
     return PDO::PARAM_STR;
 }
+
+/**
+ * Roda algo que escreve no banco, repetindo se o MySQL devolver deadlock.
+ *
+ * Deadlock (1213) e lock timeout (1205) nao sao bug: sao o banco desempatando
+ * duas transacoes que se cruzaram. O proprio MySQL manda tentar de novo — a
+ * transacao perdedora ja foi desfeita inteira, entao repetir e seguro.
+ *
+ * Aconteceu de verdade quando os 25 lotes de uma carga chegaram juntos. O
+ * fluxo do n8n agora manda um de cada vez, mas o botao da tela e o cron podem
+ * se cruzar do mesmo jeito, e ai isto aqui e a rede de baixo.
+ */
+function tentar_de_novo_em_deadlock(callable $bloco, int $tentativas = 3)
+{
+    for ($i = 1; ; $i++) {
+        try {
+            return $bloco();
+        } catch (PDOException $e) {
+            $codigo = (int) ($e->errorInfo[1] ?? 0);
+            $travou = $codigo === 1213 || $codigo === 1205;
+            if (!$travou || $i >= $tentativas) {
+                throw $e;
+            }
+            // Espera crescente e curta: 50ms, 100ms. Quem perdeu o desempate
+            // volta depois de quem ganhou terminar.
+            usleep(50000 * $i);
+        }
+    }
+}

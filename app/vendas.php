@@ -259,6 +259,16 @@ function vendas_processar_callback(array $p): array
         return ['ok' => false, 'vendas' => 0, 'itens' => 0, 'vinculados' => 0, 'mensagem' => 'lote sem venda utilizavel'];
     }
 
+    // O lote inteiro dentro do retry: deadlock desfaz a transacao toda, entao
+    // repetir do comeco e o unico jeito seguro.
+    return tentar_de_novo_em_deadlock(static function () use ($p, $normalizadas) {
+        return vendas_gravar_lote($p, $normalizadas);
+    });
+}
+
+/** A gravacao em si. Separada para caber inteira dentro do retry. */
+function vendas_gravar_lote(array $p, array $normalizadas): array
+{
     $pdo = db();
     $pdo->beginTransaction();
     try {
