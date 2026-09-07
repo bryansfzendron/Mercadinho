@@ -364,6 +364,34 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .chip:hover { text-decoration: none; }
 .chip.ativo { background: var(--tinta-marca); border-color: transparent; color: var(--marca); font-weight: 600; }
 
+/* ---------- dashboard ---------- */
+/* Estava num <style> dentro da view: a proxima troca de paleta passaria batido
+   por ele. Moldura so quando ha periodo anterior para comparar. */
+.kpi { display:flex; flex-direction:column; align-items:center; text-align:center; padding:.85rem .5rem; position:relative; }
+.kpi-rotulo { font-size:.65rem; color:var(--suave); text-transform:uppercase; letter-spacing:.04em; margin-bottom:.25rem; }
+.kpi-valor { font-size:1.15rem; font-weight:600; line-height:1.2; font-variant-numeric:tabular-nums; }
+.kpi-valor.negativo { color:var(--vermelho); }
+.kpi-var { font-size:.65rem; font-weight:600; margin-top:.2rem; padding:.1rem .35rem; border-radius:99px; }
+.kpi-var.pos { background:var(--tinta-positiva); color:var(--positivo); }
+.kpi-var.neg { background:var(--tinta-vermelha); color:var(--vermelho); }
+.kpi-up { border-color:var(--positivo); }
+.kpi-down { border-color:var(--vermelho); }
+
+@media (max-width: 480px) {
+    .kpi-valor { font-size:1rem; }
+}
+.kpi-neutro { border-color: var(--borda); }
+
+/* Tabela do breakdown diario. Rola sozinha no celular em vez de espremer. */
+.tabela-rolante { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tabela { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.tabela th, .tabela td { padding: .45rem .5rem; border-bottom: 1px solid var(--borda); white-space: nowrap; }
+.tabela th { text-align: left; color: var(--suave); font-weight: 500; }
+.tabela .dir { text-align: right; font-variant-numeric: tabular-nums; }
+.tabela tr.hoje { background: var(--tinta-marca); font-weight: 600; }
+/* Dia que ainda nao chegou e plano, nao atraso: entra apagado. */
+.tabela tr.futuro td { color: var(--suave); }
+
 /* Barra de progresso da importacao. */
 .progresso { margin: .6rem 0 .2rem; }
 .progresso-barra {

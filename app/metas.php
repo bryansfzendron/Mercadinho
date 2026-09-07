@@ -61,92 +61,104 @@ function metas_dias(?string $hoje = null): array
 }
 
 /**
- * Gera breakdown diario de meta vs realizado para um mes.
+ * O plano diario da meta do mes.
  *
- * @param float $meta_mes       Meta total do mes
- * @param float $realizado_mes  O que ja realizou no mes (ate hoje)
- * @param string $de            Inicio do periodo (YYYY-MM-DD)
- * @param string $ate           Fim do periodo (YYYY-MM-DD)
- * @param int|null $pdv_id      PDV para filtrar (null = todos)
- * @return array{diario:array, resumo:array}
+ * Duas colunas que respondem perguntas diferentes, e por isso sao calculadas
+ * diferente:
+ *
+ *  - **meta acumulada** e a linha reta de referencia: `meta do mes / dias do
+ *    mes x dia`. E onde voce deveria estar hoje se o mes fosse parelho, e por
+ *    isso ela fecha exatamente na meta do mes no ultimo dia. E contra ela que
+ *    o realizado acumulado se compara.
+ *  - **meta do dia** e o plano recalculado: o que ainda falta dividido pelos
+ *    dias que ainda restam. Fica para tras, ela sobe; adianta, ela desce.
+ *
+ * A versao anterior somava o deficit *em cima* da base e realimentava o
+ * resultado no dia seguinte, entao a meta compunha sozinha: com R$ 3.000 de
+ * meta e nada vendido, a meta acumulada terminava em R$ 46.500 e o dia 30
+ * pedia R$ 23.300. Tambem dividia a meta pelos dias da JANELA (que para o mes
+ * corrente termina hoje) em vez dos dias do MES, o que inflava a meta diaria
+ * quanto mais cedo no mes voce olhasse.
  */
 function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $de, string $ate, ?int $pdv_id = null): array
 {
     $inicio = new DateTimeImmutable($de);
-    $fim    = new DateTimeImmutable($ate);
     $hoje   = new DateTimeImmutable(date('Y-m-d'));
 
-    // Busca vendas por dia no periodo
+    // Receita por dia no periodo, do mesmo relatorio que a tela de vendas usa.
     $f = ['de' => $de, 'ate' => $ate, 'agrupar' => 'dia'];
     if ($pdv_id) {
         $f['pdv_id'] = $pdv_id;
     }
     $r = vendas_relatorio($f);
 
-    // Mapa dia -> receita
     $por_dia = [];
     foreach ($r['linhas'] as $l) {
-        $por_dia[$l['grupo']] = (float) $l['receita'];
+        $por_dia[(string) $l['grupo']] = (float) $l['receita'];
     }
 
-    $dias_mes = [];
-    $iter = $inicio;
-    while ($iter <= $fim) {
-        $dias_mes[] = $iter->format('Y-m-d');
-        $iter = $iter->modify('+1 day');
-    }
-    $total_dias = count($dias_mes);
-
-    // Meta diaria base (meta_mes / total_dias)
-    $meta_diaria_base = $total_dias > 0 ? $meta_mes / $total_dias : 0;
+    // O mes inteiro, nao a janela: a janela do mes corrente termina hoje, e
+    // dividir a meta por ela faria a meta diaria crescer quanto mais cedo no
+    // mes voce abrisse a tela. Os dias que ainda nao chegaram entram como
+    // plano, que e justamente o que da para agir em cima.
+    $dias_do_mes = (int) $inicio->format('t');
+    $meta_diaria_base = $dias_do_mes > 0 ? $meta_mes / $dias_do_mes : 0.0;
 
     $diario = [];
     $acum_meta = 0.0;
     $acum_real = 0.0;
-    $deficit_acumulado = 0.0;
 
-    foreach ($dias_mes as $index => $dia_str) {
-        $dia_num = (int) date('j', strtotime($dia_str));
-        $passado = new DateTimeImmutable($dia_str) <= $hoje;
-
+    for ($i = 0; $i < $dias_do_mes; $i++) {
+        $data = $inicio->modify('+' . $i . ' day');
+        $dia_str = $data->format('Y-m-d');
         $realizado_dia = $por_dia[$dia_str] ?? 0.0;
 
-        // Meta do dia = base + rateio do deficit acumulado ate ontem
-        $dias_restantes = $total_dias - $index;
-        $meta_dia = $meta_diaria_base;
-        if ($deficit_acumulado > 0 && $dias_restantes > 0) {
-            $meta_dia += $deficit_acumulado / $dias_restantes;
-        }
+        // O que ainda falta, dividido pelos dias que ainda restam (contando
+        // este). Sobrando, o que falta e negativo e a meta do dia zera.
+        $restam = $dias_do_mes - $i;
+        $meta_dia = $restam > 0 ? max(0.0, $meta_mes - $acum_real) / $restam : 0.0;
 
-        $acum_meta += $meta_dia;
+        // A referencia acumulada e a linha reta, senao ela nunca fecharia na
+        // meta do mes.
+        $acum_meta += $meta_diaria_base;
         $acum_real += $realizado_dia;
 
-        $diff_dia = $realizado_dia - $meta_dia;
-        $deficit_acumulado += -$diff_dia; // se negativo, aumenta deficit
-
         $diario[] = [
-            'dia'           => $dia_num,
+            'dia'           => (int) $data->format('j'),
             'data'          => $dia_str,
             'meta_dia'      => round($meta_dia, 2),
             'realizado_dia' => round($realizado_dia, 2),
-            'diff_dia'      => round($diff_dia, 2),
+            'diff_dia'      => round($realizado_dia - $meta_dia, 2),
             'acum_meta'     => round($acum_meta, 2),
             'acum_real'     => round($acum_real, 2),
             'diff_acum'     => round($acum_real - $acum_meta, 2),
-            'passado'       => $passado,
-            'hoje'          => $dia_str === date('Y-m-d'),
+            'passado'       => $data < $hoje,
+            'hoje'          => $dia_str === $hoje->format('Y-m-d'),
+            'futuro'        => $data > $hoje,
         ];
+    }
+
+    $restam_hoje = 0;
+    foreach ($diario as $l) {
+        if (!$l['passado']) {
+            $restam_hoje++;
+        }
     }
 
     return [
         'diario' => $diario,
         'resumo' => [
-            'meta_total'    => $meta_mes,
-            'realizado'     => $realizado_mes,
-            'falta'         => max(0, $meta_mes - $realizado_mes),
-            'dias_total'    => $total_dias,
-            'dias_passados' => (int) date('j', strtotime($ate)),
+            'meta_total'       => $meta_mes,
+            'realizado'        => $realizado_mes,
+            'falta'            => max(0.0, $meta_mes - $realizado_mes),
+            'dias_total'       => $dias_do_mes,
+            'dias_passados'    => $dias_do_mes - $restam_hoje,
+            'dias_restantes'   => $restam_hoje,
             'meta_diaria_base' => round($meta_diaria_base, 2),
+            // O que precisa sair por dia daqui para frente para fechar o mes.
+            'precisa_por_dia'  => $restam_hoje > 0
+                ? round(max(0.0, $meta_mes - $realizado_mes) / $restam_hoje, 2)
+                : round(max(0.0, $meta_mes - $realizado_mes), 2),
         ],
     ];
 }

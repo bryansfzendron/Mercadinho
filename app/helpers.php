@@ -352,3 +352,20 @@ function abas_config(string $atual): string
         '/config/taxas'   => 'Taxas',
     ], $atual);
 }
+
+/**
+ * A cor da moldura de um KPI do dashboard.
+ *
+ * Sem periodo anterior a variacao vem nula, e ai nao ha veredito: pintar de
+ * verde por padrao fazia um prejuizo aparecer emoldurado de bom.
+ *
+ * @param bool $menor_melhor para custo, subir e ruim
+ */
+function kpi_moldura(?float $variacao, bool $menor_melhor = false): string
+{
+    if ($variacao === null) {
+        return 'kpi-neutro';
+    }
+    $bom = $menor_melhor ? $variacao <= 0 : $variacao >= 0;
+    return $bom ? 'kpi-up' : 'kpi-down';
+}

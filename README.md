@@ -462,6 +462,23 @@ Dois detalhes que não são estéticos:
 - **Lucro continua verde e prejuízo vermelho** (`--positivo` / `--vermelho`). Sinal
   financeiro não é marca: com tudo dourado, o relatório perde a leitura de um relance.
 
+## O plano diário da meta
+
+A aba Metas mostra, dia a dia, duas colunas que respondem perguntas diferentes:
+
+- **Meta acumulada** é a linha reta do mês (`meta ÷ dias do mês × dia`). É onde você
+  deveria estar hoje, e por isso fecha exatamente na meta no último dia. É contra ela que
+  a diferença compara.
+- **Meta do dia** é o plano recalculado: o que falta dividido pelos dias que restam. Sobe
+  quando se fica para trás, cai quando se adianta.
+
+A primeira versão somava o déficit **em cima** da meta base e realimentava o resultado no
+dia seguinte, então a meta compunha sozinha: com R$ 3.000 de meta e nada vendido, a meta
+acumulada terminava em R$ 46.500 e o dia 30 pedia R$ 23.300. Também dividia a meta pelos
+dias da **janela** (que no mês corrente termina hoje) em vez dos dias do **mês**, o que
+inflava a meta diária quanto mais cedo no mês você abrisse a tela. `testes/breakdown.php`
+trava as duas propriedades que impedem isso de voltar.
+
 ## Configurações
 
 Engrenagem no topo, não um quinto item na barra de baixo — configuração não é destino
@@ -522,6 +539,7 @@ php testes/loja.php         # normalização do callback do TouchPay e o prefixo
 php testes/vendas.php       # callback das vendas, fuso da data e o unitário calculado
 php testes/custos.php       # taxa por forma de pagamento, resultado do período e CMV
 php testes/sync.php         # a conta da barra de progresso e o fluxo dado por perdido
+php testes/breakdown.php    # o plano diário da meta: linha reta e meta recalculada
 php testes/nav.php          # o menu de baixo acende um item por rota
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
