@@ -15,6 +15,10 @@ declare(strict_types=1);
  *  3. **Custos fixos do mes** — energia, sistema e internet. Nao se dividem
  *     por produto sem inventar rateio, entao entram so no resultado do
  *     periodo, rateados por dia.
+ *
+ * As tres sao por ponto de venda: cada container tem a sua conta de luz, a sua
+ * internet e as vezes ate o seu condominio. Os valores em custos_parametros sao
+ * o padrao, e o que difere num PDV mora em custos_pdv.
  */
 
 /** Valores iniciais. Os do TouchPay/PagBank sao os de tabela — confira no app. */
@@ -31,8 +35,8 @@ function custos_padrao(): array
         'taxa_voucher'    => 3.50,
         // Custo da mercadoria para produto sem nota fiscal ainda.
         'cmv_padrao_pct'  => 55.0,
-        // Fixos do mes inteiro, em reais. Quem paga por container (a internet
-        // de cada um, por exemplo) soma os containers e poe o total aqui.
+        // Fixos do mes inteiro, em reais, POR PONTO DE VENDA. O valor aqui e
+        // o padrao; cada PDV pode ter o seu em Configuracoes > Taxas.
         'fixo_energia'    => 300.0,
         'fixo_sistema'    => 149.0,
         'fixo_internet'   => 0.0,
@@ -78,11 +82,12 @@ function custos_salvar(array $novos): int
 }
 
 /**
- * O que sai todo mes independente de vender: energia, sistema e internet.
+ * O que sai todo mes independente de vender, em UM ponto de venda: energia,
+ * sistema e internet.
  *
  * Uma funcao so soma os tres para o proximo custo que aparecer mexer aqui e
  * mais nada — os containers novos ja trouxeram a internet, e nao serao os
- * ultimos.
+ * ultimos. Quem soma os containers e custos_fixo_mensal_total().
  */
 function custos_fixos_mensais(array $p): float
 {
@@ -106,68 +111,6 @@ function custo_taxa_da_forma(?string $forma, array $p): float
 }
 
 /**
- * O resultado do periodo.
- *
- * @param array $por_forma  [['forma' => 'Debit', 'total' => 5975.27], ...]
- * @param float $cmv        custo da mercadoria ja somado (NFC-e + padrao)
- * @param int   $dias       dias do periodo, para ratear os fixos do mes
- * @param array $p          parametros de custo
- */
-function custos_resultado(array $por_forma, float $cmv, int $dias, array $p): array
-{
-    $receita = 0.0;
-    $taxa = 0.0;
-    $vendas = 0;
-    foreach ($por_forma as $linha) {
-        $total = (float) ($linha['total'] ?? 0);
-        $receita += $total;
-        $vendas += (int) ($linha['n'] ?? 0);
-        $taxa += $total * custo_taxa_da_forma($linha['forma'] ?? null, $p) / 100;
-    }
-
-    $condominio = $receita * (float) $p['condominio_pct'] / 100;
-    $franquia   = $receita * (float) $p['franquia_pct'] / 100;
-    // Mes comercial de 30 dias: o periodo filtrado quase nunca e um mes
-    // fechado, e ratear por dia e o unico jeito honesto de comparar.
-    $fixos = custos_fixos_mensais($p) * max(1, $dias) / 30;
-
-    $lucro = $receita - $cmv - $taxa - $condominio - $franquia - $fixos;
-
-    return [
-        'receita'    => $receita,
-        'cmv'        => $cmv,
-        'taxa'       => $taxa,
-        'condominio' => $condominio,
-        'franquia'   => $franquia,
-        'fixos'      => $fixos,
-        'lucro'      => $lucro,
-        // Contagem junto do dinheiro: quando o numero diverge do painel do
-        // TouchPay, e ela que diz se faltou venda ou se foi valor.
-        'vendas'     => $vendas,
-        'margem'     => $receita > 0 ? $lucro / $receita * 100 : 0.0,
-        'dias'       => $dias,
-    ];
-}
-
-/**
- * Quanto de cada real de venda vai embora em percentual (maquininha media,
- * condominio e franquia). E o que da para descontar por produto sem inventar
- * rateio de custo fixo.
- */
-function custos_pct_variavel(array $por_forma, array $p): float
-{
-    $receita = 0.0;
-    $taxa = 0.0;
-    foreach ($por_forma as $linha) {
-        $total = (float) ($linha['total'] ?? 0);
-        $receita += $total;
-        $taxa += $total * custo_taxa_da_forma($linha['forma'] ?? null, $p) / 100;
-    }
-    $taxa_media = $receita > 0 ? $taxa / $receita * 100 : 0.0;
-    return $taxa_media + (float) $p['condominio_pct'] + (float) $p['franquia_pct'];
-}
-
-/**
  * Os percentuais que acompanham o faturamento, medidos no mix de pagamento
  * real dos ultimos meses. E o que falta descontar do preco de venda para
  * saber se comprar por X vale a pena.
@@ -175,13 +118,17 @@ function custos_pct_variavel(array $por_forma, array $p): float
 function custos_variavel_atual(int $dias = 90): array
 {
     $p = custos_parametros();
-    $por_forma = vendas_por_forma([
+    $por_pdv_forma = vendas_por_pdv_forma([
         'de'  => date('Y-m-d', strtotime('-' . $dias . ' days')),
         'ate' => date('Y-m-d'),
     ]);
+    $por_forma = vendas_juntar_formas($por_pdv_forma);
 
     return [
-        'pct'        => custos_pct_variavel($por_forma, $p),
+        'pct'        => custos_pct_variavel_pdvs(
+            $por_pdv_forma,
+            custos_params_dos_pdvs(array_column($por_pdv_forma, 'pdv_id'))
+        ),
         'condominio' => (float) $p['condominio_pct'],
         'franquia'   => (float) $p['franquia_pct'],
         // Sem venda no periodo nao da para saber o mix; a taxa fica de fora e
@@ -262,13 +209,224 @@ function custo_veredito_rotulo(string $veredito): array
  * O quanto os fixos do mes pesam sobre o faturamento, para virar o segundo
  * corte. Sem faturamento nao da para saber, e a tela mostra so o primeiro.
  */
-function custos_pct_fixo(?float $faturamento_mes, ?array $p = null): ?float
+function custos_pct_fixo(?float $faturamento_mes, ?array $p = null, ?float $fixo_mes = null): ?float
 {
     if ($faturamento_mes === null || $faturamento_mes <= 0) {
         return null;
     }
     // Os parametros vem de fora quando quem chama ja os tem em maos — e e o
     // que deixa esta funcao testavel sem banco.
+    // O total somado vem de fora quando ha mais de um PDV: cada container tem o
+    // seu fixo, e a soma nao sai de um unico conjunto de parametros.
     $p = $p ?? custos_parametros();
-    return custos_fixos_mensais($p) / $faturamento_mes * 100;
+    return ($fixo_mes ?? custos_fixos_mensais($p)) / $faturamento_mes * 100;
+}
+
+// ---------------------------------------------------------------------
+// Custos por ponto de venda
+// ---------------------------------------------------------------------
+
+/**
+ * Os parametros de um PDV: o padrao global com o que aquele PDV sobrescreve.
+ *
+ * Container tem energia, internet e ate condominio proprios. Quem nao tem
+ * diferenca nao configura nada e continua no padrao — e por isso a tabela
+ * guarda so a excecao, nao uma copia dos valores para cada PDV.
+ */
+function custos_parametros_pdv(int $pdv_id): array
+{
+    $valores = custos_parametros();
+    if ($pdv_id <= 0) {
+        return $valores;
+    }
+    foreach (q('SELECT chave, valor FROM custos_pdv WHERE pdv_id = ?', [$pdv_id]) as $linha) {
+        $chave = (string) $linha['chave'];
+        if (array_key_exists($chave, $valores)) {
+            $valores[$chave] = (float) $linha['valor'];
+        }
+    }
+    return $valores;
+}
+
+/**
+ * O que aquele PDV tem de proprio, sem o padrao por baixo. E o que a tela de
+ * ajuste precisa para mostrar campo vazio no que segue o padrao.
+ *
+ * @return array<string,float>
+ */
+function custos_overrides_pdv(int $pdv_id): array
+{
+    $fora = [];
+    foreach (q('SELECT chave, valor FROM custos_pdv WHERE pdv_id = ?', [$pdv_id]) as $linha) {
+        $fora[(string) $linha['chave']] = (float) $linha['valor'];
+    }
+    return $fora;
+}
+
+/**
+ * Grava o que difere naquele PDV. Campo vazio apaga a excecao e volta ao
+ * padrao — e assim que se desfaz uma diferenca sem precisar saber o valor
+ * global de cor.
+ */
+function custos_salvar_pdv(int $pdv_id, array $novos): int
+{
+    if ($pdv_id <= 0) {
+        return 0;
+    }
+    $conhecidos = custos_padrao();
+    $agora = date('Y-m-d H:i:s');
+    $n = 0;
+
+    foreach ($conhecidos as $chave => $_) {
+        if (!array_key_exists($chave, $novos)) {
+            continue;
+        }
+        $bruto = trim((string) $novos[$chave]);
+        if ($bruto === '') {
+            exec_sql('DELETE FROM custos_pdv WHERE pdv_id = ? AND chave = ?', [$pdv_id, $chave]);
+            $n++;
+            continue;
+        }
+        exec_sql(
+            'INSERT INTO custos_pdv (pdv_id, chave, valor, atualizado_em) VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE valor = VALUES(valor), atualizado_em = VALUES(atualizado_em)',
+            [$pdv_id, $chave, max(0.0, num_br($bruto)), $agora]
+        );
+        $n++;
+    }
+    return $n;
+}
+
+/**
+ * Os parametros de cada PDV que aparece numa lista, mais o global na posicao 0
+ * para venda sem PDV.
+ *
+ * @param int[] $ids
+ */
+function custos_params_dos_pdvs(array $ids): array
+{
+    $mapa = [0 => custos_parametros()];
+    foreach (array_unique(array_filter(array_map('intval', $ids))) as $id) {
+        $mapa[$id] = custos_parametros_pdv($id);
+    }
+    return $mapa;
+}
+
+/**
+ * Os PDVs que pagam custo fixo no periodo: os ativos, ou so o filtrado.
+ *
+ * Vem da tabela de PDVs e nao das vendas de proposito — container parado o mes
+ * inteiro continua pagando energia, sistema e internet.
+ */
+function custos_fixos_no_escopo(int $pdv_id = 0): array
+{
+    $ids = $pdv_id > 0
+        ? [$pdv_id]
+        : array_map('intval', array_column(q('SELECT id FROM loja_pdvs WHERE ativo = 1'), 'id'));
+
+    $mapa = [];
+    foreach ($ids as $id) {
+        $mapa[$id] = custos_parametros_pdv($id);
+    }
+    // Nenhum PDV cadastrado ainda: o padrao global conta como um, senao o custo
+    // fixo sumiria justamente na primeira semana de uso.
+    return $mapa ?: [0 => custos_parametros()];
+}
+
+/** O fixo mensal somado dos PDVs que pagam no escopo. */
+function custos_fixo_mensal_total(int $pdv_id = 0): float
+{
+    $total = 0.0;
+    foreach (custos_fixos_no_escopo($pdv_id) as $p) {
+        $total += custos_fixos_mensais($p);
+    }
+    return $total;
+}
+
+/**
+ * O resultado somando ponto de venda a ponto de venda.
+ *
+ * Cada PDV tem a sua receita, as suas taxas e os seus fixos, entao a conta
+ * nao pode ser feita no bolo: um container com energia cara e outro barato
+ * dao um numero errado se voce usar a media. Funcao pura — quem chama traz a
+ * receita por (pdv, forma) e os parametros de cada PDV.
+ *
+ * @param array $por_pdv_forma linhas [pdv_id, forma, n, total]
+ * @param array $params_por_pdv pdv_id => parametros daquele PDV
+ * @param array $fixos_de       pdv_id => parametros dos PDVs que pagam fixo
+ *                              no periodo (normalmente os ativos)
+ */
+function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, array $fixos_de, float $cmv, int $dias): array
+{
+    $receita = 0.0;
+    $taxa = 0.0;
+    $condominio = 0.0;
+    $franquia = 0.0;
+    $vendas = 0;
+
+    foreach ($por_pdv_forma as $linha) {
+        $pdv = (int) ($linha['pdv_id'] ?? 0);
+        $p   = $params_por_pdv[$pdv] ?? custos_padrao();
+        $total = (float) ($linha['total'] ?? 0);
+
+        $receita    += $total;
+        $vendas     += (int) ($linha['n'] ?? 0);
+        $taxa       += $total * custo_taxa_da_forma($linha['forma'] ?? null, $p) / 100;
+        $condominio += $total * (float) $p['condominio_pct'] / 100;
+        $franquia   += $total * (float) $p['franquia_pct'] / 100;
+    }
+
+    // Fixo nao depende de ter vendido: um container parado continua pagando
+    // energia. Por isso ele vem da lista de PDVs no escopo, e nao das vendas.
+    $fixos = 0.0;
+    foreach ($fixos_de as $p) {
+        $fixos += custos_fixos_mensais($p);
+    }
+    $fixos = $fixos * max(1, $dias) / 30;
+
+    $lucro = $receita - $cmv - $taxa - $condominio - $franquia - $fixos;
+
+    return [
+        'receita'    => $receita,
+        'cmv'        => $cmv,
+        'taxa'       => $taxa,
+        'condominio' => $condominio,
+        'franquia'   => $franquia,
+        'fixos'      => $fixos,
+        'lucro'      => $lucro,
+        'vendas'     => $vendas,
+        'margem'     => $receita > 0 ? $lucro / $receita * 100 : 0.0,
+        'dias'       => $dias,
+    ];
+}
+
+/**
+ * Quanto de cada real de venda vai embora em percentual, com cada PDV usando
+ * as suas taxas. E o que o bipe desconta antes de dizer se vale a pena.
+ */
+function custos_pct_variavel_pdvs(array $por_pdv_forma, array $params_por_pdv): float
+{
+    $receita = 0.0;
+    $variavel = 0.0;
+
+    foreach ($por_pdv_forma as $linha) {
+        $pdv = (int) ($linha['pdv_id'] ?? 0);
+        $p   = $params_por_pdv[$pdv] ?? custos_padrao();
+        $total = (float) ($linha['total'] ?? 0);
+
+        $receita  += $total;
+        $variavel += $total * (
+            custo_taxa_da_forma($linha['forma'] ?? null, $p)
+            + (float) $p['condominio_pct']
+            + (float) $p['franquia_pct']
+        ) / 100;
+    }
+
+    if ($receita <= 0) {
+        // Sem venda no periodo nao da para ponderar: fica o padrao, que e melhor
+        // do que zero (zero diria que nao sai nada de cada venda).
+        $p = $params_por_pdv[0] ?? custos_parametros();
+        return (float) $p['condominio_pct'] + (float) $p['franquia_pct'];
+    }
+    return $variavel / $receita * 100;
 }

@@ -33,6 +33,19 @@ function quase(string $nome, float $obtido, float $esperado, float $tol = 0.01):
     printf("FALHOU  %s\n   esperado: ~%.4f\n   obtido:   %.4f\n", $nome, $esperado, $obtido);
 }
 
+/*
+ * As contas de resultado sao por ponto de venda. Um PDV so e o caso simples
+ * delas, e e o que estes testes exercitam: mesmos numeros, mesma engrenagem.
+ */
+function custos_resultado(array $por_forma, float $cmv, int $dias, array $p): array
+{
+    return custos_resultado_pdvs($por_forma, [0 => $p], [0 => $p], $cmv, $dias);
+}
+function custos_pct_variavel(array $por_forma, array $p): float
+{
+    return custos_pct_variavel_pdvs($por_forma, [0 => $p]);
+}
+
 $p = custos_padrao();
 
 // ------------------------------------------------------------------ taxas
@@ -260,6 +273,75 @@ quase('internet pesa no percentual do fixo',
 $antes  = custos_minimos(11.68, custos_pct_fixo(14706.0, custos_padrao()));
 $depois = custos_minimos(11.68, custos_pct_fixo(14706.0, $comNet));
 checar('mais fixo, piso mais alto', $depois['operacao'] > $antes['operacao'], true);
+
+// ------------------------------------------------------ custo por ponto de venda
+// Dois containers com condominio e energia diferentes. A conta no bolo, com a
+// media dos dois, daria numero errado — e e por isso que ela e por PDV.
+$italia = custos_padrao();
+$novo   = custos_padrao();
+$novo['condominio_pct'] = 8.0;
+$novo['fixo_energia']   = 500.0;
+$novo['fixo_internet']  = 120.0;
+$params = [1 => $italia, 2 => $novo];
+
+$por_pdv = [
+    ['pdv_id' => 1, 'forma' => 'Pix', 'total' => 1000.0, 'n' => 10],
+    ['pdv_id' => 2, 'forma' => 'Pix', 'total' => 1000.0, 'n' => 10],
+];
+
+$dois = custos_resultado_pdvs($por_pdv, $params, $params, 0.0, 30);
+quase('receita dos dois PDVs', $dois['receita'], 2000.0);
+// 1000x5% no primeiro, 1000x8% no segundo.
+quase('condominio de cada um com a sua taxa', $dois['condominio'], 130.0);
+quase('franquia e igual nos dois', $dois['franquia'], 100.0);
+// (300+149+0) + (500+149+120) = 1218 no mes cheio.
+quase('fixo soma container a container', $dois['fixos'], 1218.0);
+checar('conta as vendas dos dois', $dois['vendas'], 20);
+
+// O percentual variavel pondera pela receita de cada PDV: 0,35 + 5 + 5 num,
+// 0,35 + 8 + 5 no outro, meio a meio.
+quase('variavel ponderado entre os PDVs',
+    custos_pct_variavel_pdvs($por_pdv, $params), (10.35 + 13.35) / 2);
+
+// Um PDV so no filtro paga so o fixo dele.
+quase('filtrado paga so o proprio fixo',
+    custos_resultado_pdvs(
+        [['pdv_id' => 2, 'forma' => 'Pix', 'total' => 1000.0, 'n' => 10]],
+        $params, [2 => $novo], 0.0, 30
+    )['fixos'], 769.0);
+
+// Container parado no periodo continua pagando energia: o fixo vem da lista de
+// PDVs, nao das vendas. Sem isto o resultado de um mes ruim ficaria bonito.
+quase('PDV sem venda ainda paga fixo',
+    custos_resultado_pdvs([], $params, $params, 0.0, 30)['fixos'], 1218.0);
+
+// Venda orfa (PDV apagado no TouchPay) cai no padrao global, e nao some.
+quase('venda sem PDV usa o padrao',
+    custos_resultado_pdvs([['pdv_id' => 0, 'forma' => 'Pix', 'total' => 100.0]], [], [], 0.0, 30)['receita'],
+    100.0);
+
+// Sem venda nenhuma nao da para ponderar o mix: sobra condominio + franquia do
+// padrao que veio junto, sem ir ao banco.
+quase('sem venda o variavel e condominio + franquia',
+    custos_pct_variavel_pdvs([], [0 => $novo]), 13.0);
+
+// O percentual fixo aceita o total ja somado dos containers.
+quase('pct fixo com o total somado',
+    (float) custos_pct_fixo(14706.0, $italia, 1218.0), 1218.0 / 14706.0 * 100, 0.001);
+quase('sem total somado usa os parametros',
+    (float) custos_pct_fixo(14706.0, $italia), 449.0 / 14706.0 * 100, 0.001);
+
+// A tela mostra por forma: as duas linhas de Pix viram uma so.
+$juntas = vendas_juntar_formas($por_pdv);
+checar('juntou as formas', count($juntas), 1);
+quase('somou o total das duas', $juntas[0]['total'], 2000.0);
+checar('somou a contagem', $juntas[0]['n'], 20);
+// Maior primeiro, que e a ordem que a tela espera.
+$mix = vendas_juntar_formas([
+    ['pdv_id' => 1, 'forma' => 'Pix', 'total' => 10.0, 'n' => 1],
+    ['pdv_id' => 2, 'forma' => 'Debit', 'total' => 90.0, 'n' => 2],
+]);
+checar('maior primeiro', $mix[0]['forma'], 'Debit');
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

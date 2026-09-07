@@ -254,3 +254,21 @@ CREATE TABLE IF NOT EXISTS sync_estado (
     atualizado_em DATETIME     NOT NULL,
     PRIMARY KEY (fonte)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Custo que difere de um ponto de venda para outro. A linha em
+-- custos_parametros continua sendo o padrao; o que existir aqui manda
+-- naquele PDV.
+--
+-- Container tem energia, internet e condominio proprios: parametrizar por um
+-- so obrigava a somar tudo na mao e perdia o resultado por PDV.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS custos_pdv (
+    pdv_id        INT UNSIGNED  NOT NULL,
+    chave         VARCHAR(40)   NOT NULL,
+    valor         DECIMAL(14,4) NOT NULL DEFAULT 0,
+    atualizado_em DATETIME      NOT NULL,
+    PRIMARY KEY (pdv_id, chave),
+    CONSTRAINT fk_custos_pdv_pdv FOREIGN KEY (pdv_id)
+        REFERENCES loja_pdvs (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

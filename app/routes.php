@@ -684,6 +684,13 @@ function rota_config(array $u, string $metodo): void
                 loja_pdv_ativo((int) $pdv['id'], in_array((int) $pdv['id'], $ligados, true));
             }
             flash('ok', 'Pontos de venda atualizados.');
+        } elseif ($aba === 'taxas' && (int) ($_POST['pdv_id'] ?? 0) > 0) {
+            // Custo de um container so. Campo em branco apaga a excecao e
+            // devolve aquele custo ao padrao.
+            $id = (int) $_POST['pdv_id'];
+            $n = custos_salvar_pdv($id, $_POST);
+            flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Salvo.' : 'Nada para salvar.');
+            redirecionar('/config/taxas?pdv=' . $id);
         } else {
             $n = custos_salvar($_POST);
             flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Salvo.' : 'Nada para salvar.');
@@ -694,13 +701,21 @@ function rota_config(array $u, string $metodo): void
 
     $p      = custos_parametros();
     $pdvs   = loja_pdvs_todos();
+
+    // Qual PDV a aba Taxas esta editando. Zero e o padrao, que vale para todos
+    // os que nao tem excecao. So PDV ativo entra: os desligados nao pagam nada
+    // no app.
+    $ativos    = array_column(array_filter($pdvs, static fn (array $x): bool => (int) $x['ativo'] === 1), 'nome', 'id');
+    $pdv_taxas = (int) ($_GET['pdv'] ?? 0);
+    $pdv_taxas = isset($ativos[$pdv_taxas]) ? $pdv_taxas : 0;
+    $overrides = $pdv_taxas > 0 ? custos_overrides_pdv($pdv_taxas) : [];
     $loja   = loja_resumo();
     $vendas = vendas_resumo();
     // Estado inicial no proprio HTML: recarregar no meio de uma importacao ja
     // mostra a barra andando, sem esperar o primeiro polling.
     $sync   = ['loja' => sync_estado('loja'), 'vendas' => sync_estado('vendas')];
 
-    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas', 'sync'), 'Configuracoes');
+    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas', 'sync', 'ativos', 'pdv_taxas', 'overrides'), 'Configuracoes');
 }
 
 /**

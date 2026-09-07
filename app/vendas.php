@@ -487,17 +487,44 @@ function vendas_filtro_sql(array $f): array
     return [implode(' AND ', $onde), $args];
 }
 
-/** Faturamento por forma de pagamento: a base da taxa da maquininha. */
-function vendas_por_forma(array $f): array
+/**
+ * Faturamento por ponto de venda E forma de pagamento.
+ *
+ * Cada container tem as suas taxas, o seu condominio e os seus fixos. Somar a
+ * receita toda antes e aplicar uma media so daria o mesmo numero se todos os
+ * PDVs fossem iguais — e nao sao.
+ */
+function vendas_por_pdv_forma(array $f): array
 {
     [$onde, $args] = vendas_filtro_sql($f);
     return q(
-        'SELECT COALESCE(v.forma_pagamento, ?) AS forma,
+        'SELECT COALESCE(v.pdv_id, 0) AS pdv_id,
+                COALESCE(v.forma_pagamento, ?) AS forma,
                 COUNT(*) AS n, COALESCE(SUM(v.valor_pago), 0) AS total
            FROM vendas v WHERE ' . $onde . '
-       GROUP BY v.forma_pagamento ORDER BY total DESC',
+       GROUP BY v.pdv_id, v.forma_pagamento
+       ORDER BY total DESC',
         array_merge(['desconhecida'], $args)
     );
+}
+
+/**
+ * Junta as linhas de (PDV, forma) por forma de pagamento, que e como a tela
+ * mostra. Funcao pura.
+ */
+function vendas_juntar_formas(array $por_pdv_forma): array
+{
+    $por_forma = [];
+    foreach ($por_pdv_forma as $l) {
+        $forma = (string) ($l['forma'] ?? 'desconhecida');
+        if (!isset($por_forma[$forma])) {
+            $por_forma[$forma] = ['forma' => $forma, 'n' => 0, 'total' => 0.0];
+        }
+        $por_forma[$forma]['n']     += (int) ($l['n'] ?? 0);
+        $por_forma[$forma]['total'] += (float) ($l['total'] ?? 0);
+    }
+    usort($por_forma, static fn (array $a, array $b): int => $b['total'] <=> $a['total']);
+    return $por_forma;
 }
 
 /**
@@ -652,8 +679,9 @@ function vendas_relatorio(array $f): array
     );
 
     $p = custos_parametros();
-    $por_forma = vendas_por_forma($f);
-    $pct_variavel = custos_pct_variavel($por_forma, $p);
+    $por_pdv_forma = vendas_por_pdv_forma($f);
+    $params_por_pdv = custos_params_dos_pdvs(array_column($por_pdv_forma, 'pdv_id'));
+    $pct_variavel = custos_pct_variavel_pdvs($por_pdv_forma, $params_por_pdv);
 
     $agrupado = vendas_agrupar(
         $linhas,
@@ -666,8 +694,17 @@ function vendas_relatorio(array $f): array
         'rotulo'       => $rotulo,
         'agrupar'      => $chave,
         'linhas'       => $agrupado['linhas'],
-        'por_forma'    => $por_forma,
-        'resultado'    => custos_resultado($por_forma, $agrupado['cmv'], vendas_dias_do_periodo($f), $p),
+        // A tela mostra por forma de pagamento; a conta e por (PDV, forma).
+        'por_forma'    => vendas_juntar_formas($por_pdv_forma),
+        'resultado'    => custos_resultado_pdvs(
+            $por_pdv_forma,
+            $params_por_pdv,
+            // Fixo vem dos PDVs no escopo, e nao das vendas: container parado
+            // continua pagando energia.
+            custos_fixos_no_escopo((int) ($f['pdv_id'] ?? 0)),
+            $agrupado['cmv'],
+            vendas_dias_do_periodo($f)
+        ),
         'pct_variavel' => $pct_variavel,
         'parametros'   => $p,
         'cobertura'    => $agrupado['cobertura'],

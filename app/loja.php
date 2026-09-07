@@ -507,18 +507,20 @@ function margens_minimos(): array
 {
     $p        = custos_parametros();
     $variavel = custos_variavel_atual();
-    $mes      = custos_resultado(
-        vendas_por_forma(['de' => date('Y-m-01'), 'ate' => date('Y-m-d')]),
+    $por_pdv  = vendas_por_pdv_forma(['de' => date('Y-m-01'), 'ate' => date('Y-m-d')]);
+    $mes      = custos_resultado_pdvs(
+        $por_pdv,
+        custos_params_dos_pdvs(array_column($por_pdv, 'pdv_id')),
+        custos_fixos_no_escopo(),
         0.0,
-        (int) date('j'),
-        $p
+        (int) date('j')
     );
 
     // O faturamento do mes ate agora, projetado para o mes inteiro, e o que
     // faz o rateio do fixo ser justo no dia 3 e no dia 28.
     $projetado = (int) date('j') > 0 ? $mes['receita'] / (int) date('j') * (int) date('t') : null;
 
-    return custos_minimos($variavel['pct'], custos_pct_fixo($projetado, $p));
+    return custos_minimos($variavel['pct'], custos_pct_fixo($projetado, $p, custos_fixo_mensal_total()));
 }
 
 /** Quantos produtos em cada veredito, para os chips da tela. */

@@ -451,13 +451,34 @@ O custo entra em três camadas, porque elas se comportam de forma diferente:
 2. **Percentual sobre o faturamento** — condomínio, franquia e a taxa da maquininha. A taxa
    sai da forma de pagamento de cada venda (débito, crédito, Pix, voucher), não de uma média
    chutada.
-3. **Fixos do mês** — energia e sistema, rateados por dia no período filtrado. Não entram no
-   resultado por produto: ratear energia por item vendido seria invenção. Por isso a linha do
-   produto mostra **contribuição** (receita − mercadoria − os percentuais) e o cartão do topo
-   mostra o **lucro** do período.
+3. **Fixos do mês** — energia, sistema e internet, rateados por dia no período filtrado. Não
+   entram no resultado por produto: ratear energia por item vendido seria invenção. Por isso a
+   linha do produto mostra **contribuição** (receita − mercadoria − os percentuais) e o cartão
+   do topo mostra o **lucro** do período.
 
-As taxas e os valores fixos ficam na tabela `custos_parametros`, editáveis no fim da própria
-tela — taxa de maquininha muda com o faturamento e com o fim da promoção.
+As taxas e os valores fixos ficam na tabela `custos_parametros`, editáveis em
+Configurações → Taxas — taxa de maquininha muda com o faturamento e com o fim da promoção.
+
+### Cada container tem a sua conta
+
+As camadas 2 e 3 são **por ponto de venda**. Um container tem a sua conta de luz, a sua
+internet e às vezes até um condomínio com percentual diferente; somar a receita toda e
+aplicar uma média só daria o mesmo número se todos os PDVs fossem iguais.
+
+Por isso a conta é feita por `(PDV, forma de pagamento)`: `vendas_por_pdv_forma()` traz a
+receita nessa granularidade e `custos_resultado_pdvs()` soma PDV a PDV, cada um com os seus
+parâmetros. A tela continua mostrando por forma de pagamento — `vendas_juntar_formas()` é
+quem junta as linhas depois da conta, não antes.
+
+Os valores em `custos_parametros` são o **padrão**. A tabela `custos_pdv` guarda só a
+**exceção**: `(pdv_id, chave, valor)`. Um PDV sem exceção nenhuma não ocupa uma linha, e
+mudar o padrão mexe em todos de uma vez — que é o que se quer quando a taxa da maquininha
+muda. Na tela, o campo em branco segue o padrão (o valor cinza é o que vale hoje) e apagar
+um campo desfaz a exceção.
+
+O custo fixo vem da **lista de PDVs ativos**, não das vendas: container parado o mês inteiro
+continua pagando energia, sistema e internet, e um mês ruim não pode ficar bonito por falta
+de venda. Filtrando um PDV no relatório, só o fixo dele entra.
 
 ## Cores
 
@@ -543,7 +564,8 @@ frequente e a barra já tem quatro. Quatro abas, com o mesmo submenu da Loja:
 - **PDVs** — liga e desliga cada ponto de venda no app.
 - **Metas** — os alvos do mês; o progresso continua em Loja → Metas.
 - **Taxas** — maquininha por forma de pagamento, condomínio, franquia, os fixos do mês
-  (energia, sistema e internet) e o CMV padrão.
+  (energia, sistema e internet) e o CMV padrão. Os chips no topo escolhem entre o padrão e
+  cada ponto de venda; no PDV, campo em branco segue o padrão.
 
 A regra é: **tela de número não tem botão de ajuste**. Antes disso os dois sync viviam na
 tela inicial, as metas num formulário embaixo do progresso e as taxas num `<details>` no pé

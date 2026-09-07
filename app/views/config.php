@@ -235,60 +235,72 @@
 
 <?php else: ?>
 
+    <?php
+    // Cada container tem a sua energia, a sua internet e as vezes o seu
+    // condominio. O padrao vale para todos; o que for diferente num PDV fica
+    // gravado so nele.
+    $grupos = [
+        ['condominio_pct' => 'Condomínio (% do bruto)', 'franquia_pct' => 'Franquia (% do bruto)'],
+        ['taxa_debito'    => 'Taxa débito (%)',         'taxa_credito' => 'Taxa crédito (%)'],
+        ['taxa_pix'       => 'Taxa Pix (%)',            'taxa_voucher' => 'Taxa voucher (%)'],
+        ['fixo_energia'   => 'Energia (R$/mês)',        'fixo_sistema' => 'Sistema (R$/mês)'],
+        ['fixo_internet'  => 'Internet (R$/mês)'],
+    ];
+    $por_pdv = $pdv_taxas > 0;
+    ?>
+
+    <?php if ($ativos): ?>
+        <div class="chips">
+            <a class="chip <?= $por_pdv ? '' : 'ativo' ?>" href="/config/taxas">Padrão</a>
+            <?php foreach ($ativos as $id => $nome): ?>
+                <a class="chip <?= $pdv_taxas === (int) $id ? 'ativo' : '' ?>"
+                   href="/config/taxas?pdv=<?= (int) $id ?>"><?= e($nome) ?></a>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
     <div class="cartao">
-        <h2 class="sem-topo">Custos e taxas</h2>
+        <h2 class="sem-topo">
+            <?= $por_pdv ? e((string) $ativos[$pdv_taxas]) : 'Custos e taxas' ?>
+        </h2>
+        <?php if ($por_pdv): ?>
+            <p class="ajuda">
+                Só o que for diferente neste ponto de venda. Campo em branco segue o padrão —
+                o valor cinza é o que vale hoje. Apagar um campo desfaz a exceção.
+            </p>
+        <?php endif; ?>
         <form method="post" action="/config/taxas">
             <?= csrf_campo() ?>
-            <div class="filtros">
-                <label>Condomínio (% do bruto)
-                    <input type="text" inputmode="decimal" name="condominio_pct" value="<?= e(number_format($p['condominio_pct'], 2, ',', '')) ?>">
-                </label>
-                <label>Franquia (% do bruto)
-                    <input type="text" inputmode="decimal" name="franquia_pct" value="<?= e(number_format($p['franquia_pct'], 2, ',', '')) ?>">
-                </label>
-            </div>
-            <div class="filtros">
-                <label>Taxa débito (%)
-                    <input type="text" inputmode="decimal" name="taxa_debito" value="<?= e(number_format($p['taxa_debito'], 2, ',', '')) ?>">
-                </label>
-                <label>Taxa crédito (%)
-                    <input type="text" inputmode="decimal" name="taxa_credito" value="<?= e(number_format($p['taxa_credito'], 2, ',', '')) ?>">
-                </label>
-            </div>
-            <div class="filtros">
-                <label>Taxa Pix (%)
-                    <input type="text" inputmode="decimal" name="taxa_pix" value="<?= e(number_format($p['taxa_pix'], 2, ',', '')) ?>">
-                </label>
-                <label>Taxa voucher (%)
-                    <input type="text" inputmode="decimal" name="taxa_voucher" value="<?= e(number_format($p['taxa_voucher'], 2, ',', '')) ?>">
-                </label>
-            </div>
-            <div class="filtros">
-                <label>Energia (R$/mês)
-                    <input type="text" inputmode="decimal" name="fixo_energia" value="<?= e(number_format($p['fixo_energia'], 2, ',', '')) ?>">
-                </label>
-                <label>Sistema (R$/mês)
-                    <input type="text" inputmode="decimal" name="fixo_sistema" value="<?= e(number_format($p['fixo_sistema'], 2, ',', '')) ?>">
-                </label>
-            </div>
-            <label>Internet (R$/mês)
-                <input type="text" inputmode="decimal" name="fixo_internet" value="<?= e(number_format($p['fixo_internet'], 2, ',', '')) ?>">
-            </label>
+            <?php if ($por_pdv): ?><input type="hidden" name="pdv_id" value="<?= (int) $pdv_taxas ?>"><?php endif; ?>
+            <?php foreach ($grupos as $grupo): ?>
+                <div class="filtros">
+                    <?php foreach ($grupo as $campo => $rotulo): ?>
+                        <label class="<?= count($grupo) === 1 ? 'col-cheia' : '' ?>"><?= e($rotulo) ?>
+                            <input type="text" inputmode="decimal" name="<?= e($campo) ?>"
+                                   value="<?= $por_pdv && !isset($overrides[$campo]) ? '' : e(number_format($por_pdv ? $overrides[$campo] : $p[$campo], 2, ',', '')) ?>"
+                                   <?= $por_pdv ? 'placeholder="' . e(number_format($p[$campo], 2, ',', '')) . '"' : '' ?>>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            <?php endforeach; ?>
             <p class="ajuda">
-                Se você paga internet por container, some todos e ponha o total — é assim
-                que energia e sistema também entram. Os três viram um percentual do
-                faturamento na hora de julgar se um produto paga a operação, então o total
-                é o que importa, não como está dividido.
+                Energia, sistema e internet são por container: o app soma os pontos de venda
+                ativos para saber quanto a operação custa no mês. Os três viram um percentual
+                do faturamento na hora de julgar se um produto paga a operação.
             </p>
-            <label>CMV padrão, para produto sem nota (%)
-                <input type="text" inputmode="decimal" name="cmv_padrao_pct" value="<?= e(number_format($p['cmv_padrao_pct'], 2, ',', '')) ?>">
-            </label>
+            <?php if (!$por_pdv): ?>
+                <label>CMV padrão, para produto sem nota (%)
+                    <input type="text" inputmode="decimal" name="cmv_padrao_pct" value="<?= e(number_format($p['cmv_padrao_pct'], 2, ',', '')) ?>">
+                </label>
+            <?php endif; ?>
             <p class="ajuda">
                 As taxas vêm da tabela do PagBank e mudam com o seu faturamento e com o fim
                 da promoção — confira no app da maquininha. A taxa entra por forma de
                 pagamento, venda a venda, e não por média.
             </p>
-            <button type="submit" class="botao">Salvar custos</button>
+            <button type="submit" class="botao">
+                <?= $por_pdv ? 'Salvar custos deste PDV' : 'Salvar custos' ?>
+            </button>
         </form>
     </div>
 
