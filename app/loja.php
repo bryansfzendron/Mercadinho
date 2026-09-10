@@ -513,7 +513,10 @@ function margens_minimos(): array
         custos_params_dos_pdvs(array_column($por_pdv, 'pdv_id')),
         custos_fixos_no_escopo(),
         0.0,
-        (int) date('j')
+        (int) date('j'),
+        // Mesmo numero que ja saiu em custos_variavel_atual(): imposto e por
+        // CNPJ, entao nao muda com o mix de PDV do mes.
+        $variavel['imposto']
     );
 
     // O faturamento do mes ate agora, projetado para o mes inteiro, e o que

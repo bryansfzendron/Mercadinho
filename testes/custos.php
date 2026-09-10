@@ -37,13 +37,13 @@ function quase(string $nome, float $obtido, float $esperado, float $tol = 0.01):
  * As contas de resultado sao por ponto de venda. Um PDV so e o caso simples
  * delas, e e o que estes testes exercitam: mesmos numeros, mesma engrenagem.
  */
-function custos_resultado(array $por_forma, float $cmv, int $dias, array $p): array
+function custos_resultado(array $por_forma, float $cmv, int $dias, array $p, float $imposto_pct = 0.0): array
 {
-    return custos_resultado_pdvs($por_forma, [0 => $p], [0 => $p], $cmv, $dias);
+    return custos_resultado_pdvs($por_forma, [0 => $p], [0 => $p], $cmv, $dias, $imposto_pct);
 }
-function custos_pct_variavel(array $por_forma, array $p): float
+function custos_pct_variavel(array $por_forma, array $p, float $imposto_pct = 0.0): float
 {
-    return custos_pct_variavel_pdvs($por_forma, [0 => $p]);
+    return custos_pct_variavel_pdvs($por_forma, [0 => $p], $imposto_pct);
 }
 
 $p = custos_padrao();
@@ -342,6 +342,34 @@ $mix = vendas_juntar_formas([
     ['pdv_id' => 2, 'forma' => 'Debit', 'total' => 90.0, 'n' => 2],
 ]);
 checar('maior primeiro', $mix[0]['forma'], 'Debit');
+
+// --------------------------------------------------- imposto (Simples Nacional)
+// Tabela do Anexo I (CNAE 4712-1/00), conferida contra a LC 123/2006.
+checar('faixa 1 (ate 180 mil)', custos_faixa_simples(100000.0)['aliquota'], 4.00);
+checar('no teto exato da faixa 1 ainda e ela', custos_faixa_simples(180000.0)['aliquota'], 4.00);
+checar('faixa 2 (180 mil e um centavo)', custos_faixa_simples(180000.01)['aliquota'], 7.30);
+checar('faixa 6 (acima do teto do Simples) usa a ultima', custos_faixa_simples(9000000.0)['aliquota'], 19.00);
+
+// Sem RBT12 (empresa nova) usa o nominal da primeira faixa, nao zero.
+quase('sem historico usa o nominal da faixa 1', custos_aliquota_efetiva_simples(0.0), 4.00);
+// No teto exato da faixa 1 a aliquota efetiva bate com a nominal (deducao zero).
+quase('efetiva na faixa 1 = nominal', custos_aliquota_efetiva_simples(180000.0), 4.00);
+// Faixa 2: (200000 x 7,30% - 5940) / 200000 = 4,33%.
+quase('efetiva na faixa 2 e menor que a nominal', custos_aliquota_efetiva_simples(200000.0), 4.33, 0.01);
+// Faixa 6, acima do teto do Simples: (5.000.000 x 19% - 378000) / 5.000.000 = 11,44%.
+quase('efetiva acima do teto usa a ultima faixa', custos_aliquota_efetiva_simples(5000000.0), 11.44, 0.01);
+// Aliquota efetiva nunca cai abaixo de zero, nem para faixa mal configurada.
+checar('efetiva nunca fica negativa', custos_aliquota_efetiva_simples(1.0) >= 0.0, true);
+
+// O imposto entra no percentual variavel e no resultado do periodo do mesmo
+// jeito que maquininha, condominio e franquia — soma direto, sem rateio por
+// PDV, porque e por CNPJ.
+quase('imposto soma no percentual variavel',
+    custos_pct_variavel($por_forma, $p, 6.0), (1.6836 + 10 + 6.0), 0.01);
+
+$comImposto = custos_resultado($por_forma, $receita * 0.55, 30, $p, 6.0);
+quase('imposto do periodo = receita x aliquota', $comImposto['imposto'], $receita * 0.06);
+quase('lucro cai exatamente o imposto', $comImposto['lucro'], $res['lucro'] - $receita * 0.06);
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

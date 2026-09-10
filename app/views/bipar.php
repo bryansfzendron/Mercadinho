@@ -164,9 +164,9 @@
      * Vale a pena comprar por esse preco?
      *
      * Desconta do preco de venda o que acompanha o faturamento (maquininha,
-     * condominio e franquia) antes de comparar com o custo. Sem isso a conta
-     * mente para cima: um produto com fator 1,2x ja da prejuizo depois dos
-     * ~11,7% que saem de toda venda.
+     * condominio, franquia e imposto) antes de comparar com o custo. Sem
+     * isso a conta mente para cima: um produto com fator 1,2x ja da
+     * prejuizo depois do que sai de toda venda.
      *
      * Custo fixo (energia, sistema) fica de fora de proposito: ele nao muda
      * com a decisao de comprar mais uma unidade deste produto.
@@ -216,7 +216,7 @@
         const num = (v) => (v || 0).toFixed(2).replace('.', ',');
 
         let conta = 'Você vende por <strong>' + moeda(venda) + '</strong>. A conta tira ' +
-            num(min.pct_variavel || custos.pct) + '% de maquininha, condomínio e franquia';
+            num(min.pct_variavel || custos.pct) + '% de maquininha, condomínio, franquia e imposto';
         if (min.pct_fixo != null) {
             conta += ', e mais ' + num(min.pct_fixo) + '% dos fixos do mês — que é o ' +
                 'peso deles sobre o seu faturamento';

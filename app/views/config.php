@@ -7,6 +7,7 @@
  * @var array  $vendas
  * @var array  $sync
  * @var array  $cron
+ * @var ?array $imposto
  */
 ?>
 <h1>Configurações</h1>
@@ -338,5 +339,26 @@
             </button>
         </form>
     </div>
+
+    <?php if ($imposto): ?>
+        <div class="cartao">
+            <h2 class="sem-topo">Imposto (Simples Nacional)</h2>
+            <p class="ajuda">
+                CNAE 4712-1/00, Anexo I do Simples. Não dá para editar aqui porque não é um
+                palpite — é calculado do seu faturamento real dos últimos 12 meses (RBT12), e
+                sobe sozinho se a loja crescer de faixa.
+            </p>
+            <dl class="dados">
+                <div><dt>RBT12 (12 meses)</dt><dd><?= e(number_format($imposto['rbt12'], 2, ',', '.')) ?></dd></div>
+                <div><dt>Faixa</dt><dd><?= e(number_format($imposto['faixa']['aliquota'], 2, ',', '.')) ?>% nominal</dd></div>
+                <div><dt>Alíquota efetiva</dt><dd><?= e(number_format($imposto['efetiva'], 2, ',', '.')) ?>%</dd></div>
+            </dl>
+            <p class="ajuda">
+                É este percentual que entra em todo cálculo de margem, ao lado de maquininha,
+                condomínio e franquia — igual para todo ponto de venda, porque o Simples é
+                apurado pelo CNPJ, não por container.
+            </p>
+        </div>
+    <?php endif; ?>
 
 <?php endif; ?>

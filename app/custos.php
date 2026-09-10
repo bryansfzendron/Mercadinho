@@ -123,14 +123,19 @@ function custos_variavel_atual(int $dias = 90): array
         'ate' => date('Y-m-d'),
     ]);
     $por_forma = vendas_juntar_formas($por_pdv_forma);
+    $imposto_pct = custos_imposto_pct();
 
     return [
         'pct'        => custos_pct_variavel_pdvs(
             $por_pdv_forma,
-            custos_params_dos_pdvs(array_column($por_pdv_forma, 'pdv_id'))
+            custos_params_dos_pdvs(array_column($por_pdv_forma, 'pdv_id')),
+            $imposto_pct
         ),
         'condominio' => (float) $p['condominio_pct'],
         'franquia'   => (float) $p['franquia_pct'],
+        // Imposto e por CNPJ, entao e sempre o mesmo numero independente do
+        // mix de PDV/forma — diferente das outras camadas, que variam com ele.
+        'imposto'    => $imposto_pct,
         // Sem venda no periodo nao da para saber o mix; a taxa fica de fora e
         // a tela avisa, em vez de inventar uma media.
         'tem_mix'    => $por_forma !== [],
@@ -220,6 +225,97 @@ function custos_pct_fixo(?float $faturamento_mes, ?array $p = null, ?float $fixo
     // seu fixo, e a soma nao sai de um unico conjunto de parametros.
     $p = $p ?? custos_parametros();
     return ($fixo_mes ?? custos_fixos_mensais($p)) / $faturamento_mes * 100;
+}
+
+// ---------------------------------------------------------------------
+// Imposto (Simples Nacional, Anexo I — CNAE 4712-1/00)
+// ---------------------------------------------------------------------
+
+/**
+ * Tabela do Anexo I do Simples Nacional (comercio), LC 123/2006 com a
+ * redacao da LC 155/2016 — em vigor desde 2018. E o anexo do CNAE
+ * 4712-1/00 (comercio varejista de mercadorias em geral, com predominancia
+ * de produtos alimenticios — minimercados, mercearias e armazens).
+ *
+ * RBT12 e a receita bruta acumulada nos ultimos 12 meses. A aliquota da
+ * tabela e nominal: quem sai de cada venda e a aliquota efetiva, calculada
+ * em custos_aliquota_efetiva_simples().
+ *
+ * @return array<int, array{teto:float, aliquota:float, deducao:float}>
+ */
+function custos_simples_anexo1(): array
+{
+    return [
+        ['teto' =>    180000.0, 'aliquota' =>  4.00, 'deducao' =>      0.0],
+        ['teto' =>    360000.0, 'aliquota' =>  7.30, 'deducao' =>   5940.0],
+        ['teto' =>    720000.0, 'aliquota' =>  9.50, 'deducao' =>  13860.0],
+        ['teto' =>   1800000.0, 'aliquota' => 10.70, 'deducao' =>  22500.0],
+        ['teto' =>   3600000.0, 'aliquota' => 14.30, 'deducao' =>  87300.0],
+        ['teto' =>   4800000.0, 'aliquota' => 19.00, 'deducao' => 378000.0],
+    ];
+}
+
+/** A faixa da tabela que cobre aquele RBT12 — a ultima quando estoura o teto. */
+function custos_faixa_simples(float $rbt12): array
+{
+    $tabela = custos_simples_anexo1();
+    foreach ($tabela as $faixa) {
+        if ($rbt12 <= $faixa['teto']) {
+            return $faixa;
+        }
+    }
+    // RBT12 acima de R$ 4,8 milhoes estoura o teto do Simples: fica a ultima
+    // faixa, que e o melhor palpite ate a empresa migrar de regime.
+    return end($tabela);
+}
+
+/**
+ * A aliquota que sai de cada venda, em percentual — nao a nominal da tabela.
+ * Formula do art. 18 da LC 123/2006: (RBT12 x aliquota nominal − parcela a
+ * deduzir) / RBT12. E o que faz o Simples ser progressivo sem virar degrau:
+ * uma empresa no fim de uma faixa nao paga o nominal da faixa inteira.
+ */
+function custos_aliquota_efetiva_simples(float $rbt12): float
+{
+    if ($rbt12 <= 0) {
+        // Sem 12 meses de historico ainda: usa o nominal da primeira faixa,
+        // que e o que a Receita cobra ate existir RBT12 de verdade.
+        return custos_simples_anexo1()[0]['aliquota'];
+    }
+
+    $faixa = custos_faixa_simples($rbt12);
+    $efetiva = ($rbt12 * $faixa['aliquota'] / 100 - $faixa['deducao']) / $rbt12 * 100;
+    return max(0.0, $efetiva);
+}
+
+/**
+ * Faturamento bruto da empresa inteira (todos os PDVs ativos, todas as
+ * formas) nos 12 meses terminando em $ate. O Simples e apurado por CNPJ, nao
+ * por container — por isso esta conta nunca filtra por PDV especifico, ao
+ * contrario do resto de custos.php.
+ *
+ * Usa o mesmo filtro de vendas_filtro_sql(): PDV desligado fica de fora
+ * porque, como a tela de PDVs explica, pode ser um container que esta na
+ * mesma conta do TouchPay mas nao e seu — contar a receita dele inflaria o
+ * RBT12 e jogaria a aliquota para uma faixa que nao e a real.
+ */
+function custos_rbt12(?string $ate = null): float
+{
+    $ate = $ate ?? date('Y-m-d');
+    $de  = date('Y-m-d', strtotime($ate . ' -12 months'));
+    [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $ate]);
+    return (float) qv("SELECT COALESCE(SUM(v.valor_pago), 0) FROM vendas v WHERE $onde", $args);
+}
+
+/**
+ * O percentual de imposto de hoje, pelo Simples Nacional. Variavel de
+ * proposito: a aliquota efetiva sobe com o RBT12, entao um numero fixo
+ * chutado erraria assim que o faturamento empurrasse a empresa para a
+ * proxima faixa, prejuizo ou sobra impossivel de explicar sozinho.
+ */
+function custos_imposto_pct(): float
+{
+    return custos_aliquota_efetiva_simples(custos_rbt12());
 }
 
 // ---------------------------------------------------------------------
@@ -355,8 +451,11 @@ function custos_fixo_mensal_total(int $pdv_id = 0): float
  * @param array $params_por_pdv pdv_id => parametros daquele PDV
  * @param array $fixos_de       pdv_id => parametros dos PDVs que pagam fixo
  *                              no periodo (normalmente os ativos)
+ * @param float $imposto_pct    aliquota efetiva do Simples sobre o periodo,
+ *                              de custos_imposto_pct() — e por CNPJ, nao por
+ *                              PDV, entao entra fora do loop dos parametros.
  */
-function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, array $fixos_de, float $cmv, int $dias): array
+function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, array $fixos_de, float $cmv, int $dias, float $imposto_pct = 0.0): array
 {
     $receita = 0.0;
     $taxa = 0.0;
@@ -384,7 +483,8 @@ function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, arra
     }
     $fixos = $fixos * max(1, $dias) / 30;
 
-    $lucro = $receita - $cmv - $taxa - $condominio - $franquia - $fixos;
+    $imposto = $receita * $imposto_pct / 100;
+    $lucro = $receita - $cmv - $taxa - $condominio - $franquia - $imposto - $fixos;
 
     return [
         'receita'    => $receita,
@@ -392,6 +492,7 @@ function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, arra
         'taxa'       => $taxa,
         'condominio' => $condominio,
         'franquia'   => $franquia,
+        'imposto'    => $imposto,
         'fixos'      => $fixos,
         'lucro'      => $lucro,
         'vendas'     => $vendas,
@@ -403,8 +504,12 @@ function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, arra
 /**
  * Quanto de cada real de venda vai embora em percentual, com cada PDV usando
  * as suas taxas. E o que o bipe desconta antes de dizer se vale a pena.
+ *
+ * @param float $imposto_pct aliquota efetiva do Simples — igual para todo
+ *                           PDV e toda forma de pagamento (e por CNPJ), entao
+ *                           soma direto em vez de entrar no rateio por linha.
  */
-function custos_pct_variavel_pdvs(array $por_pdv_forma, array $params_por_pdv): float
+function custos_pct_variavel_pdvs(array $por_pdv_forma, array $params_por_pdv, float $imposto_pct = 0.0): float
 {
     $receita = 0.0;
     $variavel = 0.0;
@@ -426,7 +531,7 @@ function custos_pct_variavel_pdvs(array $por_pdv_forma, array $params_por_pdv): 
         // Sem venda no periodo nao da para ponderar: fica o padrao, que e melhor
         // do que zero (zero diria que nao sai nada de cada venda).
         $p = $params_por_pdv[0] ?? custos_parametros();
-        return (float) $p['condominio_pct'] + (float) $p['franquia_pct'];
+        return (float) $p['condominio_pct'] + (float) $p['franquia_pct'] + $imposto_pct;
     }
-    return $variavel / $receita * 100;
+    return $variavel / $receita * 100 + $imposto_pct;
 }

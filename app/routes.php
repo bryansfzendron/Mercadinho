@@ -743,6 +743,17 @@ function rota_config(array $u, string $metodo): void
     $pdv_taxas = (int) ($_GET['pdv'] ?? 0);
     $pdv_taxas = isset($ativos[$pdv_taxas]) ? $pdv_taxas : 0;
     $overrides = $pdv_taxas > 0 ? custos_overrides_pdv($pdv_taxas) : [];
+    // Imposto nao e por PDV (e por CNPJ) e nao e editavel (e calculado), entao
+    // so aparece como informacao na aba padrao, nao na de cada container.
+    $imposto = null;
+    if ($aba === 'taxas' && $pdv_taxas === 0) {
+        $rbt12 = custos_rbt12();
+        $imposto = [
+            'rbt12'   => $rbt12,
+            'faixa'   => custos_faixa_simples($rbt12),
+            'efetiva' => custos_aliquota_efetiva_simples($rbt12),
+        ];
+    }
     $loja   = loja_resumo();
     $vendas = vendas_resumo();
     // Estado inicial no proprio HTML: recarregar no meio de uma importacao ja
@@ -750,7 +761,7 @@ function rota_config(array $u, string $metodo): void
     $sync   = ['loja' => sync_estado('loja'), 'vendas' => sync_estado('vendas')];
     $cron   = cron_formatar(q1('SELECT * FROM sync_estado WHERE fonte = ?', ['cron']));
 
-    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides'), 'Configuracoes');
+    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'imposto'), 'Configuracoes');
 }
 
 /**

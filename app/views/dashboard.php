@@ -71,11 +71,11 @@
 // O que sai alem da mercadoria. Sem esta linha o leitor faz
 // "faturamento - mercadoria" e nao chega no lucro que esta ao lado.
 $outros = (float) $res['taxa'] + (float) $res['condominio']
-        + (float) $res['franquia'] + (float) $res['fixos'];
+        + (float) $res['franquia'] + (float) $res['imposto'] + (float) $res['fixos'];
 ?>
 <p class="ajuda centro">
     Além da mercadoria saem <strong><?= moeda($outros) ?></strong> de maquininha,
-    condomínio, franquia e fixos — o detalhe está no resumo do período, no fim da tela.
+    condomínio, franquia, imposto e fixos — o detalhe está no resumo do período, no fim da tela.
 </p>
 
 <div class="cartao">
@@ -135,6 +135,7 @@ $outros = (float) $res['taxa'] + (float) $res['condominio']
         <div><dt>Maquininha</dt><dd class="valor negativo">− <?= moeda($res['taxa']) ?></dd></div>
         <div><dt>Condomínio</dt><dd class="valor negativo">− <?= moeda($res['condominio']) ?></dd></div>
         <div><dt>Franquia</dt><dd class="valor negativo">− <?= moeda($res['franquia']) ?></dd></div>
+        <div><dt>Imposto (Simples Nacional)</dt><dd class="valor negativo">− <?= moeda($res['imposto']) ?></dd></div>
         <div><dt>Energia, sistema e internet</dt><dd class="valor negativo">− <?= moeda($res['fixos']) ?></dd></div>
         <div><dt>Lucro líquido</dt><dd class="valor <?= $res['lucro'] >= 0 ? '' : 'negativo' ?>">
             <?= $res['lucro'] >= 0 ? '+' : '−' ?><?= moeda(abs($res['lucro'])) ?>

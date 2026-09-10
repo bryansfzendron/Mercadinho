@@ -681,7 +681,10 @@ function vendas_relatorio(array $f): array
     $p = custos_parametros();
     $por_pdv_forma = vendas_por_pdv_forma($f);
     $params_por_pdv = custos_params_dos_pdvs(array_column($por_pdv_forma, 'pdv_id'));
-    $pct_variavel = custos_pct_variavel_pdvs($por_pdv_forma, $params_por_pdv);
+    // Imposto e por CNPJ (RBT12 da empresa inteira), nao por PDV filtrado —
+    // por isso vem fora de custos_params_dos_pdvs.
+    $imposto_pct = custos_imposto_pct();
+    $pct_variavel = custos_pct_variavel_pdvs($por_pdv_forma, $params_por_pdv, $imposto_pct);
 
     $agrupado = vendas_agrupar(
         $linhas,
@@ -703,7 +706,8 @@ function vendas_relatorio(array $f): array
             // continua pagando energia.
             custos_fixos_no_escopo((int) ($f['pdv_id'] ?? 0)),
             $agrupado['cmv'],
-            vendas_dias_do_periodo($f)
+            vendas_dias_do_periodo($f),
+            $imposto_pct
         ),
         'pct_variavel' => $pct_variavel,
         'parametros'   => $p,

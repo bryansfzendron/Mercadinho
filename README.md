@@ -385,8 +385,8 @@ O webhook novo precisa de `n8n_webhook_vendas` no `config.php`.
 
 O fator sozinho engana: **1,13x parece lucro e não é**. Vender por V o que custou C sobra
 `V − C − V×pct`, e isso zera quando o fator chega em `1/(1−pct)`. Com 11,68% de maquininha,
-condomínio e franquia, o piso é **1,132x** — abaixo disso cada unidade vendida tira dinheiro
-do bolso.
+condomínio e franquia mais a alíquota efetiva do Simples Nacional do momento, o piso sobe —
+abaixo dele cada unidade vendida tira dinheiro do bolso.
 
 O segundo piso põe o custo fixo do mês na conta como percentual do faturamento (R$ 449 sobre
 ~R$ 14,7 mil = 3,05%), e sobe para **1,173x**. Entre os dois, o produto cobre o que sai de
@@ -420,7 +420,7 @@ Ao bipar, além do histórico, a tela pergunta **quanto estão cobrando agora** 
 hora se compensa. A conta é:
 
 ```
-sobra por unidade = preço de venda − custo digitado − preço de venda × (maquininha + condomínio + franquia)
+sobra por unidade = preço de venda − custo digitado − preço de venda × (maquininha + condomínio + franquia + imposto)
 ```
 
 ```
@@ -448,22 +448,47 @@ O custo entra em três camadas, porque elas se comportam de forma diferente:
    segundo a NFC-e. Produto que ainda não tem nota cai no percentual padrão (55%), e a linha
    aparece marcada como *estimado*. O cartão do topo diz quanto do faturamento tem custo de
    nota fiscal de verdade — quanto mais nota escaneada, menos palpite.
-2. **Percentual sobre o faturamento** — condomínio, franquia e a taxa da maquininha. A taxa
-   sai da forma de pagamento de cada venda (débito, crédito, Pix, voucher), não de uma média
-   chutada.
+2. **Percentual sobre o faturamento** — condomínio, franquia, a taxa da maquininha e o
+   imposto. A taxa sai da forma de pagamento de cada venda (débito, crédito, Pix, voucher),
+   não de uma média chutada; o imposto sai da alíquota efetiva do Simples Nacional do
+   momento (ver seção **Imposto** abaixo).
 3. **Fixos do mês** — energia, sistema e internet, rateados por dia no período filtrado. Não
    entram no resultado por produto: ratear energia por item vendido seria invenção. Por isso a
    linha do produto mostra **contribuição** (receita − mercadoria − os percentuais) e o cartão
    do topo mostra o **lucro** do período.
 
 As taxas e os valores fixos ficam na tabela `custos_parametros`, editáveis em
-Configurações → Taxas — taxa de maquininha muda com o faturamento e com o fim da promoção.
+Configurações → Taxas — taxa de maquininha muda com o faturamento e com o fim da promoção. O
+imposto não é editável ali: ele é calculado, não digitado (ver abaixo).
+
+### Imposto (Simples Nacional)
+
+O CNPJ emite pelo CNAE **4712-1/00** (comércio varejista de mercadorias em geral, com
+predominância de produtos alimentícios), que cai no **Anexo I** do Simples Nacional. A
+alíquota não é fixa: ela sobe com o **RBT12** — o faturamento bruto acumulado dos últimos 12
+meses — e a conta oficial (LC 123/2006, art. 18) usa a alíquota efetiva, não a nominal da
+faixa:
+
+```
+alíquota efetiva = (RBT12 × alíquota nominal da faixa − parcela a deduzir) / RBT12
+```
+
+`custos_rbt12()` soma o faturamento de **todos os PDVs**, sem filtro — o Simples é apurado
+por CNPJ, não por container, ao contrário de condomínio/franquia/taxa de maquininha que são
+por ponto de venda. `custos_imposto_pct()` devolve a alíquota efetiva de hoje, e ela entra no
+mesmo percentual variável que desconta maquininha, condomínio e franquia — ao bipar, no
+relatório de vendas e no dashboard.
+
+A tabela do Anexo I mora em `custos_simples_anexo1()`. Se a empresa mudar de CNAE, sair do
+Simples ou crescer além do teto (R$ 4,8 milhões/ano), essa função é o lugar a ajustar.
 
 ### Cada container tem a sua conta
 
-As camadas 2 e 3 são **por ponto de venda**. Um container tem a sua conta de luz, a sua
-internet e às vezes até um condomínio com percentual diferente; somar a receita toda e
-aplicar uma média só daria o mesmo número se todos os PDVs fossem iguais.
+As camadas 2 e 3 são **por ponto de venda** — com uma exceção. Um container tem a sua conta
+de luz, a sua internet e às vezes até um condomínio com percentual diferente; somar a receita
+toda e aplicar uma média só daria o mesmo número se todos os PDVs fossem iguais. O imposto é
+a exceção: como é apurado por CNPJ, a mesma alíquota efetiva entra igual para todo PDV, em
+vez de vir de `custos_parametros_pdv()`.
 
 Por isso a conta é feita por `(PDV, forma de pagamento)`: `vendas_por_pdv_forma()` traz a
 receita nessa granularidade e `custos_resultado_pdvs()` soma PDV a PDV, cada um com os seus

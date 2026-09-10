@@ -103,6 +103,7 @@
         <div><dt>Maquininha</dt><dd class="valor negativo">− <?= moeda($res['taxa']) ?></dd></div>
         <div><dt>Condomínio</dt><dd class="valor negativo">− <?= moeda($res['condominio']) ?></dd></div>
         <div><dt>Franquia</dt><dd class="valor negativo">− <?= moeda($res['franquia']) ?></dd></div>
+        <div><dt>Imposto (Simples Nacional)</dt><dd class="valor negativo">− <?= moeda($res['imposto']) ?></dd></div>
         <div><dt>Energia, sistema e internet</dt><dd class="valor negativo">− <?= moeda($res['fixos']) ?></dd></div>
     </dl>
 
@@ -145,7 +146,7 @@
 <p class="ajuda">
     Contribuição = o que sobra depois da mercadoria e dos
     <?= number_format($r['pct_variavel'], 2, ',', '.') ?>% que acompanham o faturamento
-    (maquininha, condomínio e franquia). Custo fixo fica fora — ele não se divide por produto.
+    (maquininha, condomínio, franquia e imposto). Custo fixo fica fora — ele não se divide por produto.
 </p>
 
 <?php if (!$r['linhas']): ?>

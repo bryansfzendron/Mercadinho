@@ -76,9 +76,9 @@ http.createServer((req, res) => {
             stats: { ultimo: 1, min: 0.92, max: 1.1, n: 3 },
             ultimas: [{ loja: 'HIGA PRODUTOS', unitario: 1, data: 'ontem' }],
             loja: [{ pdv: 'PDV Portaria', preco: 1.94, estoque: 6, reservado: 0, atualizado: 'hoje 09:12' }],
-            // 1,68% de maquininha + 5% de condominio + 5% de franquia.
-            custos: { pct: 11.68, condominio: 5, franquia: 5, tem_mix: true },
-            minimos: { pct_variavel: 11.68, pct_fixo: 3.05, prejuizo: 1.1323, operacao: 1.1729 },
+            // 1,68% de maquininha + 5% de condominio + 5% de franquia + 4,32% de imposto.
+            custos: { pct: 16.00, condominio: 5, franquia: 5, imposto: 4.32, tem_mix: true },
+            minimos: { pct_variavel: 16.00, pct_fixo: 3.05, prejuizo: 1.1905, operacao: 1.2353 },
             // 4 na prateleira: 2 da nota de R$ 1,10 e 2 da de R$ 0,90 -> R$ 1,00.
             custo_estoque: { custo: 1.0, coberto: 4, notas: 2, completo: true, estoque: 4 },
         }));
