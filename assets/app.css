@@ -206,10 +206,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .total-previa { font-size: 1.1rem; font-weight: 600; text-align: right; margin: .8rem 0; }
 
 .login-caixa { max-width: 380px; margin: 8vh auto 0; }
-.login-logo { display: block; width: 100%; max-width: 280px; margin: 0 auto; }
+.login-logo { display: block; width: 100%; max-width: 280px; height: auto; margin: 0 auto; }
 .login-sub { text-align: center; color: var(--suave); margin-top: .5rem; margin-bottom: 1.5rem; }
 
-.logo-inicio { display: block; width: 100%; max-width: 260px; margin: .5rem auto 1.25rem; }
+.logo-inicio { display: block; width: 100%; max-width: 260px; height: auto; margin: .5rem auto 1.25rem; }
 
 /* ---------- camera ---------- */
 .camera-caixa {
