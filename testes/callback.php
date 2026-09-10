@@ -151,5 +151,34 @@ foreach ([
     checar("unitario liquido ({$c['qtd']})", round($liquido / $qtd, 4), $c['unit']);
 }
 
+// ---- h) abrir a caixa: item_valores() mantem o que foi pago ----
+// A nota traz "1 CX C/12 REFRI" por R$ 24,00. Quem vende a lata corrige a
+// quantidade na tela; o total nao pode se mexer e o unitario tem que cair.
+$caixa = item_valores(12.0, 24.00, 0.0);
+checar('abrir caixa: quantidade', $caixa['quantidade'], 12.0);
+checar('abrir caixa: total intocado', $caixa['valor_total'], 24.00);
+checar('abrir caixa: unitario dividido', $caixa['valor_unitario'], 2.0);
+checar('abrir caixa: unitario liquido', $caixa['valor_unitario_liquido'], 2.0);
+
+// Com desconto na nota, quem manda no historico continua sendo o liquido.
+$com_desc = item_valores(6.0, 30.00, 3.00);
+checar('caixa com desconto: liquido', $com_desc['valor_total_liquido'], 27.00);
+checar('caixa com desconto: unitario cheio', $com_desc['valor_unitario'], 5.0);
+checar('caixa com desconto: unitario liquido', $com_desc['valor_unitario_liquido'], 4.50);
+
+// Desconto maior que o total e digitacao errada: nao pode virar valor negativo.
+$exagero = item_valores(2.0, 10.00, 99.00);
+checar('desconto exagerado: preso no total', $exagero['desconto'], 10.00);
+checar('desconto exagerado: liquido zero', $exagero['valor_total_liquido'], 0.0);
+
+// Quantidade que some no arredondamento nao pode dividir por zero.
+$zero = item_valores(0.00004, 5.00, 0.0);
+checar('quantidade residual vira 1', $zero['quantidade'], 1.0);
+checar('quantidade residual: unitario', $zero['valor_unitario'], 5.0);
+
+// Peso fracionado continua funcionando: 1,235 kg por R$ 8,63.
+$peso = item_valores(1.235, 8.63, 1.00);
+checar('granel: unitario liquido', $peso['valor_unitario_liquido'], 6.1781);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

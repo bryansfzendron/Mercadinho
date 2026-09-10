@@ -354,3 +354,162 @@ function nota_carregar(int $nota_id, int $usuario_id): ?array
     );
     return $nota;
 }
+
+/**
+ * Recalcula os valores de um item a partir da quantidade, do total bruto e do
+ * desconto.
+ *
+ * Funcao pura, e a ancora e o TOTAL: quem edita mexe em quanto veio na caixa,
+ * nao no que pagou. Trocar "1 CX" por "12 UN" mantem os R$ 24,00 da nota e
+ * derruba o unitario para R$ 2,00 sozinho.
+ *
+ * @return array{quantidade:float, valor_total:float, desconto:float,
+ *               valor_unitario:float, valor_total_liquido:float,
+ *               valor_unitario_liquido:float}
+ */
+function item_valores(float $quantidade, float $bruto, float $desconto): array
+{
+    // Arredonda ANTES de conferir: 0,00004 e maior que zero, mas vira 0 na
+    // coluna DECIMAL(14,4) e derrubaria a divisao do unitario.
+    $quantidade = round($quantidade, 4);
+    $quantidade = $quantidade > 0 ? $quantidade : 1.0;
+    $bruto      = round(max(0.0, $bruto), 2);
+    $desconto   = round(min(max(0.0, $desconto), $bruto), 2);
+    $liquido    = round($bruto - $desconto, 2);
+
+    return [
+        'quantidade'             => $quantidade,
+        'valor_total'            => $bruto,
+        'desconto'               => $desconto,
+        'valor_unitario'         => round($bruto / $quantidade, 4),
+        'valor_total_liquido'    => $liquido,
+        'valor_unitario_liquido' => round($liquido / $quantidade, 4),
+    ];
+}
+
+/**
+ * Corrige um item de uma nota ja gravada. Respeita o dono.
+ *
+ * Existe por causa da caixa fechada: a nota diz "1 CX C/12 REFRI" com o GTIN da
+ * caixa, mas o que sai da prateleira e a lata. Aqui a mesma compra vira "12 UN"
+ * com o codigo de barras da lata, e o historico de preco passa a falar na
+ * unidade que voce realmente vende.
+ *
+ * @param array $in descricao, ean, quantidade, unidade, valor_total, desconto
+ * @return array{ok:bool, msg:string}
+ */
+function nota_item_editar(int $nota_id, int $item_id, int $usuario_id, array $in): array
+{
+    $item = q1(
+        'SELECT i.*, n.estabelecimento_id, p.ean AS produto_ean
+           FROM itens i
+           JOIN notas n ON n.id = i.nota_id
+      LEFT JOIN produtos p ON p.id = i.produto_id
+          WHERE i.id = ? AND i.nota_id = ? AND n.usuario_id = ?',
+        [$item_id, $nota_id, $usuario_id]
+    );
+    if (!$item) {
+        return ['ok' => false, 'msg' => 'Nao encontrei esse item.'];
+    }
+
+    $descricao = decodificar_html((string) ($in['descricao'] ?? ''));
+    if ($descricao === '') {
+        return ['ok' => false, 'msg' => 'A descricao do item nao pode ficar vazia.'];
+    }
+    $descricao = mb_substr($descricao, 0, 255);
+
+    $quantidade = num_br($in['quantidade'] ?? 0);
+    if ($quantidade <= 0) {
+        return ['ok' => false, 'msg' => 'A quantidade precisa ser maior que zero.'];
+    }
+    $bruto = num_br($in['valor_total'] ?? 0);
+    if ($bruto <= 0) {
+        return ['ok' => false, 'msg' => 'O valor total do item precisa ser maior que zero.'];
+    }
+    $desconto = num_br($in['desconto'] ?? 0);
+    if ($desconto > $bruto) {
+        return ['ok' => false, 'msg' => 'O desconto nao pode passar do total do item.'];
+    }
+
+    // Campo em branco nao desfaz vinculo nenhum: so quem digita um codigo troca
+    // o produto. Assim salvar so a quantidade nunca perde o GTIN que ja estava la.
+    $ean_digitado = trim((string) ($in['ean'] ?? ''));
+    $ean = ean_normalizado($ean_digitado);
+    if ($ean_digitado !== '' && $ean === null) {
+        return ['ok' => false, 'msg' => 'Codigo de barras invalido: use 8, 12, 13 ou 14 digitos.'];
+    }
+
+    $v        = item_valores($quantidade, $bruto, $desconto);
+    $unidade  = mb_substr(trim((string) ($in['unidade'] ?? '')), 0, 10) ?: null;
+    $estab_id = $item['estabelecimento_id'] !== null ? (int) $item['estabelecimento_id'] : null;
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $produto_id = $item['produto_id'] !== null ? (int) $item['produto_id'] : null;
+        $trocou     = $ean !== null && $ean !== $item['produto_ean'];
+
+        if ($trocou) {
+            $produto_id = produto_do_ean($ean, $produto_id, $descricao, $unidade);
+            // O codigo interno da loja passa a apontar para o produto certo:
+            // a proxima nota dessa loja ja cai no lugar, sem repetir a correcao.
+            produto_alias_gravar($produto_id, $estab_id, (string) ($item['cod_interno'] ?? ''), $descricao);
+        }
+
+        exec_sql(
+            'UPDATE itens
+                SET produto_id             = ?,
+                    descricao_original     = ?,
+                    quantidade             = ?,
+                    unidade                = ?,
+                    valor_unitario         = ?,
+                    valor_total            = ?,
+                    desconto               = ?,
+                    valor_total_liquido    = ?,
+                    valor_unitario_liquido = ?
+              WHERE id = ?',
+            [
+                $produto_id,
+                $descricao,
+                $v['quantidade'],
+                $unidade,
+                $v['valor_unitario'],
+                $v['valor_total'],
+                $v['desconto'],
+                $v['valor_total_liquido'],
+                $v['valor_unitario_liquido'],
+                $item_id,
+            ]
+        );
+
+        // O cabecalho anda pela diferenca, e nao pela soma dos itens: uma nota
+        // pode ter frete ou desconto proprio, que nao esta em item nenhum.
+        $d_bruto = $v['valor_total']         - (float) $item['valor_total'];
+        $d_desc  = $v['desconto']            - (float) $item['desconto'];
+        $d_liq   = $v['valor_total_liquido'] - (float) $item['valor_total_liquido'];
+        if (abs($d_bruto) > 0.004 || abs($d_desc) > 0.004 || abs($d_liq) > 0.004) {
+            exec_sql(
+                'UPDATE notas
+                    SET valor_produtos = GREATEST(0, COALESCE(valor_produtos, 0) + ?),
+                        desconto_total = GREATEST(0, COALESCE(desconto_total, 0) + ?),
+                        valor_total    = GREATEST(0, COALESCE(valor_total, 0) + ?)
+                  WHERE id = ?',
+                [$d_bruto, $d_desc, $d_liq, $nota_id]
+            );
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        return ['ok' => false, 'msg' => 'Falha ao salvar o item: ' . $e->getMessage()];
+    }
+
+    $msg = 'Item corrigido: ' . qtd_fmt($v['quantidade']) . ' ' . ($unidade ?: 'un')
+         . ' a ' . moeda($v['valor_unitario_liquido']) . ' cada.';
+    if ($trocou) {
+        $msg .= ' Codigo de barras ' . $ean . ' vinculado.';
+    }
+    return ['ok' => true, 'msg' => $msg];
+}

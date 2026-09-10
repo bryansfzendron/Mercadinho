@@ -49,6 +49,10 @@ function despachar(string $rota): void
         rota_nota_excluir($u, (int) $mm[1]);
         return;
     }
+    if (preg_match('#^/notas/(\d+)/itens/(\d+)$#', $rota, $mm) && $m === 'POST') {
+        rota_nota_item_editar($u, (int) $mm[1], (int) $mm[2]);
+        return;
+    }
     if (preg_match('#^/produtos/(\d+)$#', $rota, $mm)) {
         rota_produto_detalhe($u, (int) $mm[1]);
         return;
@@ -160,6 +164,19 @@ function rota_nota_excluir(array $u, int $id): void
         flash('erro', 'Nao encontrei essa nota.');
     }
     redirecionar('/notas');
+}
+
+function rota_nota_item_editar(array $u, int $nota_id, int $item_id): void
+{
+    exigir_csrf();
+    $r = nota_item_editar($nota_id, $item_id, (int) $u['id'], $_POST);
+    flash($r['ok'] ? 'ok' : 'erro', $r['msg']);
+
+    // Deu certo: a ancora devolve a tela no item mexido — a propria linha ja
+    // mostra a quantidade e o unitario novos, e numa nota de 100 itens o
+    // vizinho costuma ser o proximo a corrigir. Deu errado: volta ao topo,
+    // que e onde o aviso aparece.
+    redirecionar('/notas/' . $nota_id . ($r['ok'] ? '#item-' . $item_id : ''));
 }
 
 function rota_produtos(array $u): void

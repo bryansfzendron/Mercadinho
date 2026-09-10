@@ -694,3 +694,32 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     gap: .6rem; margin: 1rem 0;
 }
 .paginacao .botao { width: auto; }
+
+/* ---------------------------------------------------------------
+   Corrigir um item da nota, dentro da propria linha.
+   Nasceu da caixa fechada: a nota vende "1 CX C/12", a prateleira
+   vende a lata. O editor fica recolhido para nao virar ruido numa
+   nota de 100 itens.
+   --------------------------------------------------------------- */
+.item-editor { border-top: 1px solid var(--borda); }
+.item-editor > summary {
+    padding: .5rem .85rem; cursor: pointer; list-style: none;
+    font-size: .8rem; color: var(--marca);
+    /* Alvo de dedo. */
+    min-height: 40px; display: flex; align-items: center; gap: .35rem;
+}
+.item-editor > summary::-webkit-details-marker { display: none; }
+.item-editor > summary::before { content: '✎'; opacity: .8; }
+.item-editor[open] > summary { color: var(--suave); }
+
+.form-item { padding: 0 .85rem .9rem; }
+.form-item label { margin-bottom: .55rem; }
+.form-item .duas .botao { margin-bottom: .55rem; padding-left: .9rem; padding-right: .9rem; }
+.form-item .camera-caixa { margin-bottom: .7rem; }
+
+/* A previa e a resposta a pergunta que se esta fazendo — quanto sai a unidade. */
+.form-item .previa {
+    margin: .2rem 0 .8rem; font-size: .85rem; font-weight: 600;
+    color: var(--marca); background: var(--tinta-marca);
+    padding: .5rem .6rem; border-radius: 10px;
+}

@@ -319,6 +319,38 @@ Quando a nota não informa o total de um item, ele é reconstruído de
 `quantidade × valor_unitario`; quando não informa o total da nota, usa-se a soma dos
 líquidos.
 
+## A caixa que vira unidade
+
+Você compra a caixa e vende a lata. A nota diz **"1 CX C/12 REFRI — R$ 24,00"**, com o
+GTIN da caixa; a prateleira precisa de **"12 UN a R$ 2,00"**, com o GTIN da lata. Sem
+corrigir isso, o histórico de preço, a margem e o custo do estoque falam de uma unidade
+que você não vende.
+
+Na tela da nota cada item abre um **Corrigir item**:
+
+- **Código de barras** — troca o produto vinculado ao item. Digitado ou bipado pela
+  câmera (o mesmo `Scanner` de `/bipar`).
+- **Quantidade, unidade, total pago e desconto** — o campo **Un. por caixa** + o botão
+  **Abrir caixa** multiplicam só a quantidade.
+
+A âncora é o **total pago**, não o unitário: mexer na quantidade nunca muda o que saiu do
+caixa, o unitário é recalculado a partir dela. É o que `item_valores()` garante, e é por
+isso que "abrir a caixa" não desequilibra a nota.
+
+Sobre o produto:
+
+- EAN que **já existe** → o item passa a apontar para aquele produto.
+- Produto atual **sem GTIN** → ele adota o código, e todo o histórico já gravado nele
+  passa a responder ao bipe.
+- Produto atual **com outro GTIN** → nasce um cadastro novo. Caixa e lata são produtos
+  diferentes, com preços diferentes.
+
+O alias `loja + código interno` é reapontado junto: a próxima nota daquela loja com o
+mesmo `cProd` já cai no produto certo, sem repetir a correção.
+
+O cabeçalho da nota anda pela **diferença** do item mexido, e não pela soma dos itens —
+uma nota pode ter frete ou desconto próprio, que não está em item nenhum.
+
 ## Espelho da loja (TouchPay)
 
 Além de "quanto eu paguei", a tela de bipar mostra **por quanto a loja vende** e
@@ -725,7 +757,7 @@ tem — qualquer buraco vira execução com erro, que fica guardada.
 
 ```bash
 php testes/helpers.php      # número BR, data, EAN, chave do QR, formatação
-php testes/callback.php     # os formatos aceitos no callback e o cálculo do líquido
+php testes/callback.php     # formatos do callback, cálculo do líquido e abrir a caixa
 php testes/loja.php         # normalização do callback do TouchPay e o prefixo OM
 php testes/vendas.php       # callback das vendas, fuso da data e o unitário calculado
 php testes/custos.php       # taxa por forma de pagamento, resultado do período e CMV
@@ -754,3 +786,8 @@ node testes/puxar.js        # o gesto de puxar para atualizar no app instalado
   assinado com o CSC do emitente. Ou seja: precisa do cupom em mãos.
 - **Depende do HTML da SEFAZ.** Se mudarem o layout, o parser do n8n quebra.
 - **Leitura de EAN-13 pela câmera** é menos confiável que QR. Há campo para digitar.
+- **Corrigir item não se repete sozinho quando a nota traz o GTIN da caixa.** O alias
+  reapontado só entra em cena quando o emitente manda `SEM GTIN`; vindo o código da
+  caixa, `produto_resolver()` casa por EAN antes de olhar o alias e a correção precisa
+  ser refeita. Reprocessar a mesma nota (o callback reescreve os itens) também desfaz a
+  correção daquela nota.

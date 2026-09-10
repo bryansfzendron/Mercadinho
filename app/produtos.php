@@ -287,3 +287,40 @@ function produto_custo_estoque(array $historico, float $estoque): array
         'completo' => $falta <= 0.0001,
     ];
 }
+
+/**
+ * Qual produto responde por um EAN digitado a mao na correcao de um item.
+ *
+ * Diferente de produto_resolver(): la o EAN e uma pista entre tres, aqui ele
+ * manda. Quando o produto atual do item ja carrega OUTRO GTIN ele nao pode ser
+ * reaproveitado — a caixa e a lata sao produtos distintos, com precos e
+ * historicos proprios —, entao nasce um cadastro novo.
+ *
+ * @param ?int $produto_atual produto vinculado ao item hoje, se houver
+ * @return int id do produto que passa a valer
+ */
+function produto_do_ean(string $ean, ?int $produto_atual, string $descricao, ?string $unidade): int
+{
+    $dono = qv('SELECT id FROM produtos WHERE ean = ?', [$ean]);
+    if ($dono) {
+        return (int) $dono;
+    }
+
+    // O produto atual nasceu SEM GTIN: agora ele ganha o codigo e todo o
+    // historico ja gravado nele passa a responder ao bipe.
+    if ($produto_atual !== null) {
+        $tem = qv('SELECT ean FROM produtos WHERE id = ?', [$produto_atual]);
+        if ($tem === null || (string) $tem === '') {
+            exec_sql('UPDATE produtos SET ean = ? WHERE id = ?', [$ean, $produto_atual]);
+            return $produto_atual;
+        }
+    }
+
+    $desc = mb_substr($descricao, 0, 255) ?: 'SEM DESCRICAO';
+    return inserir('produtos', [
+        'ean'            => $ean,
+        'descricao'      => $desc,
+        'descricao_norm' => normalizar_texto($desc),
+        'unidade'        => $unidade,
+    ]);
+}
