@@ -164,6 +164,15 @@ function moeda($v): string
     return 'R$ ' . number_format((float) $v, 2, ',', '.');
 }
 
+/** Rotulo direto de grafico: 1234,56 -> "R$ 1,2 mil". Abaixo de mil, o valor cheio. */
+function moeda_compacta(float $v): string
+{
+    if (abs($v) >= 1000) {
+        return 'R$ ' . number_format($v / 1000, 1, ',', '.') . ' mil';
+    }
+    return moeda($v);
+}
+
 /**
  * Quantas vezes o preco de venda cobre o custo: 1,94 (a tela escreve o "x"
  * em letra menor). Quem chama garante custo > 0 — sem custo nao ha fator.

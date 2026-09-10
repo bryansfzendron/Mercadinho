@@ -31,6 +31,14 @@
     --vidro-borda: rgba(255, 255, 255, .5);
     --vidro-sombra: rgba(28, 25, 23, .14);
     --vidro-brilho: rgba(255, 255, 255, .7);
+    /* Paleta categorica dos graficos (forma de pagamento) — validada pra
+       contraste CVD em pares vizinhos, ordem fixa (skill de dataviz). Nao e
+       a mesma familia do azul/ciano da marca de proposito: a marca precisa
+       ficar reservada pra "isto sou eu", nao virar mais uma cor de serie. */
+    --grafico-1: #2a78d6;
+    --grafico-2: #eb6834;
+    --grafico-3: #1baf7a;
+    --grafico-4: #eda100;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -57,6 +65,10 @@
         --vidro-borda: rgba(255, 255, 255, .1);
         --vidro-sombra: rgba(0, 0, 0, .4);
         --vidro-brilho: rgba(255, 255, 255, .07);
+        --grafico-1: #3987e5;
+        --grafico-2: #d95926;
+        --grafico-3: #199e70;
+        --grafico-4: #c98500;
     }
 }
 
@@ -477,6 +489,55 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     .kpi-valor { font-size:1rem; }
 }
 .kpi-neutro { border-color: var(--borda); }
+
+/* ---------- graficos do dashboard ---------- */
+/* Barras diarias em flexbox, nao SVG: um viewBox que estica pra largura do
+   cartao escalaria X e Y sem guardar proporcao, e o texto do rotulo do pico
+   iria junto — aqui quem escala e o navegador, sem esse risco. */
+.grafico-dia {
+    display: flex; align-items: flex-end; gap: 3px;
+    height: 84px; padding-bottom: 2px;
+    border-bottom: 1px solid var(--vidro-borda);
+}
+.grafico-barra {
+    flex: 1; min-width: 3px; max-width: 16px; position: relative;
+    background: var(--marca-forte); border-radius: 3px 3px 0 0;
+    min-height: 2px;
+}
+/* Dia sem venda: um tracinho no chao, pra marcar presenca sem inventar barra. */
+.grafico-barra.vazio { min-height: 2px; background: var(--vidro-borda); }
+.grafico-barra.pico { background: var(--marca); }
+.grafico-rotulo {
+    position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+    font-size: .68rem; font-weight: 600; color: var(--texto); white-space: nowrap;
+}
+.grafico-eixo {
+    display: flex; justify-content: space-between;
+    font-size: .7rem; color: var(--suave); margin-top: .3rem;
+}
+
+/* Barra unica segmentada — parte-do-todo no feitio da barra de
+   armazenamento do iOS. overflow:hidden arredonda os segmentos das pontas
+   sem precisar de border-radius em cada um; o gap entre eles e o separador
+   (mesma logica do 2px que separa segmento de stack em qualquer grafico). */
+.grafico-barra-segmentada {
+    display: flex; gap: 2px; height: 14px;
+    border-radius: 99px; overflow: hidden; margin-bottom: .8rem;
+    background: rgba(127, 127, 127, .12);
+}
+.grafico-seg { display: block; height: 100%; }
+.grafico-legenda { display: flex; flex-wrap: wrap; gap: .6rem 1rem; }
+.grafico-legenda-item { display: flex; align-items: center; gap: .35rem; font-size: .78rem; }
+.grafico-legenda-item i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.grafico-legenda-item span { color: var(--suave); }
+.grafico-legenda-item strong { color: var(--texto); }
+
+/* Barra de contribuicao no Top 5 — mesmo track dos outros medidores do app,
+   so troca a cor pelo sinal (verde/vermelho), igual ao resto do relatorio. */
+.grafico-contrib { height: 4px; border-radius: 99px; background: rgba(127, 127, 127, .15); margin-top: .5rem; overflow: hidden; }
+.grafico-contrib > span { display: block; height: 100%; border-radius: 99px; }
+.grafico-contrib.bom > span { background: var(--positivo); }
+.grafico-contrib.ruim > span { background: var(--vermelho); }
 
 /* Tabela do breakdown diario. Rola sozinha no celular em vez de espremer. */
 .tabela-rolante { overflow-x: auto; -webkit-overflow-scrolling: touch; }

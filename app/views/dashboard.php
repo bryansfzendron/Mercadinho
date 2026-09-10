@@ -1,4 +1,4 @@
-<?php /** @var array $res @var array $res_ant @var array $variacao @var array $top @var array $formas_map @var array $r @var string $chave @var string $rotulo @var string $de @var string $ate @var array $periodos @var int $pdv_id @var array $pdvs */ ?>
+<?php /** @var array $res @var array $res_ant @var array $variacao @var array $top @var array $formas_map @var array $formas_cores @var array $barras_dia @var array $r @var string $chave @var string $rotulo @var string $de @var string $ate @var array $periodos @var int $pdv_id @var array $pdvs */ ?>
 <div class="acoes-topo">
     <h1 style="margin:0">Dashboard</h1>
     <div class="chips" style="margin-top:.5rem">
@@ -78,12 +78,20 @@ $outros = (float) $res['taxa'] + (float) $res['condominio']
     condomínio, franquia, imposto e fixos — o detalhe está no resumo do período, no fim da tela.
 </p>
 
+<?php if ($barras_dia): ?>
+    <div class="cartao">
+        <h2 class="sem-topo">Faturamento por dia</h2>
+        <?= grafico_html_barras_dia($barras_dia, $de, $ate) ?>
+    </div>
+<?php endif; ?>
+
 <div class="cartao">
     <h2 class="sem-topo">Como pagaram no período</h2>
     <?php if (!$r['por_forma']): ?>
         <p class="vazio">Sem venda no período.</p>
     <?php else: ?>
-    <div class="numeros" style="gap:.5rem; margin-top:.5rem">
+    <?= grafico_html_pagamento($r['por_forma'], $formas_map, $formas_cores) ?>
+    <div class="numeros" style="gap:.5rem; margin-top:.8rem">
         <?php foreach ($r['por_forma'] ?? [] as $pf): ?>
             <div class="numero" style="min-width:110px">
                 <span class="kpi-rotulo"><?= e($formas_map[$pf['forma']] ?? $pf['forma']) ?></span>
@@ -100,6 +108,15 @@ $outros = (float) $res['taxa'] + (float) $res['condominio']
     <?php if (!$top): ?>
         <p class="vazio">Sem vendas no período.</p>
     <?php else: ?>
+        <?php
+        // Barra proporcional ao lado do numero: compara os 5 dum relance,
+        // sem precisar ler e comparar texto. Escala pelo maior |valor| dos
+        // 5, nao pelo grafico de vendas inteiro — e so pra comparar esses.
+        $maiorContrib = 0.0;
+        foreach ($top as $l) {
+            $maiorContrib = max($maiorContrib, abs((float) $l['contribuicao']));
+        }
+        ?>
         <ul class="lista">
             <?php foreach ($top as $l): ?>
                 <li><div class="linha-cartao">
@@ -117,6 +134,10 @@ $outros = (float) $res['taxa'] + (float) $res['condominio']
                             <?= $l['contribuicao'] >= 0 ? '+' : '−' ?><?= moeda(abs($l['contribuicao'])) ?>
                             <?php if ($l['fator'] !== null): ?> · <?= number_format($l['fator'], 2, ',', '.') ?>x<?php endif; ?>
                         </span>
+                    </div>
+                    <?php $largura = $maiorContrib > 0 ? abs((float) $l['contribuicao']) / $maiorContrib * 100 : 0; ?>
+                    <div class="grafico-contrib <?= $l['contribuicao'] >= 0 ? 'bom' : 'ruim' ?>">
+                        <span style="width: <?= number_format($largura, 1, '.', '') ?>%"></span>
                     </div>
                 </div></li>
             <?php endforeach; ?>

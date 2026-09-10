@@ -570,6 +570,22 @@ function vendas_formas_rotulos(): array
 }
 
 /**
+ * Cor de cada forma de pagamento no grafico do dashboard, em ordem fixa —
+ * nunca por tamanho da fatia, senao o mix mudando de mes trocaria a cor de
+ * quem o usuario decorou como "aquele verde e o Pix". Paleta categorica
+ * validada (contraste CVD nos pares vizinhos) via a skill de dataviz.
+ */
+function vendas_formas_cores(): array
+{
+    return [
+        'Debit'   => 'var(--grafico-1)',
+        'Credit'  => 'var(--grafico-2)',
+        'Pix'     => 'var(--grafico-3)',
+        'Voucher' => 'var(--grafico-4)',
+    ];
+}
+
+/**
  * Cada compra do periodo, com os produtos que sairam nela.
  *
  * O resumo responde "o que vende mais"; esta tela responde "o que saiu agora ha
@@ -641,12 +657,29 @@ function rota_dashboard(array $u): void
     // Top produtos por contribuição
     $top = array_slice($r['linhas'], 0, 5);
 
-    // Formas de pagamento para mini cards
-    $formas_map = ['Debit' => 'Débito', 'Credit' => 'Crédito', 'Pix' => 'Pix', 'Voucher' => 'Voucher'];
+    // Formas de pagamento para mini cards e para o grafico
+    $formas_map = vendas_formas_rotulos();
+    $formas_cores = vendas_formas_cores();
+
+    // Faturamento dia a dia do periodo, pro grafico de barras. So vale a
+    // pena com mais de um dia — "Hoje" ja e um unico numero, os KPIs de cima
+    // ja contam essa historia.
+    $barras_dia = [];
+    if ($dias > 1) {
+        $r_dia = vendas_relatorio(['de' => $de, 'ate' => $ate, 'agrupar' => 'dia'] + ($pdv_id ? ['pdv_id' => $pdv_id] : []));
+        $por_dia = [];
+        foreach ($r_dia['linhas'] as $l) {
+            $por_dia[(string) $l['grupo']] = (float) $l['receita'];
+        }
+        $barras_dia = grafico_alturas_diarias(grafico_serie_diaria($por_dia, $de, $ate));
+    }
 
     $pdvs = vendas_pdvs();
 
-    ver('dashboard', compact('res', 'res_ant', 'variacao', 'top', 'formas_map', 'r', 'chave', 'rotulo', 'de', 'ate', 'periodos', 'pdv_id', 'pdvs'), 'Dashboard');
+    ver('dashboard', compact(
+        'res', 'res_ant', 'variacao', 'top', 'formas_map', 'formas_cores', 'barras_dia',
+        'r', 'chave', 'rotulo', 'de', 'ate', 'periodos', 'pdv_id', 'pdvs'
+    ), 'Dashboard');
 }
 
 /** Metas do mes: quanto entrou, quanto falta e se o ritmo chega la. */
