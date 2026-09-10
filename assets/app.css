@@ -72,6 +72,11 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 .topo {
     display: flex; justify-content: space-between; align-items: center;
     padding: .75rem 1rem;
+    /* Status bar translucida no iPhone (apple-mobile-web-app-status-bar-style)
+       poe a pagina por baixo do notch/relogio. O fundo sobe ate o topo de
+       verdade, mas o conteudo da barra entra depois do recorte, senao o
+       menu fica espremido atras do notch. */
+    padding-top: calc(.75rem + env(safe-area-inset-top));
     background: var(--marca-escura); color: #fff;
     position: sticky; top: 0; z-index: 10;
 }
