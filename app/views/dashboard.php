@@ -8,7 +8,7 @@
     </div>
 </div>
 
-<form method="get" action="/dashboard" style="margin-bottom:.75rem">
+<form method="get" action="/dashboard" style="margin-bottom:1rem">
     <label>Ponto de venda
         <select name="pdv_id" onchange="this.form.submit()">
             <option value="">todos</option>
@@ -22,7 +22,7 @@
     <input type="hidden" name="periodo" value="<?= e($chave) ?>">
 </form>
 
-<div class="numeros grade2" style="gap:.5rem">
+<div class="numeros grade2">
     <div class="numero kpi <?= kpi_moldura($variacao['receita']) ?>">
         <span class="kpi-rotulo">Faturamento</span>
         <strong class="kpi-valor"><?= moeda($res['receita']) ?></strong>
@@ -73,7 +73,7 @@
 $outros = (float) $res['taxa'] + (float) $res['condominio']
         + (float) $res['franquia'] + (float) $res['imposto'] + (float) $res['fixos'];
 ?>
-<p class="ajuda centro">
+<p class="ajuda centro" style="margin:1rem 0">
     Além da mercadoria saem <strong><?= moeda($outros) ?></strong> de maquininha,
     condomínio, franquia, imposto e fixos — o detalhe está no resumo do período, no fim da tela.
 </p>
@@ -92,7 +92,7 @@ $outros = (float) $res['taxa'] + (float) $res['condominio']
         <p class="vazio">Sem venda no período.</p>
     <?php else: ?>
     <?= grafico_html_pagamento($r['por_forma'], $formas_map, $formas_cores) ?>
-    <div class="numeros grade2" style="gap:.5rem; margin-top:.8rem">
+    <div class="numeros grade2">
         <?php foreach ($r['por_forma'] ?? [] as $pf): ?>
             <div class="numero" style="min-width:110px">
                 <span class="kpi-rotulo"><?= e($formas_map[$pf['forma']] ?? $pf['forma']) ?></span>
