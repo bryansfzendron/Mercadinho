@@ -85,6 +85,7 @@ $outros = (float) $res['taxa'] + (float) $res['condominio']
     </div>
 <?php endif; ?>
 
+<div class="dashboard-grade">
 <div class="cartao">
     <h2 class="sem-topo">Como pagaram no período</h2>
     <?php if (!$r['por_forma']): ?>
@@ -143,6 +144,7 @@ $outros = (float) $res['taxa'] + (float) $res['condominio']
             <?php endforeach; ?>
         </ul>
     <?php endif; ?>
+</div>
 </div>
 
 <div class="cartao">

@@ -490,6 +490,15 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 }
 .kpi-neutro { border-color: var(--borda); }
 
+/* No celular continua uma coluna (a tela nao tem largura pra duas); a
+   partir de tablet os cards de "como pagaram" e "top produtos" ficam lado a
+   lado — mesma largura de conteudo (.conteudo), so divide em duas. */
+.dashboard-grade { display: grid; gap: 1rem; }
+.dashboard-grade > .cartao { margin-bottom: 0; }
+@media (min-width: 640px) {
+    .dashboard-grade { grid-template-columns: 1fr 1fr; align-items: start; }
+}
+
 /* ---------- graficos do dashboard ---------- */
 /* Barras diarias em flexbox, nao SVG: um viewBox que estica pra largura do
    cartao escalaria X e Y sem guardar proporcao, e o texto do rotulo do pico
