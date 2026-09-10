@@ -345,14 +345,26 @@
             <h2 class="sem-topo">Imposto (Simples Nacional)</h2>
             <p class="ajuda">
                 CNAE 4712-1/00, Anexo I do Simples. Não dá para editar aqui porque não é um
-                palpite — é calculado do seu faturamento real dos últimos 12 meses (RBT12), e
-                sobe sozinho se a loja crescer de faixa.
+                palpite — é calculado do seu faturamento real desde <?= data_fmt(custos_inicio_atividade()) ?>
+                (quando a loja mudou de dono), e sobe sozinho se a loja crescer de faixa.
             </p>
             <dl class="dados">
-                <div><dt>RBT12 (12 meses)</dt><dd><?= e(number_format($imposto['rbt12'], 2, ',', '.')) ?></dd></div>
+                <div>
+                    <dt><?= $imposto['anualizado'] ? 'RBT12 (anualizado)' : 'RBT12 (12 meses)' ?></dt>
+                    <dd><?= e(number_format($imposto['rbt12'], 2, ',', '.')) ?></dd>
+                </div>
                 <div><dt>Faixa</dt><dd><?= e(number_format($imposto['faixa']['aliquota'], 2, ',', '.')) ?>% nominal</dd></div>
                 <div><dt>Alíquota efetiva</dt><dd><?= e(number_format($imposto['efetiva'], 2, ',', '.')) ?>%</dd></div>
             </dl>
+            <?php if ($imposto['anualizado']): ?>
+                <p class="aviso aviso-info">
+                    Ainda não tem 12 meses de atividade sob este CNPJ (<?= (int) $imposto['meses'] ?>
+                    <?= (int) $imposto['meses'] === 1 ? 'mês' : 'meses' ?> até agora). O RBT12 acima não é o
+                    que entrou de fato — é a receita anualizada (o que entrou ÷ meses × 12), que é a regra do
+                    Simples para empresa em início de atividade. Sem isso a alíquota apareceria baixa demais
+                    agora e daria um salto quando o primeiro ano fechasse.
+                </p>
+            <?php endif; ?>
             <p class="ajuda">
                 É este percentual que entra em todo cálculo de margem, ao lado de maquininha,
                 condomínio e franquia — igual para todo ponto de venda, porque o Simples é

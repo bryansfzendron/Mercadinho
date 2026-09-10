@@ -482,14 +482,23 @@ faixa:
 alíquota efetiva = (RBT12 × alíquota nominal da faixa − parcela a deduzir) / RBT12
 ```
 
-`custos_rbt12()` soma o faturamento de **todos os PDVs**, sem filtro — o Simples é apurado
-por CNPJ, não por container, ao contrário de condomínio/franquia/taxa de maquininha que são
-por ponto de venda. `custos_imposto_pct()` devolve a alíquota efetiva de hoje, e ela entra no
-mesmo percentual variável que desconta maquininha, condomínio e franquia — ao bipar, no
-relatório de vendas e no dashboard.
+`custos_rbt12()` soma o faturamento de **todos os PDVs ativos**, sem filtrar por container — o
+Simples é apurado por CNPJ, não por ponto de venda, ao contrário de condomínio/franquia/taxa
+de maquininha. `custos_imposto_pct()` devolve a alíquota efetiva de hoje, e ela entra no mesmo
+percentual variável que desconta maquininha, condomínio e franquia — ao bipar, no relatório de
+vendas e no dashboard.
 
 A tabela do Anexo I mora em `custos_simples_anexo1()`. Se a empresa mudar de CNAE, sair do
 Simples ou crescer além do teto (R$ 4,8 milhões/ano), essa função é o lugar a ajustar.
+
+**A loja mudou de dono em 01/09/2026** (`custos_inicio_atividade()`), e a receita de antes
+disso é de quem tinha o CNPJ antes — mesmo que o TouchPay tenha histórico de venda mais
+antigo, `custos_rbt12()` nunca busca antes dessa data. Enquanto não completar 12 meses sob
+este CNPJ, o RBT12 não é a soma crua do período: é **anualizado**
+(`receita acumulada ÷ meses de atividade × 12`), que é a regra oficial do Simples para
+empresa em início de atividade (o mês de abertura já conta como mês 1). Sem isso a alíquota
+apareceria artificialmente baixa nos primeiros meses e daria um salto de uma vez quando o
+primeiro ano fechasse — a tela de Configurações → Custos avisa enquanto isso durar.
 
 ### Cada container tem a sua conta
 

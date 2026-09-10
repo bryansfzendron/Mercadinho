@@ -289,22 +289,62 @@ function custos_aliquota_efetiva_simples(float $rbt12): float
 }
 
 /**
+ * Data em que a operacao atual assumiu a loja. Receita de antes disso era de
+ * quem tinha o CNPJ antes e nao entra no RBT12, mesmo que o historico de
+ * vendas do TouchPay va mais para tras — se um dia a loja trocar de dono de
+ * novo, o lugar de ajustar e este.
+ */
+function custos_inicio_atividade(): string
+{
+    return '2026-09-01';
+}
+
+/**
+ * Quantos meses de atividade ha desde o inicio, contando o mes corrente como
+ * um mes inteiro mesmo que tenha comecado no meio dele — e a mesma contagem
+ * que o Simples usa pra empresa em inicio de atividade (o PA de abertura ja
+ * conta como mes 1).
+ */
+function custos_meses_atividade(string $inicio, string $ate): int
+{
+    $di = new DateTimeImmutable($inicio);
+    $da = new DateTimeImmutable($ate);
+    $meses = ((int) $da->format('Y') - (int) $di->format('Y')) * 12
+           + ((int) $da->format('n') - (int) $di->format('n')) + 1;
+    return max(1, $meses);
+}
+
+/**
  * Faturamento bruto da empresa inteira (todos os PDVs ativos, todas as
- * formas) nos 12 meses terminando em $ate. O Simples e apurado por CNPJ, nao
- * por container — por isso esta conta nunca filtra por PDV especifico, ao
- * contrario do resto de custos.php.
+ * formas) nos 12 meses terminando em $ate, sem passar de custos_inicio_atividade().
+ * O Simples e apurado por CNPJ, nao por container — por isso esta conta
+ * nunca filtra por PDV especifico, ao contrario do resto de custos.php.
  *
  * Usa o mesmo filtro de vendas_filtro_sql(): PDV desligado fica de fora
  * porque, como a tela de PDVs explica, pode ser um container que esta na
  * mesma conta do TouchPay mas nao e seu — contar a receita dele inflaria o
  * RBT12 e jogaria a aliquota para uma faixa que nao e a real.
+ *
+ * Com menos de 12 meses de atividade, a receita do periodo e anualizada
+ * (receita / meses x 12) — a regra oficial do Simples para empresa nova.
+ * Sem isso a aliquota apareceria artificialmente baixa nos primeiros meses
+ * e daria um salto de repente quando o primeiro ano fechasse.
  */
 function custos_rbt12(?string $ate = null): float
 {
     $ate = $ate ?? date('Y-m-d');
-    $de  = date('Y-m-d', strtotime($ate . ' -12 months'));
+    $inicio = custos_inicio_atividade();
+    $de_completo = date('Y-m-d', strtotime($ate . ' -12 months'));
+    $de = max($de_completo, $inicio);
+
     [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $ate]);
-    return (float) qv("SELECT COALESCE(SUM(v.valor_pago), 0) FROM vendas v WHERE $onde", $args);
+    $receita = (float) qv("SELECT COALESCE(SUM(v.valor_pago), 0) FROM vendas v WHERE $onde", $args);
+
+    if ($de_completo < $inicio) {
+        $meses = custos_meses_atividade($inicio, $ate);
+        return $receita / $meses * 12;
+    }
+    return $receita;
 }
 
 /**

@@ -371,5 +371,16 @@ $comImposto = custos_resultado($por_forma, $receita * 0.55, 30, $p, 6.0);
 quase('imposto do periodo = receita x aliquota', $comImposto['imposto'], $receita * 0.06);
 quase('lucro cai exatamente o imposto', $comImposto['lucro'], $res['lucro'] - $receita * 0.06);
 
+// ------------------------------------------- inicio de atividade (RBT12)
+checar('data em que assumiu a loja', custos_inicio_atividade(), '2026-09-01');
+
+// O mes de abertura ja conta como mes 1, mesmo com poucos dias nele.
+checar('primeiros dias contam como mes 1', custos_meses_atividade('2026-09-01', '2026-09-09'), 1);
+checar('fim do mesmo mes ainda e mes 1', custos_meses_atividade('2026-09-01', '2026-09-30'), 1);
+checar('mes seguinte vira mes 2', custos_meses_atividade('2026-09-01', '2026-10-01'), 2);
+checar('completa 12 meses de atividade', custos_meses_atividade('2026-09-01', '2027-08-31'), 12);
+checar('entra no 13o mes', custos_meses_atividade('2026-09-01', '2027-09-01'), 13);
+checar('nunca da menos que 1 (defensivo)', custos_meses_atividade('2026-09-01', '2026-08-15') >= 1, true);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);
