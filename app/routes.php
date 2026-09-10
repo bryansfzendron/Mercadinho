@@ -53,6 +53,10 @@ function despachar(string $rota): void
         rota_nota_item_editar($u, (int) $mm[1], (int) $mm[2]);
         return;
     }
+    if (preg_match('#^/notas/(\d+)/itens/(\d+)/excluir$#', $rota, $mm) && $m === 'POST') {
+        rota_nota_item_excluir($u, (int) $mm[1], (int) $mm[2]);
+        return;
+    }
     if (preg_match('#^/produtos/(\d+)$#', $rota, $mm)) {
         rota_produto_detalhe($u, (int) $mm[1]);
         return;
@@ -177,6 +181,15 @@ function rota_nota_item_editar(array $u, int $nota_id, int $item_id): void
     // vizinho costuma ser o proximo a corrigir. Deu errado: volta ao topo,
     // que e onde o aviso aparece.
     redirecionar('/notas/' . $nota_id . ($r['ok'] ? '#item-' . $item_id : ''));
+}
+
+function rota_nota_item_excluir(array $u, int $nota_id, int $item_id): void
+{
+    exigir_csrf();
+    $r = nota_item_excluir($nota_id, $item_id, (int) $u['id']);
+    flash($r['ok'] ? 'ok' : 'erro', $r['msg']);
+    // Sem ancora: o item que a ancora apontaria acabou de deixar de existir.
+    redirecionar('/notas/' . $nota_id);
 }
 
 function rota_produtos(array $u): void

@@ -16,7 +16,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=34">
+<link rel="stylesheet" href="/assets/app.css?v=35">
 </head>
 <body>
 

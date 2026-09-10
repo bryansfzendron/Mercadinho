@@ -712,6 +712,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .item-editor > summary::before { content: '✎'; opacity: .8; }
 .item-editor[open] > summary { color: var(--suave); }
 
+/* Filtro dos itens: sem botao, porque filtra a cada tecla. O contador logo
+   abaixo e o retorno de que a busca pegou alguma coisa. */
+.busca-itens { margin-bottom: .3rem; }
+#busca-conta { margin: 0 0 .6rem .2rem; }
+
 .form-item { padding: 0 .85rem .9rem; }
 .form-item label { margin-bottom: .55rem; }
 .form-item .duas .botao { margin-bottom: .55rem; padding-left: .9rem; padding-right: .9rem; }

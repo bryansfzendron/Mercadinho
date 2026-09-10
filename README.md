@@ -351,6 +351,22 @@ mesmo `cProd` já cai no produto certo, sem repetir a correção.
 O cabeçalho da nota anda pela **diferença** do item mexido, e não pela soma dos itens —
 uma nota pode ter frete ou desconto próprio, que não está em item nenhum.
 
+### Achar e remover itens
+
+Uma nota de mercado passa fácil de 100 linhas. A partir de **8 itens** aparece um campo de
+filtro acima da lista, que casa por nome, código de barras (o do produto e o que a nota
+mandou) e código interno da loja. Filtra **no cliente**, a cada tecla: tudo já está na
+página, então não recarrega, não perde o editor aberto e funciona offline no PWA. Termos
+somam — `coca lata` acha a lata de Coca.
+
+O filtro sobrevive a um "Salvar item" (fica em `sessionStorage` e volta só quando a página
+carrega com `#item-N`, ou seja, logo depois de salvar). Visita nova começa limpa, senão a
+nota abriria escondendo linhas sem explicação.
+
+Cada item também tem **Remover item da nota**, para o que a nota traz e a prateleira não vê:
+a sacola cobrada à parte, a linha duplicada pelo caixa, o item devolvido. O cabeçalho desce
+pelo valor do item removido, pela mesma razão da correção.
+
 ## Espelho da loja (TouchPay)
 
 Além de "quanto eu paguei", a tela de bipar mostra **por quanto a loja vende** e

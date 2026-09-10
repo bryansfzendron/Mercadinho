@@ -513,3 +513,59 @@ function nota_item_editar(int $nota_id, int $item_id, int $usuario_id, array $in
     }
     return ['ok' => true, 'msg' => $msg];
 }
+
+/**
+ * Tira um item da nota. Respeita o dono.
+ *
+ * Serve para o que a nota traz e a prateleira nao ve: a sacola cobrada a parte,
+ * a linha duplicada pelo caixa, o item que voltou. O cabecalho desce junto pelo
+ * valor do item, pela mesma razao de nota_item_editar() — frete e desconto de
+ * nota nao estao em item nenhum e nao podem sumir no caminho.
+ *
+ * @return array{ok:bool, msg:string}
+ */
+function nota_item_excluir(int $nota_id, int $item_id, int $usuario_id): array
+{
+    $item = q1(
+        'SELECT i.id, i.descricao_original, i.valor_total, i.desconto, i.valor_total_liquido
+           FROM itens i
+           JOIN notas n ON n.id = i.nota_id
+          WHERE i.id = ? AND i.nota_id = ? AND n.usuario_id = ?',
+        [$item_id, $nota_id, $usuario_id]
+    );
+    if (!$item) {
+        return ['ok' => false, 'msg' => 'Nao encontrei esse item.'];
+    }
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        exec_sql('DELETE FROM itens WHERE id = ?', [$item_id]);
+        exec_sql(
+            'UPDATE notas
+                SET valor_produtos = GREATEST(0, COALESCE(valor_produtos, 0) - ?),
+                    desconto_total = GREATEST(0, COALESCE(desconto_total, 0) - ?),
+                    valor_total    = GREATEST(0, COALESCE(valor_total, 0) - ?)
+              WHERE id = ?',
+            [
+                (float) $item['valor_total'],
+                (float) $item['desconto'],
+                (float) $item['valor_total_liquido'],
+                $nota_id,
+            ]
+        );
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        return ['ok' => false, 'msg' => 'Falha ao remover o item: ' . $e->getMessage()];
+    }
+
+    $restam = (int) qv('SELECT COUNT(*) FROM itens WHERE nota_id = ?', [$nota_id]);
+    $msg = 'Item removido. ' . ($restam > 0
+        ? 'Restam ' . $restam . ' na nota.'
+        : 'A nota ficou sem itens — se ela nao serve mais, remova a nota inteira.');
+
+    return ['ok' => true, 'msg' => $msg];
+}
