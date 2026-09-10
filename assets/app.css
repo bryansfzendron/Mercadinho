@@ -24,6 +24,7 @@
     /* Superficie que precisa subir um degrau do cartao (pilula ativa). */
     --elevado: #ffffff;
     --tinta-vermelha: rgba(185, 28, 28, .1);
+    --tinta-ambar: rgba(194, 65, 12, .12);
     /* Liquid Glass: vidro fosco da barra de baixo. O topo usa --marca-escura
        translucido direto, porque ele e sempre escuro nos dois temas. */
     --vidro: rgba(255, 255, 255, .65);
@@ -51,6 +52,7 @@
         --tinta-marca: rgba(18, 174, 251, .2);
         --elevado: #2c2825;
         --tinta-vermelha: rgba(248, 113, 113, .14);
+        --tinta-ambar: rgba(251, 146, 60, .18);
         --vidro: rgba(28, 26, 25, .6);
         --vidro-borda: rgba(255, 255, 255, .1);
         --vidro-sombra: rgba(0, 0, 0, .4);
@@ -137,7 +139,11 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 
 /* ---------- blocos ---------- */
 .cartao {
-    background: var(--cartao); border: 1px solid var(--borda);
+    background: var(--vidro);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--vidro-borda);
+    box-shadow: inset 0 1px 0 var(--vidro-brilho);
     border-radius: var(--raio); padding: 1rem; margin-bottom: 1rem;
 }
 .centro { text-align: center; }
@@ -152,8 +158,11 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 
 .numeros { display: flex; gap: .5rem; margin: .8rem 0; flex-wrap: wrap; }
 .numero {
-    flex: 1; min-width: 90px; background: var(--cartao);
-    border: 1px solid var(--borda); border-radius: var(--raio);
+    flex: 1; min-width: 90px; background: var(--vidro);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--vidro-borda); border-radius: var(--raio);
+    box-shadow: inset 0 1px 0 var(--vidro-brilho);
     padding: .7rem .5rem; text-align: center;
 }
 .numero strong { display: block; font-size: 1.05rem; }
@@ -166,8 +175,11 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 
 /* ---------- listas ---------- */
 .lista { list-style: none; margin: 0; padding: 0; }
+/* Mesmo vidro do cartao, mas sem o blur: uma lista pode ter dezenas de linhas
+   (transacoes, produtos), e blur repetido em cada uma pesa no scroll do
+   celular. Fica so a translucidez, que ja basta pra ler como vidro. */
 .lista li {
-    background: var(--cartao); border: 1px solid var(--borda);
+    background: var(--vidro); border: 1px solid var(--vidro-borda);
     border-radius: var(--raio); margin-bottom: .5rem;
 }
 .lista li a { display: block; padding: .7rem .85rem; color: inherit; }
@@ -177,10 +189,13 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 .valor { font-weight: 600; white-space: nowrap; }
 .erro-msg { font-size: .75rem; color: var(--vermelho); margin-top: .3rem; }
 
-.selo { font-size: .68rem; padding: .1rem .45rem; border-radius: 99px; border: 1px solid var(--borda); }
-.selo-ok { color: var(--positivo); border-color: currentColor; }
-.selo-erro { color: var(--vermelho); border-color: currentColor; }
-.selo-pendente, .selo-processando { color: var(--ambar); border-color: currentColor; }
+/* Selo em vidro colorido (capsula tintada) em vez de so contorno — mesma
+   familia visual do botao-alt. Sem blur: um selo aparece por linha de lista,
+   e a lista ja abriu mao do blur por causa da quantidade. */
+.selo { font-size: .68rem; padding: .1rem .45rem; border-radius: 99px; background: var(--vidro); }
+.selo-ok { color: var(--positivo); background: var(--tinta-positiva); }
+.selo-erro { color: var(--vermelho); background: var(--tinta-vermelha); }
+.selo-pendente, .selo-processando { color: var(--ambar); background: var(--tinta-ambar); }
 .selo-manual { color: var(--suave); }
 
 /* ---------- formularios ---------- */
@@ -195,12 +210,25 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 
 /* Botoes no feitio do iOS: canto bem arredondado, texto de 17px em semibold,
    e resposta ao toque por opacidade. No iPhone nao existe hover — o realce
-   cinza do toque atrapalhava mais do que ajudava. */
+   cinza do toque atrapalhava mais do que ajudava.
+   Liquid Glass: o preenchimento cheio nao e mais uma cor chapada — e a
+   marca-forte translucida com blur atras e um brilho fino em cima, igual a
+   um botao de vidro colorido. color-mix() em vez de rgba() cru pra nao
+   duplicar o tom de --marca-forte num lugar que uma troca de paleta
+   esqueceria. */
 .botao {
     display: inline-block; width: 100%; padding: .85rem 1.1rem;
-    background: var(--marca-forte); color: var(--sobre-marca);
+    /* Fallback solido primeiro: navegador sem color-mix() ignora a linha de
+       baixo e fica com este preenchimento cheio, sem vidro mas sem quebrar. */
+    background: var(--marca-forte);
+    background: color-mix(in srgb, var(--marca-forte) 85%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, .35);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 4px 14px rgba(18, 174, 251, .22);
+    color: var(--sobre-marca);
     font-size: 17px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25;
-    border: none; border-radius: 14px; cursor: pointer; text-align: center;
+    border-radius: 14px; cursor: pointer; text-align: center;
     -webkit-tap-highlight-color: transparent;
     transition: opacity .15s ease, transform .15s ease;
 }
@@ -208,14 +236,24 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .botao:hover { text-decoration: none; }
 @media (hover: hover) { .botao:hover { filter: brightness(1.08); } }
 
-/* Secundario: o "tinted button" do iOS — fundo suave da propria cor, sem
-   contorno. Fica mais leve ao lado do botao cheio. */
-.botao-alt { background: var(--tinta-marca); color: var(--marca); border: none; }
+/* Secundario: o "tinted button" do iOS — fundo suave da propria cor. Ja era
+   translucido (--tinta-marca); o blur e a borda fina so completam o vidro. */
+.botao-alt {
+    background: var(--tinta-marca); color: var(--marca);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--vidro-borda);
+}
 .botao-grande { padding: 1rem 1.1rem; font-size: 17px; }
 .acoes-topo { display: grid; gap: .5rem; margin-bottom: 1rem; }
 .acoes { margin: .75rem 0; }
 
-.botao-perigo { background: var(--tinta-vermelha); color: var(--vermelho); border: none; margin-top: .5rem; }
+.botao-perigo {
+    background: var(--tinta-vermelha); color: var(--vermelho); margin-top: .5rem;
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--vidro-borda);
+}
 .link-perigo {
     background: none; border: none; color: var(--vermelho);
     font-size: .78rem; cursor: pointer; padding: .35rem .85rem .6rem; font-family: inherit;
@@ -392,7 +430,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .chips { display: flex; gap: .4rem; overflow-x: auto; margin-bottom: .7rem; padding-bottom: .2rem; }
 .chip {
     flex: none; padding: .35rem .8rem; border-radius: 99px;
-    background: var(--cartao); border: 1px solid var(--borda);
+    background: var(--vidro);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--vidro-borda);
     color: var(--texto); font-size: .82rem; white-space: nowrap;
     -webkit-tap-highlight-color: transparent;
 }
@@ -471,7 +512,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 /* Custo que veio do percentual padrao, nao de nota fiscal. */
 .estimado {
     font-size: .68rem; padding: .05rem .35rem; border-radius: 99px;
-    border: 1px solid var(--borda); color: var(--suave); margin-left: .2rem;
+    background: var(--vidro); color: var(--suave); margin-left: .2rem;
 }
 
 /* ---------- puxar para atualizar (so no app instalado) ---------- */
