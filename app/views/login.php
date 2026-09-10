@@ -1,6 +1,6 @@
 <?php /** @var ?string $erro @var string $email */ ?>
 <div class="login-caixa">
-    <h1 class="login-titulo">Mercadinho</h1>
+    <img class="login-logo" src="/assets/logo/completo.png" alt="Alpha Market" width="900" height="622">
     <p class="login-sub">Suas notas, seus preços.</p>
 
     <?php if ($erro): ?>

@@ -1,6 +1,6 @@
 <?php
 /**
- * Instalacao e diagnostico do Mercadinho.
+ * Instalacao e diagnostico do Alpha Market.
  *
  *   https://mercadinho.bryanzendron.com.br/setup.php?token=SEU-SETUP-TOKEN
  *
@@ -95,7 +95,7 @@ if ($cfg_existe && !$erro_fatal) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Setup · Mercadinho</title>
+<title>Setup · Alpha Market</title>
 <style>
   body { font: 15px/1.5 system-ui, sans-serif; max-width: 780px; margin: 2rem auto; padding: 0 1rem; color: #1b2019; }
   h1 { font-size: 1.4rem; } h2 { font-size: 1.05rem; margin-top: 2rem; }
@@ -113,7 +113,7 @@ if ($cfg_existe && !$erro_fatal) {
 </style>
 </head>
 <body>
-<h1>Setup do Mercadinho</h1>
+<h1>Setup do Alpha Market</h1>
 
 <?php if (!$cfg_existe): ?>
     <div class="caixa">

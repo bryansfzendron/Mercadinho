@@ -1,13 +1,13 @@
 {
-  "name": "Mercadinho",
-  "short_name": "Mercadinho",
+  "name": "Alpha Market",
+  "short_name": "Alpha Market",
   "description": "Notas fiscais, produtos e historico de precos pagos.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#faf9f7",
-  "theme_color": "#1c1917",
+  "theme_color": "#071c3d",
   "icons": [
     {
       "src": "/assets/icone-192.png",

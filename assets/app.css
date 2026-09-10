@@ -4,14 +4,15 @@
     --texto: #1c1917;
     --suave: #78716c;
     --borda: #e7e5e4;
-    /* Dourado da Alpha3 (#eab308) com neutro escuro no lugar do verde.
-       Ouro puro nao serve para texto em fundo claro (contraste 1,9:1), entao
-       o texto usa o tom escuro e o preenchimento usa o ouro. */
-    --marca: #a16207;
-    --marca-forte: #eab308;
-    --marca-escura: #1c1917;
-    /* Tinta sobre o preenchimento dourado: preto, nao branco. */
-    --sobre-marca: #1c1917;
+    /* Paleta da Alpha Market, tirada do logo (marinho + azul + ciano).
+       O ciano puro tambem nao serve para texto em fundo claro, entao o texto
+       usa o azul mais escuro e o preenchimento usa o ciano vivo — mesma
+       logica que o dourado antigo tinha, so trocando o tom. */
+    --marca: #0a5fc4;
+    --marca-forte: #12aefb;
+    --marca-escura: #071c3d;
+    /* Tinta sobre o preenchimento ciano: o marinho do logo, nao branco. */
+    --sobre-marca: #071c3d;
     /* Sinal financeiro nao e marca: lucro continua verde e prejuizo vermelho,
        senao o relatorio perde a leitura de um relance. */
     --positivo: #15803d;
@@ -19,7 +20,7 @@
     --vermelho: #b91c1c;
     --ambar: #c2410c;
     --raio: 12px;
-    --tinta-marca: rgba(234, 179, 8, .16);
+    --tinta-marca: rgba(18, 174, 251, .16);
     /* Superficie que precisa subir um degrau do cartao (pilula ativa). */
     --elevado: #ffffff;
     --tinta-vermelha: rgba(185, 28, 28, .1);
@@ -32,16 +33,16 @@
         --texto: #e7e5e4;
         --suave: #a8a29e;
         --borda: #302c2a;
-        /* No escuro o ouro ja tem contraste de sobra e pode ser o texto. */
-        --marca: #fbbf24;
-        --marca-forte: #eab308;
-        --marca-escura: #1c1917;
-        --sobre-marca: #1c1917;
+        /* No escuro o azul precisa ser mais claro para o texto ter contraste. */
+        --marca: #38bdf8;
+        --marca-forte: #12aefb;
+        --marca-escura: #071c3d;
+        --sobre-marca: #071c3d;
         --positivo: #4ade80;
         --tinta-positiva: rgba(74, 222, 128, .16);
         --vermelho: #f87171;
         --ambar: #fb923c;
-        --tinta-marca: rgba(234, 179, 8, .2);
+        --tinta-marca: rgba(18, 174, 251, .2);
         --elevado: #2c2825;
         --tinta-vermelha: rgba(248, 113, 113, .14);
     }
@@ -74,11 +75,15 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
     background: var(--marca-escura); color: #fff;
     position: sticky; top: 0; z-index: 10;
 }
-.marca { color: var(--marca-forte); font-weight: 700; letter-spacing: .3px; }
+.marca {
+    display: flex; align-items: center; gap: .45rem;
+    color: var(--marca-forte); font-weight: 700; letter-spacing: .3px;
+}
 .marca:hover { text-decoration: none; }
+.marca img { height: 24px; width: auto; display: block; }
 .topo-dir { display: flex; gap: .75rem; align-items: center; font-size: .85rem; }
 .quem { opacity: .85; }
-.sair { color: #fde68a; }
+.sair { color: #7dd3fc; }
 .engrenagem { display: flex; color: #fff; opacity: .85; padding: .1rem; }
 .engrenagem svg { width: 20px; height: 20px; }
 .engrenagem:hover { opacity: 1; }
@@ -201,8 +206,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .total-previa { font-size: 1.1rem; font-weight: 600; text-align: right; margin: .8rem 0; }
 
 .login-caixa { max-width: 380px; margin: 8vh auto 0; }
-.login-titulo { text-align: center; font-size: 1.8rem; margin-bottom: 0; }
-.login-sub { text-align: center; color: var(--suave); margin-top: .2rem; margin-bottom: 1.5rem; }
+.login-logo { display: block; width: 100%; max-width: 280px; margin: 0 auto; }
+.login-sub { text-align: center; color: var(--suave); margin-top: .5rem; margin-bottom: 1.5rem; }
+
+.logo-inicio { display: block; width: 100%; max-width: 260px; margin: .5rem auto 1.25rem; }
 
 /* ---------- camera ---------- */
 .camera-caixa {

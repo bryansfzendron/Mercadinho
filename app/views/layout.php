@@ -7,16 +7,22 @@ $flashes = flash_pegar();
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1c1917">
-<title><?= e($titulo) ?> · Mercadinho</title>
+<meta name="theme-color" content="#071c3d">
+<title><?= e($titulo) ?> · Alpha Market</title>
 <link rel="manifest" href="/manifest.json">
-<link rel="stylesheet" href="/assets/app.css?v=20">
+<link rel="icon" type="image/png" href="/assets/favicon.png">
+<?php // No iPhone, "Adicionar a Tela de Inicio" usa este icone, nao o do manifest. ?>
+<link rel="apple-touch-icon" href="/assets/icone-apple.png">
+<meta name="apple-mobile-web-app-title" content="Alpha Market">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="/assets/app.css?v=21">
 </head>
 <body>
 
 <?php if ($usuario): ?>
 <header class="topo">
-    <a class="marca" href="/">Mercadinho</a>
+    <a class="marca" href="/"><img src="/assets/logo/simplificado.png" alt="" width="28" height="22">Alpha Market</a>
     <div class="topo-dir">
         <span class="quem"><?= e($usuario['nome']) ?></span>
         <?php // Engrenagem no topo em vez de um quinto item na barra de baixo:

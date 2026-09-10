@@ -1,4 +1,7 @@
-# Mercadinho
+# Alpha Market
+
+*(a marca voltada pro usuário é "Alpha Market" — o projeto, a pasta e o domínio continuam
+"mercadinho" por baixo, de propósito, pra não mexer em nada que já está no ar.)*
 
 App web (PHP 8 + MySQL) para escanear o QR Code de cupons **NFC-e de São Paulo**, guardar os
 itens num banco e responder a pergunta que interessa: **quanto eu já paguei nesse produto?**
@@ -511,21 +514,38 @@ O custo fixo vem da **lista de PDVs ativos**, não das vendas: container parado 
 continua pagando energia, sistema e internet, e um mês ruim não pode ficar bonito por falta
 de venda. Filtrando um PDV no relatório, só o fixo dele entra.
 
-## Cores
+## Logo e cores
 
-A paleta segue a da [Alpha3](https://alpha3consultoria.com.br): dourado `#eab308` sobre
-neutro escuro `#1c1917`. Os tokens estão no topo do `assets/app.css` e têm nome de papel,
-não de cor (`--marca`, `--marca-forte`, `--sobre-marca`), justamente para uma troca de
-paleta não deixar comentários mentindo.
+A marca é a **Alpha Market**: os arquivos originais (completo e simplificado) estão em
+`logo/`. Os que o app de fato serve ficam em `assets/` — gerados a partir dos originais
+(recortados, redimensionados e, para os ícones, achatados sobre fundo branco):
+
+- `assets/logo/completo.png` — logo com a palavra, usado na tela de login e na Início.
+- `assets/logo/simplificado.png` — só o símbolo, fundo transparente, usado no topo (barra
+  de cima) em tamanho pequeno.
+- `assets/icone-192.png` / `assets/icone-512.png` — ícone do manifest (Android/Chrome).
+- `assets/icone-apple.png` — ícone do "Adicionar à Tela de Início" do iPhone
+  (`apple-touch-icon` no `<head>`, ver `app/views/layout.php`). O iOS ignora os ícones do
+  manifest para isso, então esse link é quem manda.
+- `assets/favicon.png` — aba do navegador.
+
+A paleta saiu do próprio logo (marinho `#071c3d` + azul `#0a5fc4` + ciano `#12aefb`), no
+lugar do dourado da Alpha3 que o app usava antes. Os tokens estão no topo do
+`assets/app.css` e têm nome de papel, não de cor (`--marca`, `--marca-forte`,
+`--sobre-marca`), justamente para uma troca de paleta não deixar comentários mentindo — foi
+essa mesma convenção que tornou a troca para o azul uma edição de poucas linhas.
 
 Dois detalhes que não são estéticos:
 
-- **O texto dourado não é o mesmo dourado do preenchimento.** `#eab308` em fundo claro dá
-  contraste de 1,9:1 e é ilegível, então texto e ícone usam `--marca` (`#a16207`) e só o
-  preenchimento usa `--marca-forte`. Sobre o preenchimento dourado a tinta é escura
-  (`--sobre-marca`), nunca branca.
-- **Lucro continua verde e prejuízo vermelho** (`--positivo` / `--vermelho`). Sinal
-  financeiro não é marca: com tudo dourado, o relatório perde a leitura de um relance.
+- **O texto azul não é o mesmo azul do preenchimento.** O ciano vivo (`--marca-forte`,
+  `#12aefb`) não tem contraste suficiente como texto em fundo claro, então texto e ícone
+  usam `--marca` (`#0a5fc4`, mais escuro) e só o preenchimento usa `--marca-forte`. Sobre o
+  preenchimento ciano a tinta é o marinho do logo (`--sobre-marca`), nunca branca — mesma
+  lógica que o dourado tinha, só com outro tom.
+- **Lucro continua verde e prejuízo vermelho** (`--positivo` / `--vermelho`), sem trocar
+  pelo azul da marca. Sinal financeiro não é marca: com tudo azul, o relatório perde a
+  leitura de um relance. (O verde do relatório nem precisou mudar — já é parecido com o
+  verde que aparece no gráfico de barras do logo.)
 
 ## O plano diário da meta
 

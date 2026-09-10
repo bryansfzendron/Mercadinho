@@ -298,7 +298,7 @@ function flash_pegar(): array
 function ver(string $view, array $dados = [], ?string $titulo = null): never
 {
     extract($dados, EXTR_SKIP);
-    $titulo = $titulo ?? 'Mercadinho';
+    $titulo = $titulo ?? 'Alpha Market';
     $view_arquivo = APP . '/views/' . $view . '.php';
     if (!is_file($view_arquivo)) {
         http_response_code(500);
