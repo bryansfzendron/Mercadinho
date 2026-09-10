@@ -510,7 +510,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
    iria junto — aqui quem escala e o navegador, sem esse risco. */
 .grafico-dia {
     display: flex; align-items: flex-end; gap: 3px;
-    height: 84px; padding-bottom: 2px;
+    height: 84px;
+    /* padding-top reserva o espaco do rotulo do pico: sem isso, um dia no
+       topo da escala (barra a 100% de altura) empurra o rotulo pra cima do
+       proprio grafico, ate por cima do titulo do cartao. */
+    padding: 20px 0 2px;
     border-bottom: 1px solid var(--vidro-borda);
 }
 .grafico-barra {
