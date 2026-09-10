@@ -169,7 +169,7 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 .numero span { font-size: .72rem; color: var(--suave); }
 
 .dados { margin: 0; }
-.dados > div { display: flex; justify-content: space-between; padding: .3rem 0; border-bottom: 1px solid var(--borda); }
+.dados > div { display: flex; justify-content: space-between; padding: .3rem 0; border-bottom: 1px solid var(--vidro-borda); }
 .dados dt { color: var(--suave); font-size: .85rem; margin: 0; }
 .dados dd { margin: 0; font-size: .9rem; }
 
@@ -203,7 +203,10 @@ label { display: block; margin-bottom: .7rem; font-size: .82rem; color: var(--su
 input, select, textarea {
     display: block; width: 100%; margin-top: .2rem;
     padding: .6rem .7rem; font-size: 1rem; color: var(--texto);
-    background: var(--fundo); border: 1px solid var(--borda);
+    background: var(--vidro);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--vidro-borda);
     border-radius: 12px; font-family: inherit;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); outline-offset: 1px; }
@@ -369,10 +372,15 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .botao-ligado { background: var(--marca); color: #fff; border-color: var(--marca); }
 
 /* ---------- avisos ---------- */
-.aviso { padding: .7rem .85rem; border-radius: var(--raio); margin-bottom: .8rem; font-size: .9rem; border: 1px solid; }
+.aviso {
+    padding: .7rem .85rem; border-radius: var(--raio); margin-bottom: .8rem;
+    font-size: .9rem; border: 1px solid;
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+}
 .aviso-ok   { color: var(--positivo); border-color: currentColor; background: var(--tinta-positiva); }
 .aviso-erro { color: var(--vermelho); border-color: currentColor; background: var(--tinta-vermelha); }
-.aviso-info { color: var(--ambar);    border-color: currentColor; background: rgba(194,65,12,.1); }
+.aviso-info { color: var(--ambar);    border-color: currentColor; background: var(--tinta-ambar); }
 
 .estado { min-height: 1.5rem; font-size: .9rem; margin: .5rem 0; }
 .estado-ok { color: var(--marca); }
@@ -409,11 +417,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .zerado { color: var(--vermelho); }
 
 /* ---------- relatorio de vendas ---------- */
-/* Submenu de uma secao: o segmented control do iOS. Trilho cinza, e o item
-   ativo e uma pilula branca com sombra fina por cima dele. */
+/* Submenu de uma secao: o segmented control do iOS, agora em vidro. Trilho
+   fosco, e o item ativo e uma pilula de vidro com o proprio blur por cima
+   dele — o efeito "camada sobre camada" que da nome ao Liquid Glass. */
 .abas {
     display: flex; gap: .15rem; margin: 0 0 1rem;
-    background: rgba(127, 127, 127, .12); border-radius: 12px; padding: .2rem;
+    background: var(--vidro);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid var(--vidro-borda);
+    border-radius: 12px; padding: .2rem;
 }
 .aba {
     flex: 1; text-align: center; padding: .45rem .5rem; border-radius: 9px;
@@ -422,8 +435,15 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 }
 .aba:hover { text-decoration: none; }
 .aba.ativo {
-    background: var(--elevado); font-weight: 600;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+    /* --elevado sozinho ja tem contraste certo nos dois temas (branco no
+       claro, cinza-claro no escuro); so afina pra deixar o blur aparecer,
+       com fallback solido pra quem nao tem color-mix(). */
+    background: var(--elevado);
+    background: color-mix(in srgb, var(--elevado) 85%, transparent);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    backdrop-filter: blur(10px) saturate(160%);
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .14), inset 0 1px 0 var(--vidro-brilho);
 }
 
 /* Filtro rapido em pilulas. Rola na horizontal em vez de quebrar a linha. */
@@ -461,7 +481,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 /* Tabela do breakdown diario. Rola sozinha no celular em vez de espremer. */
 .tabela-rolante { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .tabela { width: 100%; border-collapse: collapse; font-size: .85rem; }
-.tabela th, .tabela td { padding: .45rem .5rem; border-bottom: 1px solid var(--borda); white-space: nowrap; }
+/* A tabela mora dentro de um .cartao (ja em vidro) — as linhas so precisam
+   de um divisor no mesmo tom do vidro, sem blur proprio: borrar cada linha
+   de novo em cima de quem ja esta borrado seria trabalho a toa pra GPU. */
+.tabela th, .tabela td { padding: .45rem .5rem; border-bottom: 1px solid var(--vidro-borda); white-space: nowrap; }
 .tabela th { text-align: left; color: var(--suave); font-weight: 500; }
 .tabela .dir { text-align: right; font-variant-numeric: tabular-nums; }
 .tabela tr.hoje { background: var(--tinta-marca); font-weight: 600; }
@@ -578,7 +601,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .itens-compra li {
     display: flex; justify-content: space-between; gap: .6rem;
     padding: .4rem 0; font-size: .88rem;
-    border-top: 1px solid var(--borda);
+    border-top: 1px solid var(--vidro-borda);
 }
 .item-nome { min-width: 0; }
 .item-qtd { color: var(--suave); font-size: .8rem; margin-left: .2rem; }
