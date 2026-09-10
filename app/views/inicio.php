@@ -1,6 +1,4 @@
 <?php /** @var array $resumo @var int $itens_total @var int $pendentes @var array $ultimas @var array $loja @var array $vendas */ ?>
-<img class="logo-inicio" src="/assets/logo/completo.png" alt="Alpha Market" width="900" height="622">
-
 <div class="acoes-topo">
     <a class="botao botao-grande" href="/escanear">▣ Escanear nota</a>
     <a class="botao botao-grande botao-alt" href="/bipar">||| Bipar produto</a>

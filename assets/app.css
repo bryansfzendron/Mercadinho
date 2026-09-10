@@ -209,8 +209,6 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .login-logo { display: block; width: 100%; max-width: 280px; height: auto; margin: 0 auto; }
 .login-sub { text-align: center; color: var(--suave); margin-top: .5rem; margin-bottom: 1.5rem; }
 
-.logo-inicio { display: block; width: 100%; max-width: 260px; height: auto; margin: .5rem auto 1.25rem; }
-
 /* ---------- camera ---------- */
 .camera-caixa {
     position: relative;
