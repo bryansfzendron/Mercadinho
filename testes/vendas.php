@@ -149,6 +149,13 @@ checar('datas viram inicio e fim do dia',
 checar('pdv e forma entram como parametro', [$args2[3], $args2[4]], [3, 'Pix']);
 checar('nada do filtro vai concatenado no SQL', strpos($onde2, '2026-09-01'), false);
 
+// A transacao e no bolo, entao a categoria filtra pela compra que levou algo
+// dela — um EXISTS contra os itens, nao um join que multiplicaria a linha.
+[$ondeCat, $argsCat] = vendas_transacoes_filtro(['categoria' => 'BEBIDAS']);
+checar('categoria vira EXISTS contra os itens', strpos($ondeCat, 'EXISTS') !== false, true);
+checar('categoria entra como parametro', end($argsCat), 'BEBIDAS');
+checar('sem categoria nao filtra', vendas_transacoes_filtro([])[0], vendas_filtro_sql([])[0]);
+
 // -------------------------------------------------- lista de transacoes
 // A paginacao e onde mora o erro de um: pagina zero, pagina alem do fim e
 // lista vazia precisam todas devolver algo que a tela saiba desenhar.

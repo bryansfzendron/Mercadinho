@@ -8,12 +8,13 @@
  * @var array $f      os filtros
  * @var array $pdvs
  * @var array $formas
+ * @var array $categorias
  */
 
 /** Os filtros de novo na URL, para paginar e trocar de aba sem perdê-los. */
 $query = static fn (array $extra = []): string => http_build_query($extra + [
     'de' => $f['de'], 'ate' => $f['ate'], 'pdv_id' => $f['pdv_id'] ?: '',
-    'forma' => $f['forma'], 'q' => $f['busca'],
+    'forma' => $f['forma'], 'categoria' => $f['categoria'], 'q' => $f['busca'],
 ]);
 ?>
 <h1>Loja</h1>
@@ -49,6 +50,14 @@ $query = static fn (array $extra = []): string => http_build_query($extra + [
                 <?php endforeach; ?>
             </select>
         </label>
+        <label>Categoria
+            <select name="categoria">
+                <option value="">todas</option>
+                <?php foreach ($categorias as $cat): ?>
+                    <option value="<?= e($cat) ?>" <?= $f['categoria'] === $cat ? 'selected' : '' ?>><?= e($cat) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
     </div>
     <div class="linha-form">
         <input type="text" name="q" value="<?= e($f['busca']) ?>" placeholder="produto ou código da compra"
@@ -57,7 +66,8 @@ $query = static fn (array $extra = []): string => http_build_query($extra + [
     </div>
     <p class="ajuda">
         A busca procura dentro da compra: digitar um produto traz as compras que o levaram,
-        e com ele o que mais foi junto.
+        e com ele o que mais foi junto. A categoria funciona igual: filtra a compra inteira,
+        não só o item daquela categoria.
     </p>
 </form>
 

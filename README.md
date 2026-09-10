@@ -438,9 +438,15 @@ cada camada e como o valor se compara com o último que você pagou naquele prod
 ## O que sobra da venda
 
 A tela `/vendas` (link no topo da Loja) cruza o que o TouchPay vendeu com o que a NFC-e diz
-que você pagou. Filtros: período, ponto de venda, forma de pagamento e busca por produto,
-código ou categoria; agrupamento por produto, categoria, dia, mês, PDV, forma de pagamento,
-hora do dia ou dia da semana.
+que você pagou. Filtros: período, ponto de venda, forma de pagamento, categoria (exata, via
+`vendas_categorias()`) e busca livre por produto, código ou categoria; agrupamento por
+produto, categoria, dia, mês, PDV, forma de pagamento, hora do dia ou dia da semana.
+
+Na aba Resumo a categoria filtra os **itens** (`vi.categoria = ?`), então "Resultado do
+período" continua mostrando o faturamento do período inteiro — igual à busca, ela só recorta
+a lista de produtos abaixo. Na aba Transações a compra é no bolo, não por item, então lá o
+filtro vira `EXISTS` contra os itens da compra: filtra pela **compra inteira** que levou algo
+daquela categoria, não só o item dela.
 
 O custo entra em três camadas, porque elas se comportam de forma diferente:
 

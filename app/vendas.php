@@ -658,6 +658,13 @@ function vendas_relatorio(array $f): array
         array_push($args, $curinga, $curinga, $curinga, $curinga);
     }
 
+    // Categoria e um filtro exato (a busca acima ja cobre o texto livre).
+    $categoria = trim((string) ($f['categoria'] ?? ''));
+    if ($categoria !== '') {
+        $onde .= ' AND vi.categoria = ?';
+        $args[] = $categoria;
+    }
+
     // Uma linha por (grupo, produto): o custo e por produto, entao o CMV so
     // fecha se o produto vier separado dentro do grupo. A dobra em grupo
     // acontece no PHP, em vendas_agrupar().
@@ -765,6 +772,14 @@ function vendas_transacoes_filtro(array $f): array
                            AND (vi.descricao LIKE ? OR vi.ean LIKE ? OR vi.codigo LIKE ?)))';
         array_push($args, $curinga, $curinga, $curinga, $curinga);
     }
+
+    // Transacao e no bolo (nao por item), entao a categoria filtra pela compra
+    // que LEVOU algo daquela categoria, nao pelos itens dela um a um.
+    $categoria = trim((string) ($f['categoria'] ?? ''));
+    if ($categoria !== '') {
+        $onde .= ' AND EXISTS (SELECT 1 FROM venda_itens vi WHERE vi.venda_id = v.id AND vi.categoria = ?)';
+        $args[] = $categoria;
+    }
     return [$onde, $args];
 }
 
@@ -840,6 +855,17 @@ function vendas_pdvs(): array
           WHERE p.ativo = 1
        GROUP BY p.id, p.nome ORDER BY p.nome'
     );
+}
+
+/** Categorias com item vendido, para o filtro da tela. Produto sem categoria fica fora da lista. */
+function vendas_categorias(): array
+{
+    return array_column(q(
+        "SELECT DISTINCT vi.categoria AS categoria
+           FROM venda_itens vi
+          WHERE vi.categoria IS NOT NULL AND vi.categoria <> ''
+       ORDER BY vi.categoria"
+    ), 'categoria');
 }
 
 /**

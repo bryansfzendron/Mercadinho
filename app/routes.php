@@ -552,12 +552,13 @@ function vendas_filtros_da_url(): array
 {
     return [
         // Sem filtro, os ultimos 30 dias — a pergunta de sempre e "e esse mes?".
-        'de'      => (string) ($_GET['de'] ?? date('Y-m-d', strtotime('-29 days'))),
-        'ate'     => (string) ($_GET['ate'] ?? date('Y-m-d')),
-        'pdv_id'  => (int) ($_GET['pdv_id'] ?? 0),
-        'forma'   => (string) ($_GET['forma'] ?? ''),
-        'agrupar' => (string) ($_GET['agrupar'] ?? 'produto'),
-        'busca'   => trim((string) ($_GET['q'] ?? '')),
+        'de'        => (string) ($_GET['de'] ?? date('Y-m-d', strtotime('-29 days'))),
+        'ate'       => (string) ($_GET['ate'] ?? date('Y-m-d')),
+        'pdv_id'    => (int) ($_GET['pdv_id'] ?? 0),
+        'forma'     => (string) ($_GET['forma'] ?? ''),
+        'categoria' => trim((string) ($_GET['categoria'] ?? '')),
+        'agrupar'   => (string) ($_GET['agrupar'] ?? 'produto'),
+        'busca'     => trim((string) ($_GET['q'] ?? '')),
     ];
 }
 
@@ -583,8 +584,9 @@ function rota_vendas_transacoes(array $u): void
 
     $pdvs = vendas_pdvs();
     $formas = vendas_formas_rotulos();
+    $categorias = vendas_categorias();
 
-    ver('vendas_transacoes', compact('linhas', 'itens', 'pag', 'f', 'pdvs', 'formas'), 'Transações');
+    ver('vendas_transacoes', compact('linhas', 'itens', 'pag', 'f', 'pdvs', 'formas', 'categorias'), 'Transações');
 }
 
 function rota_vendas(array $u): void
@@ -594,8 +596,9 @@ function rota_vendas(array $u): void
     $r = vendas_relatorio($f);
     $pdvs = vendas_pdvs();
     $formas = vendas_formas_rotulos();
+    $categorias = vendas_categorias();
 
-    ver('vendas_relatorio', compact('r', 'f', 'pdvs', 'formas'), 'Vendas');
+    ver('vendas_relatorio', compact('r', 'f', 'pdvs', 'formas', 'categorias'), 'Vendas');
 }
 
 /** Dashboard de vendas: KPIs principais + cards visuais. */

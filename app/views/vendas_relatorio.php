@@ -1,4 +1,4 @@
-<?php /** @var array $r @var array $f @var array $pdvs @var array $formas */ ?>
+<?php /** @var array $r @var array $f @var array $pdvs @var array $formas @var array $categorias */ ?>
 <h1>Loja</h1>
 <?= abas_loja('/vendas') ?>
 <?= abas(['/vendas' => 'Resumo', '/vendas/transacoes' => 'Transações'], '/vendas') ?>
@@ -33,6 +33,14 @@
                 <option value="">todas</option>
                 <?php foreach ($formas as $nome => $rotulo): ?>
                     <option value="<?= e($nome) ?>" <?= $f['forma'] === $nome ? 'selected' : '' ?>><?= e($rotulo) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label>Categoria
+            <select name="categoria">
+                <option value="">todas</option>
+                <?php foreach ($categorias as $cat): ?>
+                    <option value="<?= e($cat) ?>" <?= $f['categoria'] === $cat ? 'selected' : '' ?>><?= e($cat) ?></option>
                 <?php endforeach; ?>
             </select>
         </label>
