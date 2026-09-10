@@ -15,6 +15,10 @@
         <label>Senha
             <input type="password" name="senha" required autocomplete="current-password">
         </label>
+        <label class="caixa-marcar">
+            <input type="checkbox" name="lembrar" value="1" checked>
+            <span>Manter conectado</span>
+        </label>
         <button type="submit" class="botao">Entrar</button>
     </form>
 </div>

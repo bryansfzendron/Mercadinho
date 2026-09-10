@@ -75,7 +75,8 @@ function rota_login(string $m): void
         exigir_csrf();
         $email = (string) ($_POST['email'] ?? '');
         $senha = (string) ($_POST['senha'] ?? '');
-        if (tentar_login($email, $senha)) {
+        $lembrar = !empty($_POST['lembrar']);
+        if (tentar_login($email, $senha, $lembrar)) {
             iniciar_sessao();
             $destino = $_SESSION['apos_login'] ?? '/';
             unset($_SESSION['apos_login']);

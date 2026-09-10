@@ -60,6 +60,10 @@ function iniciar_sessao(): void
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
+    // "Manter conectado" (auth.php) estica so o cookie para 30 dias; o PHP
+    // tambem precisa guardar o arquivo da sessao por tempo compativel, senao
+    // o cookie sobrevive no celular mas a sessao ja foi limpa no servidor.
+    ini_set('session.gc_maxlifetime', (string) (60 * 60 * 24 * 30));
     session_set_cookie_params([
         'lifetime' => 0,
         'path'     => '/',

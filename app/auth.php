@@ -34,7 +34,13 @@ function exigir_login(): array
     return $u;
 }
 
-function tentar_login(string $email, string $senha): bool
+/**
+ * @param bool $lembrar "Manter conectado": em vez de cookie de sessao (que o
+ *                       navegador solta ao fechar), reescreve o mesmo cookie
+ *                       com prazo de 30 dias. So para quem marcou — o padrao
+ *                       de todo mundo continua sendo a sessao normal.
+ */
+function tentar_login(string $email, string $senha, bool $lembrar = false): bool
 {
     $u = q1('SELECT id, senha_hash, ativo FROM usuarios WHERE email = ?', [mb_strtolower(trim($email))]);
     if (!$u || !$u['ativo'] || !password_verify($senha, $u['senha_hash'])) {
@@ -43,6 +49,18 @@ function tentar_login(string $email, string $senha): bool
     iniciar_sessao();
     session_regenerate_id(true);
     $_SESSION['usuario_id'] = (int) $u['id'];
+
+    if ($lembrar) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), session_id(), [
+            'expires'  => time() + 60 * 60 * 24 * 30,
+            'path'     => $p['path'],
+            'domain'   => $p['domain'],
+            'secure'   => $p['secure'],
+            'httponly' => $p['httponly'],
+            'samesite' => $p['samesite'],
+        ]);
+    }
     return true;
 }
 
