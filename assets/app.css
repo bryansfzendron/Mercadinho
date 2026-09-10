@@ -169,6 +169,11 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 .voltar { display: inline-block; margin-bottom: .6rem; font-size: .9rem; }
 
 .numeros { display: flex; gap: .5rem; margin: .8rem 0; flex-wrap: wrap; }
+/* Quando os cards sao sempre em numero par (4 KPIs, 4 formas de pagamento),
+   o flex-wrap deixava sobrar um sozinho na ultima linha, esticado pra
+   ocupar tudo — grade fixa de 2 colunas forma pares certos em vez disso. */
+.numeros.grade2 { display: grid; grid-template-columns: 1fr 1fr; }
+.numeros.grade2 .numero { min-width: 0; }
 .numero {
     flex: 1; min-width: 90px; background: var(--vidro);
     -webkit-backdrop-filter: blur(20px) saturate(180%);

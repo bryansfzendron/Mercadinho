@@ -22,7 +22,7 @@
     <input type="hidden" name="periodo" value="<?= e($chave) ?>">
 </form>
 
-<div class="numeros" style="gap:.5rem">
+<div class="numeros grade2" style="gap:.5rem">
     <div class="numero kpi <?= kpi_moldura($variacao['receita']) ?>">
         <span class="kpi-rotulo">Faturamento</span>
         <strong class="kpi-valor"><?= moeda($res['receita']) ?></strong>
@@ -92,7 +92,7 @@ $outros = (float) $res['taxa'] + (float) $res['condominio']
         <p class="vazio">Sem venda no período.</p>
     <?php else: ?>
     <?= grafico_html_pagamento($r['por_forma'], $formas_map, $formas_cores) ?>
-    <div class="numeros" style="gap:.5rem; margin-top:.8rem">
+    <div class="numeros grade2" style="gap:.5rem; margin-top:.8rem">
         <?php foreach ($r['por_forma'] ?? [] as $pf): ?>
             <div class="numero" style="min-width:110px">
                 <span class="kpi-rotulo"><?= e($formas_map[$pf['forma']] ?? $pf['forma']) ?></span>
