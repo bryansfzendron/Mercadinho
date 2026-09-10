@@ -16,7 +16,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=24">
+<link rel="stylesheet" href="/assets/app.css?v=25">
 </head>
 <body>
 
@@ -48,12 +48,41 @@ $flashes = flash_pegar();
 
 <?php if ($usuario): ?>
 <nav class="barra">
-    <a href="/"          class="<?= $rota === '/' ? 'ativo' : '' ?>"><span>⌂</span>Início</a>
-    <a href="/dashboard" class="<?= $rota === '/dashboard' ? 'ativo' : '' ?>"><span>📊</span>Dashboard</a>
+    <a href="/"          class="<?= $rota === '/' ? 'ativo' : '' ?>">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 11.5 12 4l9 7.5"/>
+            <path d="M5.5 10v8.5a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4h4v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1V10"/>
+        </svg></span>Início
+    </a>
+    <a href="/dashboard" class="<?= $rota === '/dashboard' ? 'ativo' : '' ?>">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="12" width="4" height="8" rx="1"/>
+            <rect x="10" y="8" width="4" height="12" rx="1"/>
+            <rect x="16" y="4" width="4" height="16" rx="1"/>
+        </svg></span>Dashboard
+    </a>
     <?php // Escanear, bipar e vendas sao telas de dentro: acendem o item a que pertencem. ?>
-    <a href="/notas"     class="<?= str_starts_with($rota, '/notas') || in_array($rota, ['/escanear', '/manual'], true) ? 'ativo' : '' ?>"><span>≡</span>Notas</a>
-    <a href="/produtos"  class="<?= str_starts_with($rota, '/produtos') || $rota === '/bipar' ? 'ativo' : '' ?>"><span>☰</span>Produtos</a>
-    <a href="/loja"      class="<?= in_array($rota, ['/loja', '/margens', '/metas'], true) || str_starts_with($rota, '/vendas') ? 'ativo' : '' ?>"><span>R$</span>Loja</a>
+    <a href="/notas"     class="<?= str_starts_with($rota, '/notas') || in_array($rota, ['/escanear', '/manual'], true) ? 'ativo' : '' ?>">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6.5 3h7l4 4v13a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/>
+            <path d="M13.5 3v4h4"/>
+            <path d="M8.5 12.5h7M8.5 16h5"/>
+        </svg></span>Notas
+    </a>
+    <a href="/produtos"  class="<?= str_starts_with($rota, '/produtos') || $rota === '/bipar' ? 'ativo' : '' ?>">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="4" width="7" height="7" rx="1.5"/>
+            <rect x="13" y="4" width="7" height="7" rx="1.5"/>
+            <rect x="4" y="13" width="7" height="7" rx="1.5"/>
+            <rect x="13" y="13" width="7" height="7" rx="1.5"/>
+        </svg></span>Produtos
+    </a>
+    <a href="/loja"      class="<?= in_array($rota, ['/loja', '/margens', '/metas'], true) || str_starts_with($rota, '/vendas') ? 'ativo' : '' ?>">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 8h12l-1 12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 8Z"/>
+            <path d="M9 8V6a3 3 0 0 1 6 0v2"/>
+        </svg></span>Loja
+    </a>
 </nav>
 <?php endif; ?>
 
