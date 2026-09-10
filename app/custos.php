@@ -270,6 +270,36 @@ function custos_faixa_simples(float $rbt12): array
 }
 
 /**
+ * Quao perto o RBT12 esta do teto da faixa atual — e o que faz a tela avisar
+ * antes da aliquota subir, em vez de so mostrar depois que ja subiu.
+ *
+ * @return array{teto:float, falta:float, pct:float, ultima_faixa:bool, proxima_aliquota:?float}
+ */
+function custos_proximidade_faixa_simples(float $rbt12): array
+{
+    $rbt12 = max(0.0, $rbt12);
+    $tabela = custos_simples_anexo1();
+
+    $indice = 0;
+    foreach ($tabela as $i => $faixa) {
+        $indice = $i;
+        if ($rbt12 <= $faixa['teto']) {
+            break;
+        }
+    }
+    $atual = $tabela[$indice];
+    $ultima = $indice === count($tabela) - 1;
+
+    return [
+        'teto'             => $atual['teto'],
+        'falta'            => max(0.0, $atual['teto'] - $rbt12),
+        'pct'              => $atual['teto'] > 0 ? min(100.0, $rbt12 / $atual['teto'] * 100) : 0.0,
+        'ultima_faixa'     => $ultima,
+        'proxima_aliquota' => $ultima ? null : $tabela[$indice + 1]['aliquota'],
+    ];
+}
+
+/**
  * A aliquota que sai de cada venda, em percentual — nao a nominal da tabela.
  * Formula do art. 18 da LC 123/2006: (RBT12 x aliquota nominal − parcela a
  * deduzir) / RBT12. E o que faz o Simples ser progressivo sem virar degrau:

@@ -502,6 +502,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 }
 .progresso.pronto .progresso-barra > span { background: var(--positivo); }
 .progresso.erro .progresso-barra > span { background: var(--vermelho); }
+/* Quao perto o RBT12 esta do teto da faixa do Simples — vidro cor de marca
+   ate ficar perto, dai vira ambar pra chamar atencao sem soar erro. */
+.progresso-barra.faixa.perto > span { background: var(--ambar); }
 .progresso-texto { margin: .35rem 0 0; }
 /* Sem saber quantos lotes serao: listras andando, em vez de percentual chutado. */
 .progresso-barra.indeterminada > span {

@@ -356,6 +356,29 @@
                 <div><dt>Faixa</dt><dd><?= e(number_format($imposto['faixa']['aliquota'], 2, ',', '.')) ?>% nominal</dd></div>
                 <div><dt>Alíquota efetiva</dt><dd><?= e(number_format($imposto['efetiva'], 2, ',', '.')) ?>%</dd></div>
             </dl>
+
+            <?php
+            $prox = $imposto['proximidade'];
+            $perto = $prox['pct'] >= 85;
+            ?>
+            <?php if (!$prox['ultima_faixa']): ?>
+                <div class="progresso-barra faixa<?= $perto ? ' perto' : '' ?>">
+                    <span style="width: <?= number_format($prox['pct'], 1, '.', '') ?>%"></span>
+                </div>
+                <p class="ajuda">
+                    <?= number_format($prox['pct'], 0) ?>% do teto desta faixa
+                    (<?= e(number_format($prox['teto'], 0, ',', '.')) ?>). Faltam
+                    <strong><?= e(number_format($prox['falta'], 2, ',', '.')) ?></strong> de RBT12 para a
+                    alíquota nominal subir para <?= e(number_format($prox['proxima_aliquota'], 2, ',', '.')) ?>%.
+                </p>
+                <?php if ($perto): ?>
+                    <p class="aviso aviso-info">
+                        Perto de mudar de faixa — o imposto vai subir em breve se o faturamento continuar
+                        nesse ritmo. Não é motivo pra vender menos, só pra não levar susto no mês que virar.
+                    </p>
+                <?php endif; ?>
+            <?php endif; ?>
+
             <?php if ($imposto['anualizado']): ?>
                 <p class="aviso aviso-info">
                     Ainda não tem 12 meses de atividade sob este CNPJ (<?= (int) $imposto['meses'] ?>

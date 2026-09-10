@@ -754,14 +754,15 @@ function rota_config(array $u, string $metodo): void
         $rbt12 = custos_rbt12();
         $meses = custos_meses_atividade(custos_inicio_atividade(), date('Y-m-d'));
         $imposto = [
-            'rbt12'      => $rbt12,
-            'faixa'      => custos_faixa_simples($rbt12),
-            'efetiva'    => custos_aliquota_efetiva_simples($rbt12),
-            'meses'      => $meses,
+            'rbt12'       => $rbt12,
+            'faixa'       => custos_faixa_simples($rbt12),
+            'efetiva'     => custos_aliquota_efetiva_simples($rbt12),
+            'proximidade' => custos_proximidade_faixa_simples($rbt12),
+            'meses'       => $meses,
             // Com menos de 12 meses de atividade o RBT12 acima ja saiu
             // anualizado — a tela precisa avisar, senao o numero parece
             // maior do que a venda real do periodo.
-            'anualizado' => $meses < 12,
+            'anualizado'  => $meses < 12,
         ];
     }
     $loja   = loja_resumo();

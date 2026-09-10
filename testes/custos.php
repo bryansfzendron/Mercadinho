@@ -371,6 +371,25 @@ $comImposto = custos_resultado($por_forma, $receita * 0.55, 30, $p, 6.0);
 quase('imposto do periodo = receita x aliquota', $comImposto['imposto'], $receita * 0.06);
 quase('lucro cai exatamente o imposto', $comImposto['lucro'], $res['lucro'] - $receita * 0.06);
 
+// ------------------------------------------- proximidade da proxima faixa
+$prox1 = custos_proximidade_faixa_simples(100000.0);
+quase('falta pro teto da faixa 1', $prox1['falta'], 80000.0);
+quase('percentual do teto', $prox1['pct'], 100000 / 180000 * 100, 0.01);
+checar('nao e a ultima faixa', $prox1['ultima_faixa'], false);
+quase('proxima aliquota e a da faixa 2', (float) $prox1['proxima_aliquota'], 7.30);
+
+$noTeto = custos_proximidade_faixa_simples(180000.0);
+quase('no teto exato, falta zero', $noTeto['falta'], 0.0);
+quase('no teto exato, 100% da faixa', $noTeto['pct'], 100.0);
+
+$ultima = custos_proximidade_faixa_simples(4800000.0);
+checar('teto do Simples e a ultima faixa', $ultima['ultima_faixa'], true);
+checar('ultima faixa nao tem proxima aliquota', $ultima['proxima_aliquota'], null);
+
+$acimaDoTeto = custos_proximidade_faixa_simples(9000000.0);
+quase('acima do teto do Simples, falta nao fica negativa', $acimaDoTeto['falta'], 0.0);
+quase('acima do teto do Simples, percentual nao passa de 100', $acimaDoTeto['pct'], 100.0);
+
 // ------------------------------------------- inicio de atividade (RBT12)
 checar('data em que assumiu a loja', custos_inicio_atividade(), '2026-09-01');
 
