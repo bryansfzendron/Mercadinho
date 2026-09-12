@@ -86,6 +86,7 @@ $vale_filtrar = count($nota['itens']) >= 8;
 
 <ul class="lista" id="lista-itens">
     <?php foreach ($nota['itens'] as $i): $iid = (int) $i['id']; ?>
+        <?php $barras = codigo_barras_svg($i['produto_ean'] ?? null); ?>
         <li id="item-<?= $iid ?>" data-busca="<?= e($chave_busca($i)) ?>">
             <a href="<?= $i['produto_id'] ? '/produtos/' . (int) $i['produto_id'] : '#' ?>">
                 <div class="linha-topo">
@@ -105,10 +106,17 @@ $vale_filtrar = count($nota['itens']) >= 8;
                             · desconto <?= moeda($i['desconto']) ?>
                         <?php endif; ?>
                     </span>
-                    <span class="mono">
-                        <?= $i['produto_ean'] ? e($i['produto_ean']) : 'sem GTIN' ?>
-                    </span>
+                    <?php // Com o simbolo desenhado embaixo, repetir o numero aqui so
+                          // faria barulho: o proprio codigo de barras ja o escreve. ?>
+                    <?php if (!$barras): ?>
+                        <span class="mono">
+                            <?= $i['produto_ean'] ? e($i['produto_ean']) : 'sem GTIN' ?>
+                        </span>
+                    <?php endif; ?>
                 </div>
+                <?php if ($barras): ?>
+                    <div class="barras"><?= $barras ?></div>
+                <?php endif; ?>
             </a>
 
             <details class="item-editor">

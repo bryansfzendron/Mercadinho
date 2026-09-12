@@ -145,6 +145,233 @@ function ean_normalizado($v): ?string
     return $d;
 }
 
+/**
+ * Confere o digito verificador de um GTIN-8/12/13/14 (modulo 10, pesos 3 e 1).
+ */
+function gtin_valido(string $d): bool
+{
+    $n = strlen($d);
+    if (!in_array($n, [8, 12, 13, 14], true) || !ctype_digit($d)) {
+        return false;
+    }
+    $soma = 0;
+    $peso = 3;
+    for ($i = $n - 2; $i >= 0; $i--) {
+        $soma += (int) $d[$i] * $peso;
+        $peso  = $peso === 3 ? 1 : 3;
+    }
+    return ((10 - $soma % 10) % 10) === (int) $d[$n - 1];
+}
+
+/**
+ * Tabelas de modulos do EAN/UPC: L (esquerda impar), G (esquerda par) e R
+ * (direita), onde '1' e barra e '0' e espaco. P e o truque do EAN-13: o
+ * primeiro digito nao vira barra nenhuma, ele escolhe o padrao L/G dos seis
+ * digitos da esquerda.
+ */
+function barras_tabelas(): array
+{
+    static $t = null;
+    if ($t === null) {
+        $l = ['0001101','0011001','0010011','0111101','0100011',
+              '0110001','0101111','0111011','0110111','0001011'];
+        $t = [
+            'L' => $l,
+            'G' => ['0100111','0110011','0011011','0100001','0011101',
+                    '0111001','0000101','0010001','0001001','0010111'],
+            'R' => array_map(static fn(string $c): string => strtr($c, '01', '10'), $l),
+            'P' => ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG',
+                    'LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'],
+        ];
+    }
+    return $t;
+}
+
+/**
+ * Desenha o GTIN como codigo de barras de verdade, em SVG inline.
+ *
+ * Preto no branco nos dois temas: leitor de codigo vive desse contraste, entao
+ * o simbolo nao acompanha o modo escuro do resto da tela. Sai com viewBox e sem
+ * largura fixa — quem chama escolhe o tamanho pelo CSS e a proporcao segue.
+ *
+ * Entende EAN-13, UPC-A (12 digitos: e um EAN-13 com zero na frente), EAN-8 e
+ * GTIN-14 (ITF-14). Devolve null quando o numero nao vira simbolo.
+ */
+function codigo_barras_svg($valor): ?string
+{
+    $d = ean_normalizado($valor);
+    if ($d === null) {
+        return null;
+    }
+    if (strlen($d) === 12) {
+        $d = '0' . $d;
+    }
+    // GTIN-14 comecando em zero e um EAN-13 embalado em caixa. Vale desenhar o
+    // EAN-13, que e o que esta impresso na unidade que vai pra prateleira.
+    if (strlen($d) === 14 && $d[0] === '0') {
+        $d = substr($d, 1);
+    }
+
+    $n = strlen($d);
+    if ($n === 13 || $n === 8) {
+        return barras_ean_svg($d);
+    }
+    if ($n === 14) {
+        return barras_itf_svg($d);
+    }
+    return null;
+}
+
+/** Fita de modulos -> retangulos pretos. $guia marca as barras que descem mais. */
+function barras_retangulos(string $fita, string $guia, float $x0, float $y, float $h, float $hg): string
+{
+    $svg = '';
+    $n   = strlen($fita);
+    for ($i = 0; $i < $n; $i++) {
+        if ($fita[$i] === '0') {
+            continue;
+        }
+        $j = $i;
+        while ($j < $n && $fita[$j] === '1') {
+            $j++;
+        }
+        $altura = $guia[$i] === '1' ? $hg : $h;
+        $svg .= '<rect x="' . ($x0 + $i) . '" y="' . $y . '" width="' . ($j - $i)
+              . '" height="' . $altura . '"/>';
+        $i = $j - 1;
+    }
+    return $svg;
+}
+
+/**
+ * Casca comum dos simbolos: fundo branco, tinta preta e rotulo pra leitor de tela.
+ *
+ * $escala e quantos pixels vale um modulo (a barra mais fina). E o que decide se
+ * o simbolo e legivel: abaixo de ~0,3mm por modulo nenhum leitor acerta. O CSS
+ * so encolhe isso quando a tela e estreita demais pra largura pedida.
+ */
+function barras_moldura(float $largura, float $altura, float $escala, string $numero, string $conteudo): string
+{
+    $rotulo = 'Código de barras ' . $numero
+            . (gtin_valido($numero) ? '' : ' (dígito verificador não confere)');
+
+    return '<svg class="codigo-barras" viewBox="0 0 ' . $largura . ' ' . $altura . '"'
+         . ' width="' . round($largura * $escala) . '" height="' . round($altura * $escala) . '"'
+         . ' role="img" aria-label="' . e($rotulo) . '">'
+         . '<title>' . e($rotulo) . '</title>'
+         . '<rect width="' . $largura . '" height="' . $altura . '" rx="2" fill="#fff"/>'
+         . '<g fill="#000">' . $conteudo . '</g></svg>';
+}
+
+/** EAN-13 / EAN-8 (o UPC-A ja chegou aqui virado em EAN-13). */
+function barras_ean_svg(string $d): string
+{
+    $t     = barras_tabelas();
+    $treze = strlen($d) === 13;
+    $meio  = $treze ? 6 : 4;
+
+    $fita = '';
+    $guia = '';
+    $por  = static function (string $bits, bool $eh_guia) use (&$fita, &$guia): void {
+        $fita .= $bits;
+        $guia .= str_repeat($eh_guia ? '1' : '0', strlen($bits));
+    };
+
+    $esq = $treze ? substr($d, 1, 6) : substr($d, 0, 4);
+    $dir = substr($d, -$meio);
+    $par = $treze ? $t['P'][(int) $d[0]] : 'LLLL';
+
+    $por('101', true);                                  // guia de inicio
+    for ($k = 0; $k < $meio; $k++) {
+        $por($t[$par[$k]][(int) $esq[$k]], false);
+    }
+    $por('01010', true);                                // guia do meio
+    for ($k = 0; $k < $meio; $k++) {
+        $por($t['R'][(int) $dir[$k]], false);
+    }
+    $por('101', true);                                  // guia de fim
+
+    // Zona de silencio: sem essa margem branca o leitor nao acha o comeco do
+    // simbolo. No EAN-13 a da esquerda e maior porque abriga o primeiro digito.
+    $margem  = $treze ? 11 : 7;
+    $largura = $margem + strlen($fita) + 7;
+
+    $topo = 2;
+    $h    = 38;
+    $hg   = 42;                                         // a guia desce e separa os numeros
+    $base = 52;
+    $alt  = 55;
+
+    $fonte = ' font-family="ui-monospace,Menlo,monospace" font-size="9" text-anchor="middle"';
+    $txt   = $treze ? '<text x="5" y="' . $base . '"' . $fonte . '>' . $d[0] . '</text>' : '';
+
+    $x_esq = $margem + 3;
+    $x_dir = $margem + 3 + $meio * 7 + 5;
+    for ($k = 0; $k < $meio; $k++) {
+        $txt .= '<text x="' . ($x_esq + $k * 7 + 3.5) . '" y="' . $base . '"' . $fonte . '>'
+              . $esq[$k] . '</text>'
+              . '<text x="' . ($x_dir + $k * 7 + 3.5) . '" y="' . $base . '"' . $fonte . '>'
+              . $dir[$k] . '</text>';
+    }
+
+    // 1,25px por modulo poe o simbolo perto do tamanho impresso de verdade
+    // (um EAN-13 tem 37mm de largura, e 1 modulo e 0,33mm).
+    return barras_moldura(
+        $largura,
+        $alt,
+        1.25,
+        $d,
+        barras_retangulos($fita, $guia, $margem, $topo, $h, $hg) . $txt
+    );
+}
+
+/**
+ * ITF-14: o codigo da caixa fechada. Sao pares de digitos intercalados — o
+ * primeiro do par vira barra, o segundo vira o espaco logo depois dela — e a
+ * moldura preta em volta e exigida pelo padrao, nao e enfeite.
+ */
+function barras_itf_svg(string $d): string
+{
+    static $p = ['nnwwn','wnnnw','nwnnw','wwnnn','nnwnw',
+                 'wnwnn','nwwnn','nnnww','wnnwn','nwnwn'];
+
+    $fita = '1010';                                     // inicio, tudo estreito
+    for ($i = 0; $i < 14; $i += 2) {
+        $barra  = $p[(int) $d[$i]];
+        $espaco = $p[(int) $d[$i + 1]];
+        for ($k = 0; $k < 5; $k++) {
+            $fita .= str_repeat('1', $barra[$k]  === 'w' ? 3 : 1);
+            $fita .= str_repeat('0', $espaco[$k] === 'w' ? 3 : 1);
+        }
+    }
+    $fita .= '11101';                                   // fim: larga, estreito, estreita
+
+    $borda   = 4;
+    $margem  = 10;
+    $x0      = $borda + $margem;
+    $largura = $x0 + strlen($fita) + $margem + $borda;
+    $h       = 24;
+    $base    = $borda * 2 + $h + 9;
+    $alt     = $base + 3;
+
+    $moldura = '<rect x="2" y="2" width="' . ($largura - 4) . '" height="' . ($borda + $h)
+             . '" fill="none" stroke="#000" stroke-width="' . $borda . '"/>';
+
+    $txt = '<text x="' . ($largura / 2) . '" y="' . $base . '"'
+         . ' font-family="ui-monospace,Menlo,monospace" font-size="9"'
+         . ' letter-spacing="1.5" text-anchor="middle">' . $d . '</text>';
+
+    // O ITF-14 pede modulo mais gordo que o EAN pra ser lido, e ele ja tem quase
+    // 50% mais modulos: por isso sai bem mais largo na tela.
+    return barras_moldura(
+        $largura,
+        $alt,
+        2.0,
+        $d,
+        $moldura . barras_retangulos($fita, str_repeat('0', strlen($fita)), $x0, $borda, $h, $h) . $txt
+    );
+}
+
 /** Extrai a chave de acesso (44 digitos) de uma URL de QR Code de NFC-e. */
 function chave_do_qrcode(string $qr): ?string
 {

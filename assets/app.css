@@ -715,6 +715,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 /* Filtro dos itens: sem botao, porque filtra a cada tecla. O contador logo
    abaixo e o retorno de que a busca pegou alguma coisa. */
 .busca-itens { margin-bottom: .3rem; }
+
+/* Codigo de barras de verdade na linha do item. Fica perto do tamanho nominal
+   (um EAN-13 tem 37mm, ~140px de tela) porque leitor de codigo tem limite de
+   quanto consegue encolher; e o simbolo nao vira dark mode junto com o resto,
+   o preto-no-branco e o que faz a leitura funcionar. */
+.barras { margin-top: .45rem; }
+.codigo-barras { display: block; max-width: 100%; height: auto; }
 #busca-conta { margin: 0 0 .6rem .2rem; }
 
 .form-item { padding: 0 .85rem .9rem; }
