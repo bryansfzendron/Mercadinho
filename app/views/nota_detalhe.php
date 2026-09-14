@@ -187,7 +187,7 @@ $vale_filtrar = count($nota['itens']) >= 8;
 </ul>
 
 <?php if ($nota['itens']): ?>
-<script src="/assets/scanner.js?v=1"></script>
+<script src="/assets/scanner.js?v=3"></script>
 <script>
 (function () {
     // Uma caixa de camera so para a pagina inteira: ela e movida para dentro do
@@ -229,17 +229,42 @@ $vale_filtrar = count($nota['itens']) >= 8;
         return camera;
     }
 
-    function fecharCamera() {
-        if (leitor) { leitor.parar(); leitor = null; }
+    /*
+     * Fecha a caixa da camera. Por padrao **guarda** a camera para o proximo
+     * item: bipar uma nota de 100 itens chamava getUserMedia 100 vezes, e no
+     * iPhone cada chamada dessas pode virar um pedido de permissao novo.
+     *
+     * A contrapartida de guardar e o LED continuar aceso enquanto o usuario
+     * digita, entao quem guarda marca a hora: passado OCIOSO_MS sem ninguem
+     * pedir a camera de volta, ela e solta de verdade. Sair da pagina ou
+     * esconder a aba solta na hora (ver mais abaixo).
+     */
+    const OCIOSO_MS = 45000;
+    let ocioso = null;
+
+    function fecharCamera(opcoes) {
+        const guardar = opcoes && opcoes.guardar;
+        if (leitor) { leitor.parar({ liberar: !guardar }); leitor = null; }
         if (camera) { camera.classList.remove('ligada'); camera.remove(); }
         alvo = null;
+
+        clearTimeout(ocioso);
+        if (guardar) {
+            ocioso = setTimeout(() => Scanner.liberar(), OCIOSO_MS);
+        }
     }
 
     async function ligarCamera(form) {
         const campo = form.querySelector('.campo-ean');
+        // Tocar de novo no mesmo item e desligar de proposito: ai solta mesmo,
+        // senao "desliguei" e o LED continua aceso por mais 45 segundos.
         if (alvo === campo) { fecharCamera(); return; }
 
-        fecharCamera();
+        fecharCamera({ guardar: true });
+        // Depois do fecharCamera(): e ele que arma o timer de ocioso, e aqui a
+        // camera vai ser reaberta agora mesmo. Sem esta linha, o timer armado
+        // ali em cima soltaria a camera 45s depois, com ela em uso.
+        clearTimeout(ocioso);
         alvo = campo;
         const cx = caixaCamera();
         campo.closest('.duas').after(cx);
@@ -248,7 +273,8 @@ $vale_filtrar = count($nota['itens']) >= 8;
             leitor = await Scanner.iniciar(cx.querySelector('video'), Scanner.BARRAS, (codigo) => {
                 campo.value = codigo;
                 if (navigator.vibrate) navigator.vibrate(60);
-                fecharCamera();
+                // Leu um item e provavelmente vai ler o proximo: guarda.
+                fecharCamera({ guardar: true });
             });
             cx.classList.add('ligada');
         } catch (e) {
@@ -283,6 +309,16 @@ $vale_filtrar = count($nota['itens']) >= 8;
     // Fechar o editor solta a camera junto: sem isso o LED fica aceso.
     document.querySelectorAll('.item-editor').forEach((d) => {
         d.addEventListener('toggle', () => { if (!d.open && d.contains(camera)) fecharCamera(); });
+    });
+
+    // Guardar a camera entre os itens so vale enquanto a pagina esta na frente
+    // do usuario. Saindo dela, ou trocando de app, ela e solta na hora — o
+    // mesmo principio das outras telas: trocar de aba nao pode manter a camera
+    // ligada consumindo bateria. pagehide cobre tambem o Safari, que congela a
+    // pagina em vez de descarregar quando o "voltar" ainda pode traze-la.
+    window.addEventListener('pagehide', () => { clearTimeout(ocioso); fecharCamera(); });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) { clearTimeout(ocioso); fecharCamera(); }
     });
 
     // Remover item pede confirmacao nomeando o item.

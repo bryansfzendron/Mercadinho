@@ -10,11 +10,21 @@
  * permissao varias vezes — no iOS cada getUserMedia novo pode virar um novo
  * pedido. Quem realmente encerra a camera e parar({ liberar: true }).
  *
+ * **O ZXing recebe uma copia do stream, nunca o nosso.** O reset() dele para
+ * as tracks do stream que recebeu, por conta propria — entao, entregando o
+ * stream original, o cache acima morria no primeiro parar() e a promessa do
+ * paragrafo anterior valia so no Android (onde o caminho e a BarcodeDetector).
+ * No iPhone, que sempre cai no ZXing, cada leitura virava um pedido novo.
+ * stream.clone() faz tracks independentes da *mesma* camera: o ZXing para as
+ * dele, o original segue vivo, e a camera so fecha quando o ultimo morre.
+ *
  * Uso:
  *   const leitor = await Scanner.iniciar(video, Scanner.QR, texto => {...});
  *   leitor.pausar(); leitor.retomar();
  *   leitor.lanterna(true);
  *   leitor.parar();                    // solta a camera
+ *   leitor.parar({ liberar: false });  // guarda a camera para a proxima
+ *   Scanner.liberar();                 // solta de fora (pagehide, ocioso)
  */
 (function (global) {
     'use strict';
@@ -194,6 +204,12 @@
         // Abrimos o stream aqui em vez de deixar o ZXing abrir: assim o modulo
         // continua dono da camera (lanterna, reaproveitamento, liberacao).
         const stream = await pegarStream();
+        // E entregamos uma COPIA: o reset() do ZXing para as tracks do que
+        // recebe, e com o original ele levava junto o cache do modulo — era
+        // isso que fazia o iPhone pedir permissao a cada leitura. A copia
+        // aponta pra mesma camera, entao o que o ZXing encerra e so a ponta
+        // dele; a lanterna e a liberacao continuam falando com o original.
+        const copia = stream.clone();
         const leitor = new global.ZXing.BrowserMultiFormatReader();
         const estado = { pausado: false };
         const aoDecodificar = (resultado) => {
@@ -203,13 +219,19 @@
         };
 
         if (typeof leitor.decodeFromStream === 'function') {
-            await leitor.decodeFromStream(stream, video, aoDecodificar);
+            await leitor.decodeFromStream(copia, video, aoDecodificar);
         } else {
+            // Caminho de ZXing muito antigo: ele abre a propria camera e o
+            // modulo perde o controle dela. Nao da pra reaproveitar nada aqui,
+            // entao pelo menos a copia sem uso nao fica segurando a camera.
+            copia.getTracks().forEach(t => t.stop());
             await leitor.decodeFromConstraints(RESTRICOES, video, aoDecodificar);
         }
 
         return montarControle(video, () => {
+            // Leva as tracks da copia, nao as do stream do modulo.
             try { leitor.reset(); } catch (e) { /* ok */ }
+            copia.getTracks().forEach(t => t.stop());
         }, estado);
     }
 
@@ -260,11 +282,35 @@
         }
     }
 
+    function ehIOS() {
+        const ua = navigator.userAgent;
+        return /iPad|iPhone|iPod/.test(ua)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
+    function ehStandalone() {
+        if (navigator.standalone === true) {
+            return true;
+        }
+        return !!(global.matchMedia && global.matchMedia('(display-mode: standalone)').matches);
+    }
+
     /** Dica de onde reabrir a permissao, por navegador. */
     function comoLiberar() {
-        const ua = navigator.userAgent;
-        const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        if (ios) {
+        // Aberto pela tela de inicio nao existe barra de endereco, nem o aA,
+        // nem "Configuracoes do Site": mandar o usuario ate la era mandar pra
+        // um botao que nao esta na tela dele. O que vale nesse modo e outro
+        // fato — a permissao dura enquanto o app continuar aberto.
+        if (ehStandalone()) {
+            return ehIOS()
+                ? 'Aberto pela tela de início, o iPhone pergunta uma vez a cada vez que o app ' +
+                  'é aberto — e não guarda a resposta. Deixando o app em segundo plano, em vez ' +
+                  'de fechá-lo no seletor de apps, ele não pergunta de novo. Se você recusou ' +
+                  'sem querer, feche o app e abra outra vez para a pergunta voltar.'
+                : 'Toque em <strong>Ligar câmera</strong> de novo para o app pedir a permissão. ' +
+                  'Se você recusou antes, libere a câmera nas configurações do app.';
+        }
+        if (ehIOS()) {
             return 'No iPhone: toque em <strong>aA</strong> na barra de endereço → ' +
                 '<strong>Configurações do Site</strong> → <strong>Câmera</strong> → <strong>Permitir</strong>. ' +
                 'Assim o Safari para de perguntar a cada visita.';
@@ -273,5 +319,15 @@
             '<strong>Permissões</strong> → <strong>Câmera</strong> → <strong>Permitir</strong>.';
     }
 
-    global.Scanner = { iniciar, permissao, comoLiberar, QR, BARRAS };
+    global.Scanner = {
+        iniciar, permissao, comoLiberar, ehStandalone, QR, BARRAS,
+        /**
+         * Solta a camera de fora do leitor.
+         *
+         * Existe por causa do parar({ liberar: false }): quem guarda o stream
+         * pra proxima leitura fica devendo o momento de largar de vez — sair
+         * da pagina, esconder a aba, ou simplesmente ficar um tempo sem usar.
+         */
+        liberar: liberarStream,
+    };
 })(window);

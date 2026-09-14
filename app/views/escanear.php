@@ -32,7 +32,7 @@
 
 <p class="centro"><a href="/manual">Nota sem QR Code? Lançar manualmente</a></p>
 
-<script src="/assets/scanner.js?v=2"></script>
+<script src="/assets/scanner.js?v=3"></script>
 <script>
 (function () {
     const CSRF    = <?= json_encode(csrf_token()) ?>;
@@ -55,6 +55,29 @@
         estado.innerHTML = texto;
     }
 
+    /*
+     * O iPhone nao sabe responder navigator.permissions.query({name:'camera'})
+     * — o Scanner devolve 'desconhecido'. Tratar isso como "ja tenho
+     * permissao" fazia a tela chamar getUserMedia no carregamento, sem toque
+     * nenhum: abrir esta tela so pra digitar o codigo na mao ja fazia o
+     * aparelho perguntar.
+     *
+     * sessionStorage e o recorte certo pra isso: ele some quando o app e
+     * fechado e sobrevive a navegar entre as telas — exatamente a janela em
+     * que o iOS lembra a permissao que ja foi dada. Entao a camera so abre
+     * sozinha se ela ja abriu uma vez nesta sessao; ai reabrir nao pergunta
+     * nada. Na primeira vez, quem manda abrir e o dedo.
+     */
+    const SESSAO = 'mercadinho:camera-sessao';
+
+    function jaAbriuNestaSessao() {
+        try { return sessionStorage.getItem(SESSAO) === '1'; } catch (e) { return false; }
+    }
+
+    function marcarSessao() {
+        try { sessionStorage.setItem(SESSAO, '1'); } catch (e) { /* modo privado */ }
+    }
+
     function lembrar(ligada) {
         try { localStorage.setItem(AUTO, ligada ? '1' : '0'); } catch (e) { /* modo privado */ }
     }
@@ -74,6 +97,7 @@
             dica.textContent = 'Procurando o QR Code...';
             btnLuz.hidden = !leitor.lanternaDisponivel();
             lembrar(true);
+            marcarSessao();
         } catch (e) {
             leitor = null;
             dica.textContent = '';
@@ -228,8 +252,10 @@
         if (document.hidden) { leitor.pausar(); } else if (!enviando) { leitor.retomar(); }
     });
 
-    // Abre sozinha quando a permissao ja esta dada: e o caso comum depois da
-    // primeira vez. So nao insiste se o usuario desligou de proposito.
+    // Abre sozinha quando a permissao ja esta dada — ou quando a camera ja
+    // abriu nesta sessao do app, que e como o Safari (que nao responde a
+    // consulta) entra nessa conta. So nao insiste se o usuario desligou de
+    // proposito.
     (async function abrirSozinha() {
         if (!querAutomatico()) return;
         const estadoPerm = await Scanner.permissao();
@@ -238,9 +264,13 @@
             msg(Scanner.comoLiberar(), 'erro');
             return;
         }
-        if (estadoPerm === 'granted' || estadoPerm === 'desconhecido') {
+        if (estadoPerm === 'granted' || jaAbriuNestaSessao()) {
             ligar(true);
+            return;
         }
+        // Safari na primeira camera da sessao: nao chama getUserMedia sozinho.
+        // Um toque a mais aqui evita a pergunta aparecendo em toda tela.
+        espera.textContent = 'Toque em "Ligar câmera"';
     })();
 })();
 </script>

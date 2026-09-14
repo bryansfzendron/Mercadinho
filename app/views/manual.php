@@ -57,7 +57,7 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
     <button type="submit" class="botao botao-grande">Salvar nota</button>
 </form>
 
-<script src="/assets/scanner.js?v=1"></script>
+<script src="/assets/scanner.js?v=3"></script>
 <script>
 (function () {
     const itens   = document.getElementById('itens');
@@ -115,23 +115,50 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
         previa.textContent = 'Total: R$ ' + t.toFixed(2).replace('.', ',');
     }
 
+    /*
+     * Uma nota manual tem varias linhas de item, e cada uma tem o seu "bipar".
+     * Soltando a camera a cada leitura, bipar cinco itens virava cinco
+     * getUserMedia — e no iPhone cada um desses pode virar um pedido de
+     * permissao novo. Aqui a camera fica guardada para a proxima linha; o
+     * preco disso e o LED seguir aceso enquanto se digita, entao um ocioso
+     * solta de verdade quando ninguem volta a usar.
+     */
+    const OCIOSO_MS = 45000;
+    let ocioso = null;
+
+    function fecharCamera(opcoes) {
+        const guardar = opcoes && opcoes.guardar;
+        if (leitor) { leitor.parar({ liberar: !guardar }); leitor = null; }
+        caixa.classList.add('oculto');
+        clearTimeout(ocioso);
+        if (guardar) {
+            ocioso = setTimeout(() => Scanner.liberar(), OCIOSO_MS);
+        }
+    }
+
     async function ligarCamera(campo) {
         alvoEan = campo;
         caixa.classList.remove('oculto');
+        clearTimeout(ocioso);
         if (leitor) return;
         try {
             leitor = await Scanner.iniciar(video, Scanner.BARRAS, (codigo) => {
                 if (alvoEan) alvoEan.value = codigo;
                 if (navigator.vibrate) navigator.vibrate(60);
-                leitor.parar();
-                leitor = null;
-                caixa.classList.add('oculto');
+                fecharCamera({ guardar: true });
             });
         } catch (e) {
-            caixa.classList.add('oculto');
+            fecharCamera();
             alert(e.message || 'Não consegui abrir a câmera.');
         }
     }
+
+    // Sair da pagina ou trocar de app solta a camera na hora: guardar so vale
+    // enquanto a tela esta na frente de quem esta bipando.
+    window.addEventListener('pagehide', () => { clearTimeout(ocioso); fecharCamera(); });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) { clearTimeout(ocioso); fecharCamera(); }
+    });
 
     document.getElementById('add').addEventListener('click', () => novaLinha(''));
 

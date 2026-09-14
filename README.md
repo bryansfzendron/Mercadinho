@@ -665,6 +665,45 @@ No CSS, duas coisas andam junto com isso:
 O espaçamento entre letras também deixou de ser um valor só: texto grande aperta (`-.021em`
 no `h1`), texto miúdo abre. Um `letter-spacing` fixo está errado em algum tamanho.
 
+## A câmera pedindo permissão toda hora
+
+Era uma queixa real, e tinha quatro causas — uma delas um bug que anulava a defesa
+principal do `assets/scanner.js`.
+
+**O cache de stream não funcionava justo no iPhone.** O módulo abre a câmera uma vez e
+guarda o stream, para `getUserMedia` não ser chamado de novo (no iOS, cada chamada nova
+pode virar um pedido de permissão novo). Só que o leitor de reserva, o ZXing, **para as
+tracks do stream que recebe** quando faz `reset()` — então entregar o stream do módulo a
+ele matava o cache no primeiro `parar()`. E o iPhone sempre cai no ZXing, porque
+`BarcodeDetector` só existe no Android/Chrome. Medido antes do conserto: a track ia de
+`live` para `ended` e o `iniciar()` seguinte chamava `getUserMedia` de novo. A correção é
+entregar `stream.clone()`: tracks independentes da *mesma* câmera, o ZXing encerra as dele
+e o original segue vivo — a câmera só fecha quando a última morre.
+
+**A tela abria a câmera sozinha, sem ninguém tocar em nada.** `abrirSozinha()` tratava
+`'desconhecido'` como `'granted'`, e `'desconhecido'` é o que o Safari sempre devolve (ele
+não implementa `permissions.query({name:'camera'})`). Resultado: abrir `/bipar` só para
+digitar um código na mão já fazia o aparelho perguntar. Agora o automático depende de
+`sessionStorage` — que some quando o app é fechado e sobrevive a navegar entre as telas,
+que é exatamente a janela em que o iOS lembra a permissão já dada. Na primeira câmera da
+sessão quem manda abrir é o dedo; da segunda em diante abre sozinha sem perguntar nada.
+
+**Bipar uma nota soltava a câmera a cada item.** `nota_detalhe.php` e `manual.php` chamavam
+`parar()` (que libera) depois de cada leitura — 100 itens, 100 `getUserMedia`. Passaram a
+usar `parar({ liberar: false })` entre os itens. O preço é o LED ficar aceso enquanto se
+digita, então quem guarda marca a hora: 45s sem ninguém pedir a câmera de volta e ela é
+solta de verdade, além de `pagehide` e troca de app, que soltam na hora.
+
+**E a instrução que o app dava era impossível de seguir.** `comoLiberar()` mandava tocar no
+`aA` da barra de endereço — mas o app roda aberto pela tela de início, onde não há barra de
+endereço, nem `aA`, nem "Configurações do Site". Agora ele detecta o modo instalado e conta
+o que de fato vale ali: o iPhone **não guarda** essa permissão entre aberturas do app, então
+deixá-lo em segundo plano (em vez de fechar no seletor de apps) é o que evita a pergunta.
+
+Essa última parte é da Apple, não do app: em web app instalado a permissão de câmera não
+persiste entre aberturas. O piso é uma pergunta por abertura — eram as três causas acima que
+transformavam isso em "toda hora".
+
 ## O plano diário da meta
 
 A aba Metas mostra, dia a dia, duas colunas que respondem perguntas diferentes:
