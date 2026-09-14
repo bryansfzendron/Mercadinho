@@ -559,10 +559,23 @@ function url(string $caminho = '/'): string
  */
 function abas(array $abas, string $atual): string
 {
+    // A pilula da aba ativa ganha nome de transicao de view: trocando de aba,
+    // o navegador ve a mesma pilula nas duas paginas e a faz *deslizar* ate a
+    // nova posicao, em vez de apagar aqui e acender la.
+    //
+    // O nome precisa ser unico na pagina, e ha telas com dois grupos de abas
+    // (loja + vendas, em /vendas). Numerar por grupo faz o grupo de cima casar
+    // com o grupo de cima da proxima tela, e o de baixo com o de baixo — que e
+    // o unico pareamento que descreve o que de fato se move.
+    static $grupo = 0;
+    $grupo++;
+
     $html = '<nav class="abas">';
     foreach ($abas as $href => $rotulo) {
-        $html .= '<a class="aba' . ($href === $atual ? ' ativo' : '') . '" href="' . e($href) . '">'
-               . e($rotulo) . '</a>';
+        $eAtual = $href === $atual;
+        $html .= '<a class="aba' . ($eAtual ? ' ativo' : '') . '"'
+               . ($eAtual ? ' style="--nome-aba:aba-ativa-' . $grupo . '"' : '')
+               . ' href="' . e($href) . '">' . e($rotulo) . '</a>';
     }
     return $html . '</nav>';
 }

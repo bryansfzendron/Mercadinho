@@ -81,8 +81,8 @@ async function puxar(pag, pixels, passos = 6) {
             await pag.evaluate('window.PuxarAtualizar.ehStandalone()'));
         checar('standalone: indicador foi criado', await pag.locator('.puxar').count() === 1);
 
-        // O gatilho e em pixels ja com a resistencia de 50%, entao o dedo
-        // precisa andar o dobro.
+        // O gatilho e em pixels ja com a resistencia de 50% (ela so vira borracha
+        // depois do gatilho), entao o dedo precisa andar o dobro.
         await puxar(pag, 200);
         checar('standalone: puxao longo recarrega',
             (await pag.evaluate('window.__recarregou')) === 1);
@@ -96,8 +96,17 @@ async function puxar(pag, pixels, passos = 6) {
         const { ctx, pag } = await abrir(navegador, { standalone: true });
         await puxar(pag, 40);
         checar('puxao curto nao recarrega', (await pag.evaluate('window.__recarregou')) === 0);
-        checar('indicador volta ao repouso',
-            (await pag.locator('.puxar').evaluate((el) => el.style.transform)) === '');
+        // A volta agora e uma mola, nao um corte: ela leva uns 0,5s pra assentar
+        // e so entao devolve o transform ao CSS. Esperar o estado final em vez
+        // de um prazo fixo — o prazo exato e detalhe da mola, nao do gesto.
+        const voltou = await pag.locator('.puxar')
+            .evaluate((el) => new Promise((ok) => {
+                const t = setInterval(() => {
+                    if (el.style.transform === '') { clearInterval(t); ok(true); }
+                }, 50);
+                setTimeout(() => { clearInterval(t); ok(false); }, 2000);
+            }));
+        checar('indicador volta ao repouso', voltou);
         await ctx.close();
     }
 

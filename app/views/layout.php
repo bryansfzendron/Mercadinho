@@ -16,7 +16,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=36">
+<link rel="stylesheet" href="/assets/app.css?v=37">
 </head>
 <body>
 
@@ -87,6 +87,10 @@ $flashes = flash_pegar();
 <?php endif; ?>
 
 <script src="/assets/sem-teclado.js?v=2" defer></script>
-<script src="/assets/puxar-atualizar.js?v=1" defer></script>
+<?php // movimento.js vem antes do puxar-atualizar.js de proposito: o puxao usa
+      // a mola dele pra recolher o indicador. Com defer, a ordem de execucao e
+      // a ordem em que estao aqui. ?>
+<script src="/assets/movimento.js?v=1" defer></script>
+<script src="/assets/puxar-atualizar.js?v=2" defer></script>
 </body>
 </html>

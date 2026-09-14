@@ -9,14 +9,38 @@
  * Regras que evitam brigar com a rolagem normal:
  *  - so age quando a pagina ja esta no topo;
  *  - so age em movimento para baixo, com um dedo so;
- *  - enquanto arrasta, aplica resistencia (metade do dedo) e um teto.
+ *  - enquanto arrasta, resiste cada vez mais em vez de parar de repente.
  */
 (function (global) {
     'use strict';
 
     const GATILHO = 70;     // px arrastados para valer o recarregamento
-    const TETO = 130;       // px, o quanto o indicador desce no maximo
+    const TETO = 130;       // px, o limite de que a borracha se aproxima
     const RESISTENCIA = 0.5;
+    const ELASTICO = 0.55;  // quanto a borracha cede depois do gatilho
+
+    /*
+     * Quanto o indicador desce, para um dedo que andou `bruto` pixels.
+     *
+     * Ate o gatilho e o de sempre: metade do dedo, direto — e esse trecho que
+     * o usuario esta lendo pra saber se ja deu, e mexer nele mudaria o gesto
+     * que ele conhece. Depois do gatilho, o antigo travava seco em 130px, e
+     * travar de repente le como app congelado.
+     *
+     * Dali em diante entra a borracha: cada pixel a mais rende menos que o
+     * anterior, e o valor se *aproxima* do teto sem nunca encostar. E a mesma
+     * conta da borracha de rolagem do iOS, e ela diz a verdade — "estou
+     * respondendo, mas nao tem mais nada por aqui".
+     */
+    function borracha(bruto) {
+        const direto = bruto * RESISTENCIA;
+        if (direto <= GATILHO) {
+            return direto;
+        }
+        const excesso = direto - GATILHO;
+        const folga = TETO - GATILHO;
+        return GATILHO + (excesso * folga * ELASTICO) / (folga + ELASTICO * excesso);
+    }
 
     function ehStandalone() {
         // iOS usa navigator.standalone; o resto usa a media query.
@@ -56,10 +80,37 @@
             indicador.classList.toggle('puxar-pronto', d >= GATILHO);
         }
 
+        /*
+         * Volta pro lugar com mola, quando o puxao nao valeu.
+         *
+         * Zerar o transform e deixar o CSS voltar sozinho ja funcionava, mas a
+         * volta saia com a mesma curva sempre, sem relacao com o gesto. A mola
+         * parte da posicao em que o dedo largou e recolhe de la — e, se o dedo
+         * voltar a puxar no meio da volta, ela e trocada de alvo em vez de
+         * brigar com uma transicao pela metade.
+         */
+        let molaVolta = null;
+
         function soltar() {
-            indicador.style.transform = '';
-            indicador.style.opacity = '';
             indicador.classList.remove('puxar-pronto');
+            const Mov = global.Movimento;
+            if (!Mov || Mov.menosMovimento()) {
+                indicador.style.transform = '';
+                indicador.style.opacity = '';
+                return;
+            }
+            if (!molaVolta) {
+                molaVolta = Mov.criarMola({
+                    valor: distancia, resposta: 0.35, amortecimento: 1,
+                    aoMudar: (v) => desenhar(v),
+                });
+            } else {
+                molaVolta.fixar(distancia);
+            }
+            molaVolta.para(0, () => {
+                indicador.style.transform = '';
+                indicador.style.opacity = '';
+            });
         }
 
         document.addEventListener('touchstart', (ev) => {
@@ -70,6 +121,11 @@
             arrastando = (global.scrollY || document.documentElement.scrollTop || 0) <= 0;
             inicioY = ev.touches[0].clientY;
             distancia = 0;
+            // Pegar de novo no meio da volta: quem manda passa a ser o dedo,
+            // entao a mola para onde esta em vez de continuar puxando sozinha.
+            if (molaVolta) {
+                molaVolta.fixar(0);
+            }
         }, { passive: true });
 
         document.addEventListener('touchmove', (ev) => {
@@ -80,8 +136,8 @@
             if (bruto <= 0) {
                 // Subindo: e rolagem normal, sai da frente.
                 if (distancia > 0) {
-                    distancia = 0;
                     soltar();
+                    distancia = 0;
                 }
                 arrastando = false;
                 return;
@@ -93,7 +149,7 @@
                 return;
             }
 
-            distancia = Math.min(bruto * RESISTENCIA, TETO);
+            distancia = borracha(bruto);
             desenhar(distancia);
 
             // Sem isto o iOS faz a borracha da rolagem por cima do gesto.
@@ -114,8 +170,8 @@
                 api.recarregar();
                 return;
             }
-            distancia = 0;
             soltar();
+            distancia = 0;
         }
 
         document.addEventListener('touchend', terminar, { passive: true });

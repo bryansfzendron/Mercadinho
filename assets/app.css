@@ -31,6 +31,11 @@
     --vidro-borda: rgba(255, 255, 255, .5);
     --vidro-sombra: rgba(28, 25, 23, .14);
     --vidro-brilho: rgba(255, 255, 255, .7);
+    /* Superficie maior le como material mais grosso: o cartao ganha uma
+       sombra propria, o selo e o chip nao. Duas camadas porque uma sombra so
+       ou cola o cartao na pagina ou o faz flutuar demais — a curta assenta, a
+       longa da a altura. */
+    --sombra-cartao: 0 1px 2px rgba(28, 25, 23, .05), 0 8px 24px rgba(28, 25, 23, .05);
     /* Paleta categorica dos graficos (forma de pagamento) — validada pra
        contraste CVD em pares vizinhos, ordem fixa (skill de dataviz). Nao e
        a mesma familia do azul/ciano da marca de proposito: a marca precisa
@@ -65,6 +70,9 @@
         --vidro-borda: rgba(255, 255, 255, .1);
         --vidro-sombra: rgba(0, 0, 0, .4);
         --vidro-brilho: rgba(255, 255, 255, .07);
+        /* No escuro a sombra separa menos (preto sobre preto): quem levanta o
+           cartao e o brilho da borda, entao a sombra fica so de apoio. */
+        --sombra-cartao: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .22);
         --grafico-1: #3987e5;
         --grafico-2: #d95926;
         --grafico-3: #199e70;
@@ -91,8 +99,14 @@ body {
 a { color: var(--marca); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-h1 { font-size: 1.45rem; margin: 0 0 .6rem; }
-h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
+/* Espacamento entre letras nao e um valor so pro app inteiro: ele depende do
+   tamanho. Texto grande cresce e as letras parecem se afastar, entao aperta
+   (negativo); texto miudo precisa do contrario, um respiro a mais pra nao
+   borrar. A entrelinha anda ao contrario do tamanho pelo mesmo motivo: titulo
+   grande fecha, corpo de texto abre. Quem escolheu o corpo (1.45) ja seguia
+   isso; aqui as pontas da escala passam a seguir tambem. */
+h1 { font-size: 1.45rem; line-height: 1.18; letter-spacing: -.021em; margin: 0 0 .6rem; }
+h2 { font-size: 1.1rem; line-height: 1.25; letter-spacing: -.013em; margin: 1.4rem 0 .5rem; }
 
 /* ---------- topo e barra ---------- */
 .topo {
@@ -108,10 +122,25 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
     background: rgba(7, 28, 61, .72);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     backdrop-filter: blur(20px) saturate(180%);
-    border-bottom: 1px solid rgba(255, 255, 255, .08);
     color: #fff;
     position: sticky; top: 0; z-index: 10;
+    /* Separar o topo do conteudo e trabalho da rolagem, nao de um risco fixo:
+       ver .topo.rolado logo abaixo. */
+    border-bottom: 1px solid transparent;
+    transition: border-color .25s ease;
 }
+/* A borda so existe quando ha conteudo passando por tras do vidro. No alto da
+   pagina nao ha o que separar, e o risco vira enfeite. A sombra curta embaixo
+   faz o papel que um divisor de 1px nao faz: mostra que o conteudo continua
+   *debaixo* da camada, em vez de terminar nela. */
+.topo.rolado { border-bottom-color: rgba(255, 255, 255, .1); }
+.topo::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 100%;
+    height: 12px; pointer-events: none;
+    background: linear-gradient(rgba(7, 28, 61, .16), rgba(7, 28, 61, 0));
+    opacity: 0; transition: opacity .25s ease;
+}
+.topo.rolado::after { opacity: 1; }
 .marca {
     display: flex; align-items: center; gap: .45rem;
     color: var(--marca-forte); font-weight: 700; letter-spacing: .3px;
@@ -144,10 +173,26 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
 .barra a {
     flex: 1; text-align: center; padding: .5rem .25rem;
     color: var(--suave); font-size: .64rem; text-decoration: none;
+    /* Texto miudo pede um fio a mais entre as letras pra nao borrar. */
+    letter-spacing: .01em;
+    /* A pilula do item ativo mora num ::before com z-index negativo. Sem
+       isolar, "atras do link" viraria "atras do vidro da barra". */
+    position: relative; isolation: isolate;
 }
 .barra a span { display: block; line-height: 0; margin-bottom: .2rem; }
 .barra a svg { width: 23px; height: 23px; }
 .barra a.ativo { color: var(--marca); font-weight: 600; }
+/* Pilula de vidro tintado atras do item ativo, no feitio da barra do iOS. Ela
+   ganha nome de transicao de view pra, ao trocar de aba, *deslizar* de um item
+   pro outro em vez de apagar aqui e acender la — o movimento e que conta que
+   sao a mesma coisa mudando de lugar. */
+.barra a.ativo::before {
+    content: ''; position: absolute; z-index: -1;
+    inset: .18rem .22rem;
+    border-radius: 16px;
+    background: var(--tinta-marca);
+    view-transition-name: pilula-barra;
+}
 
 /* ---------- blocos ---------- */
 .cartao {
@@ -155,7 +200,7 @@ h2 { font-size: 1.1rem; margin: 1.4rem 0 .5rem; }
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--vidro-borda);
-    box-shadow: inset 0 1px 0 var(--vidro-brilho);
+    box-shadow: inset 0 1px 0 var(--vidro-brilho), var(--sombra-cartao);
     border-radius: var(--raio); padding: 1rem; margin-bottom: 1rem;
 }
 .centro { text-align: center; }
@@ -449,9 +494,19 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     flex: 1; text-align: center; padding: .45rem .5rem; border-radius: 9px;
     color: var(--texto); font-size: .85rem; font-weight: 500;
     -webkit-tap-highlight-color: transparent;
+    /* A pilula do ativo mora num ::before atras do texto; sem isolar, "atras
+       do link" viraria "atras do trilho das abas". */
+    position: relative; isolation: isolate;
 }
 .aba:hover { text-decoration: none; }
-.aba.ativo {
+.aba.ativo { font-weight: 600; }
+/* A pilula e um ::before, nao o fundo do proprio link, por causa da transicao
+   de view: assim quem desliza de uma aba pra outra e so o vidro — o rotulo de
+   cada aba fica parado no lugar dele, como no segmented control do iOS. O nome
+   vem do helper abas(), inline, um por grupo de abas da tela. */
+.aba.ativo::before {
+    content: ''; position: absolute; z-index: -1; inset: 0;
+    border-radius: 9px;
     /* --elevado sozinho ja tem contraste certo nos dois temas (branco no
        claro, cinza-claro no escuro); so afina pra deixar o blur aparecer,
        com fallback solido pra quem nao tem color-mix(). */
@@ -459,8 +514,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     background: color-mix(in srgb, var(--elevado) 85%, transparent);
     -webkit-backdrop-filter: blur(10px) saturate(160%);
     backdrop-filter: blur(10px) saturate(160%);
-    font-weight: 600;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .14), inset 0 1px 0 var(--vidro-brilho);
+    view-transition-name: var(--nome-aba);
 }
 
 /* Filtro rapido em pilulas. Rola na horizontal em vez de quebrar a linha. */
@@ -734,4 +789,143 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     margin: .2rem 0 .8rem; font-size: .85rem; font-weight: 600;
     color: var(--marca); background: var(--tinta-marca);
     padding: .5rem .6rem; border-radius: 10px;
+}
+
+/* ---------------------------------------------------------------
+   Resposta ao toque.
+
+   O .botao ja acendia no :active; o resto da tela — linha de lista, chip,
+   aba, item da barra — nao acendia em lugar nenhum, e no celular isso e a
+   diferenca entre "respondeu" e "travou". Quem poe e tira a classe e o
+   movimento.js, no apertar do dedo (nao no soltar), porque :active no iOS
+   so pinta depois que o Safari decide que nao era rolagem.
+
+   A curva e a mesma que o iOS usa pra toque: sai rapido e desacelera no fim,
+   em vez do ease padrao, que sai devagar e parece atrasado.
+
+   Quanto encolher depende do tamanho: superficie grande que encolhe muito
+   parece elastico de brinquedo, alvo pequeno que encolhe pouco nao da sinal
+   nenhum. Por isso a linha de lista quase nao se mexe e o chip se mexe mais.
+   --------------------------------------------------------------- */
+.lista li a, .linha-cartao, .chip, .aba, .barra a,
+.compra > summary, .item-editor > summary, .colar > summary,
+.engrenagem, .voltar {
+    transition: transform .22s cubic-bezier(.32, .72, 0, 1), opacity .22s ease-out;
+    -webkit-tap-highlight-color: transparent;
+}
+.tocando { opacity: .68; }
+.lista li a.tocando, .linha-cartao.tocando,
+.compra > summary.tocando, .item-editor > summary.tocando,
+.colar > summary.tocando { transform: scale(.985); opacity: .82; }
+.chip.tocando, .aba.tocando { transform: scale(.94); }
+.barra a.tocando { transform: scale(.9); }
+.engrenagem.tocando, .voltar.tocando { transform: scale(.88); }
+
+/* O botao ja tinha a resposta certa; so troca a curva pela mesma dos demais,
+   pra um toque nao ter dois tempos diferentes na mesma tela. */
+.botao { transition: opacity .15s ease-out, transform .22s cubic-bezier(.32, .72, 0, 1); }
+
+/* Sanfona com a altura na mao do movimento.js: sem cortar o que transborda, o
+   conteudo aparece inteiro antes da caixa ter crescido. */
+details.animando { overflow: hidden; }
+
+/* Arrastar o aviso pro lado e um gesto horizontal; a pagina fica com o
+   vertical. Sem declarar isso, o navegador segura o primeiro movimento pra
+   decidir de quem e o gesto, e o atraso e visivel. */
+.aviso { touch-action: pan-y; }
+
+/* ---------------------------------------------------------------
+   Troca de tela.
+
+   O app e multipagina: cada aba e um carregamento. Sem isto, trocar de aba
+   pisca a tela inteira em branco e joga fora a nocao de que o topo e a barra
+   sao os *mesmos* em todas as telas. Com os nomes abaixo, topo e barra ficam
+   parados enquanto so o conteudo troca — e a pilula do item ativo desliza
+   ate a aba nova, contando o caminho em vez de teletransportar.
+   --------------------------------------------------------------- */
+@view-transition { navigation: auto; }
+
+.topo { view-transition-name: topo; }
+.barra { view-transition-name: barra; }
+.conteudo { view-transition-name: conteudo; }
+
+/* O conteudo troca com uma subida curta de 6px: o suficiente pra o olho ver
+   que veio material novo, longe o bastante de um slide de tela inteira, que
+   numa navegacao lateral entre abas contaria uma historia errada. */
+::view-transition-old(conteudo) {
+    animation: sumir-conteudo .18s cubic-bezier(.4, 0, 1, 1) both;
+}
+::view-transition-new(conteudo) {
+    animation: entrar-conteudo .28s cubic-bezier(0, 0, .2, 1) both;
+}
+@keyframes sumir-conteudo { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes entrar-conteudo { from { opacity: 0; transform: translateY(6px); } }
+
+/* ---------------------------------------------------------------
+   Preferencias de acessibilidade.
+
+   Nao e "desligar o enfeite": e a mesma informacao por outro caminho. Quem
+   pede menos movimento continua vendo a mudanca, so que sem deslocamento;
+   quem pede menos transparencia continua vendo as camadas, so que por
+   contraste e borda em vez de desfoque.
+   --------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    /* Vestibular: escala e deslocamento saem, opacidade fica — ela nao
+       provoca enjoo e e o que responde ao toque. */
+    .tocando { transform: none !important; }
+    .botao:active { transform: none; }
+    ::view-transition-old(conteudo),
+    ::view-transition-new(conteudo) { animation-duration: .12s; }
+    @keyframes sumir-conteudo { to { opacity: 0; transform: none; } }
+    @keyframes entrar-conteudo { from { opacity: 0; transform: none; } }
+    /* A pilula da barra deslizando e movimento grande e lateral: no modo
+       reduzido ela simplesmente aparece onde precisa estar. */
+    .barra a.ativo::before, .aba.ativo::before { view-transition-name: none; }
+    .topo, .topo::after { transition: none; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    :root {
+        --vidro: var(--cartao);
+        --vidro-borda: var(--borda);
+        --vidro-brilho: transparent;
+    }
+    /* O desfoque e o que custa legibilidade sobre fundo que muda; sem ele as
+       superficies viram opacas e a hierarquia passa a ser da borda. */
+    .topo, .barra, .cartao, .numero, .botao, .botao-alt, .botao-perigo,
+    .abas, .aba.ativo::before, .chip, .aviso, .camera-dica,
+    input, select, textarea {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+    .topo { background: var(--marca-escura); }
+    /* So o botao de preenchimento cheio vira solido. Sem o :not(), esta linha
+       tambem pintava o secundario e o de perigo de ciano, e os tres viravam o
+       mesmo botao — a hierarquia ia embora junto com a transparencia.
+       O tom suave do .botao-alt continua: ele e cor sobre superficie opaca,
+       nao material vazado, entao nao e disso que a preferencia trata. */
+    .botao:not(.botao-alt):not(.botao-perigo) { background: var(--marca-forte); }
+}
+
+@media (prefers-contrast: more) {
+    :root {
+        --vidro: var(--cartao);
+        --vidro-borda: var(--texto);
+        /* O texto de apoio escurece bastante, mas nao chega a virar --texto:
+           igualar os dois resolveria o contraste e apagaria a hierarquia — o
+           rotulo "itens" passaria a gritar tanto quanto o numero. Mais
+           contraste e pra enxergar melhor, nao pra achatar a leitura. */
+        --suave: #44403c;
+    }
+    /* Borda definida em vez de sugerida: e ela que passa a marcar onde uma
+       superficie termina e a outra comeca. */
+    .cartao, .numero, .lista li, .abas, .chip, input, select, textarea {
+        border-color: var(--texto);
+    }
+    .barra a.ativo::before { outline: 2px solid var(--marca); }
+}
+
+/* No escuro o apoio vai pro outro lado: clareia em vez de escurecer. */
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+    :root { --suave: #d6d3d1; }
 }

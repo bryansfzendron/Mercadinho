@@ -604,6 +604,67 @@ Dois detalhes que não são estéticos:
   leitura de um relance. (O verde do relatório nem precisou mudar — já é parecido com o
   verde que aparece no gráfico de barras do logo.)
 
+## Movimento e resposta ao toque
+
+O visual já era de vidro; o que faltava era ele **se mexer** como coisa física.
+`assets/movimento.js` é a camada de interação — ~300 linhas, sem nenhuma biblioteca (uma
+dependência de animação custaria mais bytes do que o CSS inteiro do app).
+
+O motor é uma **mola**, não uma transição. Mola não tem duração: tem *resposta* (em quanto
+tempo alcança o alvo) e *amortecimento* (1 = chega sem passar do ponto, abaixo de 1 = passa
+e volta). São os dois números com que a Apple substituiu massa/rigidez/atrito, e é por isso
+que os valores de referência (0,4s para mover, 0,3s para gaveta) fazem sentido escritos
+assim.
+
+O ganho não é a curva — é a **interrupção**. Uma transição de CSS agarrada no meio salta,
+porque ela anima do valor lógico. A mola guarda posição e velocidade, então trocar o alvo no
+meio do movimento é só trocar o alvo: ela continua de onde está, com a velocidade que já
+tinha. É o que faz um gesto revertido não bater numa parede.
+
+O que isso virou na tela:
+
+- **A resposta acontece no apertar, não no soltar.** Linha de lista, chip, aba e item da
+  barra acendem no `pointerdown`; arrastar para fora cancela e voltar reacende. Esperar o
+  clique para dar sinal é o que faz uma tela parecer travada — e, no iPhone, `:active` só
+  pinta depois que o Safari decide que o gesto não era rolagem. Quanto encolher depende do
+  tamanho: a linha de lista quase não se mexe, o chip se mexe mais.
+- **As sanfonas (`<details>`) crescem em vez de pular.** A altura vira uma mola. Aqui mora
+  uma armadilha: o `<details>` nativo *inverte* o `open` **depois** que os handlers rodam,
+  então mexer no `open` sem `preventDefault()` abre e fecha na mesma batida. Quem manda no
+  `open` passa a ser o `movimento.js`, do início ao fim.
+- **O aviso sai no empurrão.** Durante o arrasto acompanha o dedo 1:1 (respeitando onde o
+  dedo pegou); no soltar, a *inércia* decide. O destino vem de onde o arremesso pararia
+  sozinho (`projetar()`, a mesma conta da rolagem do iOS), não do pixel onde o dedo saiu —
+  por isso um peteleco curto e rápido já manda embora. A velocidade do dedo entra na mola,
+  senão dá para ver a emenda entre arrastar e voar.
+- **O puxar-para-atualizar resiste em vez de travar.** Até o gatilho continua metade do
+  dedo (mexer nisso mudaria o gesto que já se conhece); depois dele entra borracha, e o
+  valor se *aproxima* dos 130px sem nunca encostar. O teto seco antigo lia como app
+  congelado; a borracha diz a verdade — "estou respondendo, mas não tem mais nada por aqui".
+- **A borda do topo é da rolagem, não fixa.** Um risco permanente embaixo do cabeçalho
+  aparece mesmo sem nada passando por baixo dele, e aí vira enfeite. `IntersectionObserver`
+  com uma sentinela, não um listener de scroll: nenhum trabalho por quadro rolado.
+
+No CSS, duas coisas andam junto com isso:
+
+- **Troca de tela com View Transitions** (`@view-transition { navigation: auto }`). O app é
+  multipágina, e sem isso cada aba pisca em branco e joga fora a noção de que o topo e a
+  barra são os *mesmos* em toda tela. Com `view-transition-name` no topo, na barra e no
+  conteúdo, só o conteúdo troca — e a pílula do item ativo **desliza** até o destino, em vez
+  de apagar aqui e acender lá. Por isso a pílula é um `::before` e não o fundo do próprio
+  link: quem desliza é só o vidro, e cada rótulo fica parado no lugar dele. O nome sai do
+  helper `abas()`, numerado por grupo, porque `/vendas` tem dois grupos de abas na mesma
+  tela e nome repetido quebra a transição inteira.
+- **Três preferências de acessibilidade, não uma.** `prefers-reduced-motion` troca
+  deslocamento por opacidade (opacidade não provoca enjoo e é o que responde ao toque);
+  `prefers-reduced-transparency` tira o desfoque e deixa a hierarquia por borda;
+  `prefers-contrast: more` fecha as bordas e escurece o texto de apoio — mas **sem** igualá-lo
+  ao texto principal, senão o rótulo "itens" passa a gritar tanto quanto o número. Mais
+  contraste é para enxergar melhor, não para achatar a leitura.
+
+O espaçamento entre letras também deixou de ser um valor só: texto grande aperta (`-.021em`
+no `h1`), texto miúdo abre. Um `letter-spacing` fixo está errado em algum tamanho.
+
 ## O plano diário da meta
 
 A aba Metas mostra, dia a dia, duas colunas que respondem perguntas diferentes:
