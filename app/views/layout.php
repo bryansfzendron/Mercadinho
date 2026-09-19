@@ -16,7 +16,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=37">
+<link rel="stylesheet" href="/assets/app.css?v=38">
 </head>
 <body>
 
@@ -48,7 +48,8 @@ $flashes = flash_pegar();
 
 <?php if ($usuario): ?>
 <nav class="barra">
-    <a href="/"          class="<?= $rota === '/' ? 'ativo' : '' ?>">
+    <?php // /transacoes e tela de dentro do inicio: acende "Inicio", nao "Loja". ?>
+    <a href="/"          class="<?= in_array($rota, ['/', '/transacoes'], true) ? 'ativo' : '' ?>">
         <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 11.5 12 4l9 7.5"/>
             <path d="M5.5 10v8.5a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4h4v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1V10"/>
@@ -91,6 +92,8 @@ $flashes = flash_pegar();
       // a mola dele pra recolher o indicador. Com defer, a ordem de execucao e
       // a ordem em que estao aqui. ?>
 <script src="/assets/movimento.js?v=1" defer></script>
+<?php // inicio.js so faz algo onde existe o cartao de vendas; nas outras telas sai fora. ?>
+<script src="/assets/inicio.js?v=1" defer></script>
 <script src="/assets/puxar-atualizar.js?v=2" defer></script>
 </body>
 </html>

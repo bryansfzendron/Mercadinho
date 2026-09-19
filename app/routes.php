@@ -22,6 +22,7 @@ function despachar(string $rota): void
     if ($rota === '/escanear')  { ver('escanear', [], 'Escanear nota'); }
     if ($rota === '/bipar')     { ver('bipar', [], 'Bipar produto'); }
     if ($rota === '/notas')     { rota_notas($u); return; }
+    if ($rota === '/transacoes') { rota_transacoes($u); return; }
     if ($rota === '/produtos')  { rota_produtos($u); return; }
     if ($rota === '/loja')      { rota_loja($u); return; }
     if ($rota === '/margens')   { rota_margens($u); return; }
@@ -101,7 +102,41 @@ function rota_login(string $m): void
 // Telas
 // =====================================================================
 
+/**
+ * A capa do app: quanto vendeu hoje e como foi a semana.
+ *
+ * O que morava aqui (notas, espelho da loja, resumo das vendas) mudou para
+ * /notas — as duas telas eram quase a mesma lista, e o inicio agora responde
+ * a pergunta que se faz abrindo o app: "vendi quanto?".
+ */
 function rota_inicio(array $u): void
+{
+    $painel = vendas_painel();
+
+    ver('inicio', compact('painel'), 'Inicio');
+}
+
+/**
+ * As transacoes recentes, sem filtro nenhum.
+ *
+ * Irma pobre de /vendas/transacoes de proposito: la e a tela de analise (data,
+ * PDV, forma, categoria, busca dentro da compra); aqui e "o que saiu nos
+ * ultimos 30 dias", que e o que o "Ver detalhes" do inicio esta perguntando.
+ * O botao flutuante leva para a tela cheia quando a pergunta cresce.
+ */
+function rota_transacoes(array $u): void
+{
+    $f = ['de' => date('Y-m-d', strtotime('-29 days')), 'ate' => date('Y-m-d')];
+
+    $pag    = vendas_paginacao(vendas_transacoes_contar($f), (int) ($_GET['p'] ?? 1));
+    $linhas = vendas_transacoes($f, $pag);
+    $itens  = vendas_itens_das(array_column($linhas, 'id'));
+    $formas = vendas_formas_rotulos();
+
+    ver('transacoes', compact('linhas', 'itens', 'pag', 'f', 'formas'), 'Transações');
+}
+
+function rota_notas(array $u): void
 {
     $resumo = q1(
         'SELECT COUNT(*) AS notas,
@@ -118,23 +153,10 @@ function rota_inicio(array $u): void
         'SELECT COUNT(*) FROM notas WHERE usuario_id = ? AND status IN (?, ?)',
         [$u['id'], 'pendente', 'processando']
     );
-    $ultimas = q(
-        'SELECT n.id, n.emissao, n.valor_total, n.status, est.nome AS loja
-           FROM notas n
-      LEFT JOIN estabelecimentos est ON est.id = n.estabelecimento_id
-          WHERE n.usuario_id = ?
-       ORDER BY n.criado_em DESC LIMIT 8',
-        [$u['id']]
-    );
 
-    $loja = loja_resumo();
+    $loja   = loja_resumo();
     $vendas = vendas_resumo();
 
-    ver('inicio', compact('resumo', 'itens_total', 'pendentes', 'ultimas', 'loja', 'vendas'), 'Inicio');
-}
-
-function rota_notas(array $u): void
-{
     $notas = q(
         'SELECT n.id, n.chave, n.emissao, n.valor_total, n.status, n.origem, n.erro_msg,
                 est.nome AS loja, est.municipio, est.uf,
@@ -146,7 +168,11 @@ function rota_notas(array $u): void
           LIMIT 200',
         [$u['id']]
     );
-    ver('notas_lista', compact('notas'), 'Minhas notas');
+    ver(
+        'notas_lista',
+        compact('notas', 'resumo', 'itens_total', 'pendentes', 'loja', 'vendas'),
+        'Minhas notas'
+    );
 }
 
 function rota_nota_detalhe(array $u, int $id): void

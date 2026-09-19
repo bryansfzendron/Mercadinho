@@ -432,6 +432,86 @@ function vendas_resumo(): array
     return $r ?: ['vendas' => 0, 'primeira' => null, 'ultima' => null, 'total' => 0];
 }
 
+/**
+ * O domingo e o sabado da semana de uma data. Funcao pura.
+ *
+ * Semana comecando no domingo porque e assim que o calendario brasileiro (e o
+ * do iPhone) desenha, e o grafico da tela de inicio rotula Dom..Sab.
+ *
+ * @return array{0:string,1:string} 'Y-m-d' do domingo e do sabado
+ */
+function vendas_semana(string $dia): array
+{
+    $d = new DateTimeImmutable($dia);
+    $domingo = $d->modify('-' . (int) $d->format('w') . ' days');
+    return [$domingo->format('Y-m-d'), $domingo->modify('+6 days')->format('Y-m-d')];
+}
+
+/**
+ * Os numeros da tela de inicio: hoje, o mes corrente e a semana dia a dia.
+ *
+ * Duas consultas, nao quatro: hoje sempre cai dentro da semana corrente,
+ * entao sai do mesmo agrupamento por dia. O corte e o mesmo do relatorio
+ * (vendas_filtro_sql), senao a capa do app somaria transacao negada e PDV
+ * desligado e brigaria com o resto das telas.
+ *
+ * @param string|null $hoje injetavel para teste; padrao e a data de hoje
+ */
+function vendas_painel(?string $hoje = null): array
+{
+    $hoje = $hoje ?: date('Y-m-d');
+    [$sem_de, $sem_ate] = vendas_semana($hoje);
+
+    // Mes ate hoje, nao o mes inteiro: comparar o que ja acumulou com o que
+    // ainda nem aconteceu nao diz nada.
+    [$onde, $args] = vendas_filtro_sql(['de' => substr($hoje, 0, 7) . '-01', 'ate' => $hoje]);
+    $mes = q1(
+        'SELECT COUNT(*) AS vendas, COALESCE(SUM(v.valor_pago), 0) AS total
+           FROM vendas v WHERE ' . $onde,
+        $args
+    ) ?: ['vendas' => 0, 'total' => 0];
+
+    [$onde, $args] = vendas_filtro_sql(['de' => $sem_de, 'ate' => $sem_ate]);
+    $linhas = q(
+        'SELECT DATE(v.data_hora) AS dia, COUNT(*) AS n,
+                COALESCE(SUM(v.valor_pago), 0) AS total
+           FROM vendas v WHERE ' . $onde . '
+       GROUP BY DATE(v.data_hora)',
+        $args
+    );
+
+    $por_dia = $por_dia_n = [];
+    foreach ($linhas as $l) {
+        $por_dia[(string) $l['dia']]   = (float) $l['total'];
+        $por_dia_n[(string) $l['dia']] = (int) $l['n'];
+    }
+
+    $mes_vendas = (int) $mes['vendas'];
+    $mes_total  = (float) $mes['total'];
+
+    return [
+        'hoje' => [
+            'data'   => $hoje,
+            'total'  => $por_dia[$hoje] ?? 0.0,
+            'vendas' => $por_dia_n[$hoje] ?? 0,
+        ],
+        'mes' => [
+            'total'  => $mes_total,
+            'vendas' => $mes_vendas,
+            // Ticket medio e receita / transacoes. Sem transacao nao ha ticket:
+            // zero e mais honesto do que dividir por zero.
+            'ticket' => $mes_vendas > 0 ? $mes_total / $mes_vendas : 0.0,
+        ],
+        'semana' => [
+            'de'     => $sem_de,
+            'ate'    => $sem_ate,
+            'total'  => array_sum($por_dia),
+            'vendas' => array_sum($por_dia_n),
+            'barras' => grafico_barras_semana($por_dia, $sem_de, $hoje),
+        ],
+    ];
+}
+
 // ---------------------------------------------------------------------
 // Relatorio
 // ---------------------------------------------------------------------

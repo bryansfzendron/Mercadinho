@@ -1,93 +1,86 @@
-<?php /** @var array $resumo @var int $itens_total @var int $pendentes @var array $ultimas @var array $loja @var array $vendas */ ?>
+<?php
+/**
+ * A capa do app: quanto vendeu hoje e como foi a semana.
+ *
+ * Um cartao so, com duas caras. "Atual" responde de relance (hoje em numero
+ * grande, o mes logo abaixo); "Semana" abre o grafico e deixa tocar num dia
+ * para ver aquele dia — sem dia escolhido, o numero e a semana inteira.
+ *
+ * @var array $painel de vendas_painel()
+ */
+$h = $painel['hoje'];
+$m = $painel['mes'];
+$s = $painel['semana'];
+
+/** Nome cheio do dia, para o rotulo que aparece ao tocar numa barra. */
+$longos = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+?>
+<p class="inicio-sub">Gestão do seu negócio</p>
+
+<section class="painel" data-painel>
+    <div class="segmento" role="tablist" aria-label="Período">
+        <span class="segmento-pilula" aria-hidden="true"></span>
+        <button type="button" class="segmento-aba ativo" role="tab" id="aba-atual"
+                aria-selected="true" aria-controls="painel-atual" data-aba="atual">Atual</button>
+        <button type="button" class="segmento-aba" role="tab" id="aba-semana"
+                aria-selected="false" aria-controls="painel-semana" data-aba="semana">Semana</button>
+    </div>
+
+    <div class="painel-corpo" id="painel-atual" role="tabpanel" aria-labelledby="aba-atual" data-corpo="atual">
+        <p class="painel-rotulo">Hoje</p>
+        <p class="painel-valor"><?= moeda($h['total']) ?></p>
+
+        <div class="painel-divisor">
+            <span aria-hidden="true"></span>
+            <a href="/transacoes">Ver detalhes</a>
+        </div>
+
+        <div class="painel-kpis">
+            <div>
+                <span>Total do mês</span>
+                <strong><?= moeda($m['total']) ?></strong>
+            </div>
+            <div>
+                <span>Ticket médio</span>
+                <strong><?= moeda($m['ticket']) ?></strong>
+            </div>
+            <div>
+                <span>Transações</span>
+                <strong><?= (int) $m['vendas'] ?></strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="painel-corpo" id="painel-semana" role="tabpanel" aria-labelledby="aba-semana"
+         data-corpo="semana" hidden>
+        <p class="painel-rotulo" data-semana-rotulo
+           data-padrao="Vendas desta semana">Vendas desta semana</p>
+        <p class="painel-valor" data-semana-valor
+           data-padrao="<?= e(moeda($s['total'])) ?>"><?= moeda($s['total']) ?></p>
+
+        <div class="painel-grafico">
+            <div class="painel-barras">
+                <?php foreach ($s['barras'] as $i => $b): ?>
+                    <?php
+                    $classe = 'painel-coluna'
+                            . ($b['hoje'] ? ' hoje' : '')
+                            . ($b['futuro'] ? ' futuro' : '');
+                    $rotulo = $longos[$i] . ', ' . date('d/m', strtotime($b['data']));
+                    ?>
+                    <button type="button" class="<?= $classe ?>" aria-pressed="false"
+                            data-dia="<?= e($rotulo) ?>" data-moeda="<?= e(moeda($b['valor'])) ?>"
+                            title="<?= e($rotulo . ': ' . ($b['valor'] > 0 ? moeda($b['valor']) : 'sem venda')) ?>">
+                        <span class="painel-barra"
+                              style="height:<?= number_format($b['altura'], 1, '.', '') ?>%"></span>
+                        <span class="painel-dia"><?= e($b['dia']) ?></span>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+</section>
+
 <div class="acoes-topo">
     <a class="botao botao-grande" href="/escanear">▣ Escanear nota</a>
     <a class="botao botao-grande botao-alt" href="/bipar">||| Bipar produto</a>
-    <a class="botao botao-alt" href="/manual">+ Lançar nota manualmente</a>
 </div>
-
-<?php if ($pendentes > 0): ?>
-    <div class="aviso aviso-info">
-        <?= (int) $pendentes ?> nota(s) ainda em processamento.
-        <a href="/notas">Ver</a>
-    </div>
-<?php endif; ?>
-
-<div class="numeros">
-    <div class="numero">
-        <strong><?= (int) $resumo['notas'] ?></strong>
-        <span>notas</span>
-    </div>
-    <div class="numero">
-        <strong><?= (int) $itens_total ?></strong>
-        <span>itens</span>
-    </div>
-    <div class="numero">
-        <strong><?= moeda($resumo['total']) ?></strong>
-        <span>total gasto</span>
-    </div>
-</div>
-
-<h2>Últimas notas</h2>
-<?php if (!$ultimas): ?>
-    <p class="vazio">Nenhuma nota ainda. Escaneie o QR Code de um cupom para começar.</p>
-<?php else: ?>
-    <ul class="lista">
-        <?php foreach ($ultimas as $n): ?>
-            <li>
-                <a href="/notas/<?= (int) $n['id'] ?>">
-                    <div class="linha-topo">
-                        <span class="forte"><?= e($n['loja'] ?? 'Sem loja') ?></span>
-                        <span class="valor"><?= $n['valor_total'] !== null ? moeda($n['valor_total']) : '-' ?></span>
-                    </div>
-                    <div class="linha-baixo">
-                        <span><?= data_fmt($n['emissao']) ?></span>
-                        <span class="selo selo-<?= e($n['status']) ?>"><?= e($n['status']) ?></span>
-                    </div>
-                </a>
-            </li>
-        <?php endforeach; ?>
-    </ul>
-<?php endif; ?>
-
-<h2>Loja (TouchPay)</h2>
-<?php if (!$loja): ?>
-    <p class="vazio">Nenhum ponto de venda sincronizado ainda.</p>
-<?php else: ?>
-    <ul class="lista">
-        <?php foreach ($loja as $p): ?>
-            <li><div style="padding:.7rem .85rem">
-                <div class="linha-topo">
-                    <span class="forte"><?= e($p['nome']) ?></span>
-                    <span class="valor"><?= (int) $p['itens'] ?> itens</span>
-                </div>
-                <div class="linha-baixo">
-                    <span><?= (int) $p['vinculados'] ?> ligados ao seu histórico</span>
-                    <span><?= data_fmt($p['atualizado_em'], true) ?></span>
-                </div>
-            </div></li>
-        <?php endforeach; ?>
-    </ul>
-<?php endif; ?>
-
-<p class="centro"><a href="/loja">Ver todos os produtos da loja</a></p>
-
-<h2>Vendas (TouchPay)</h2>
-<?php if ((int) $vendas['vendas'] === 0): ?>
-    <p class="vazio">
-        Nenhuma venda importada ainda.
-        <a href="/config">Importar os últimos 12 meses</a>
-    </p>
-<?php else: ?>
-    <div class="numeros">
-        <div class="numero"><strong><?= (int) $vendas['vendas'] ?></strong><span>vendas</span></div>
-        <div class="numero"><strong><?= moeda($vendas['total']) ?></strong><span>faturamento</span></div>
-    </div>
-    <p class="ajuda">
-        De <?= data_fmt($vendas['primeira']) ?> a <?= data_fmt($vendas['ultima'], true) ?>.
-        <a href="/vendas">Ver o relatório</a>.
-    </p>
-<?php endif; ?>
-
-<p class="ajuda centro">
-    <a href="/config">Sincronizar preços, estoque e vendas</a>
-</p>

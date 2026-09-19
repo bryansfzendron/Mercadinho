@@ -198,5 +198,13 @@ checar('e o item certo', $dobrado[9][0]['descricao'], 'AGUA 500ML');
 checar('compra sem item nao aparece', isset($dobrado[3]), false);
 checar('lista vazia da mapa vazio', vendas_itens_por_venda([]), []);
 
+// -------------------------------------------- a semana da tela de inicio
+// 19/09/2026 e um sabado: a semana dele vai do domingo 13 ate ele mesmo.
+checar('sabado fecha a propria semana', vendas_semana('2026-09-19'), ['2026-09-13', '2026-09-19']);
+checar('domingo abre a semana e nao cai na anterior', vendas_semana('2026-09-13'), ['2026-09-13', '2026-09-19']);
+checar('quarta no meio devolve o mesmo par', vendas_semana('2026-09-16'), ['2026-09-13', '2026-09-19']);
+// Virada de mes: a semana atravessa e as duas pontas ficam em meses diferentes.
+checar('semana que atravessa o mes nao se quebra', vendas_semana('2026-10-01'), ['2026-09-27', '2026-10-03']);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

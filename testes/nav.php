@@ -58,6 +58,9 @@ function ativos(string $rota): array
 
 $rotas = [
     '/'            => '/',
+    // As transacoes recentes sao a tela de dentro do inicio ("Ver detalhes"),
+    // nao da loja: quem acende e o Inicio.
+    '/transacoes'  => '/',
     '/dashboard'   => '/dashboard',
     '/escanear'    => '/notas',
     '/manual'      => '/notas',

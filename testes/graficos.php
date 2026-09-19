@@ -85,5 +85,33 @@ checar('cada forma vira um segmento', substr_count($htmlPag, 'grafico-seg'), 2);
 checar('a maior fatia (Pix, 70%) aparece', strpos($htmlPag, '70%') !== false, true);
 checar('cor de cada forma e fixa, nao por tamanho', strpos($htmlPag, 'var(--grafico-3)') !== false, true);
 
+// ------------------------------------------------- a semana da tela de inicio
+// Semana de 13/09/2026 (domingo) a 19/09/2026 (sabado), com "hoje" na sexta:
+// o sabado e futuro e nao pode passar por dia parado.
+$semana = grafico_barras_semana(
+    ['2026-09-18' => 1.59, '2026-09-19' => 20.94],
+    '2026-09-13',
+    '2026-09-18'
+);
+checar('a semana tem sempre sete barras', count($semana), 7);
+checar('comeca no domingo', $semana[0]['data'], '2026-09-13');
+checar('termina no sabado', $semana[6]['data'], '2026-09-19');
+checar('os rotulos sao os dias da semana', array_column($semana, 'dia'),
+    ['Dom.', 'Seg.', 'Ter.', 'Qua.', 'Qui.', 'Sex.', 'Sáb.']);
+checar('dia sem venda fica em zero', $semana[0]['altura'], 0.0);
+quase('o maior dia da semana enche a barra', $semana[6]['altura'], 100.0);
+checar('dia fraco continua visivel (piso de 4%)', $semana[5]['altura'] >= 4.0, true);
+checar('so um dia e o de hoje', array_sum(array_column($semana, 'hoje')), 1);
+checar('hoje e a sexta', $semana[5]['hoje'], true);
+checar('o que ainda nao chegou vem marcado como futuro', $semana[6]['futuro'], true);
+checar('dia que ja passou nao e futuro', $semana[0]['futuro'], false);
+checar('hoje nao e futuro', $semana[5]['futuro'], false);
+
+// Semana inteira sem venda nenhuma: nao pode inventar altura em lugar nenhum.
+$vazia = grafico_barras_semana([], '2026-09-13', '2026-09-16');
+checar('semana sem venda desenha sete barras zeradas',
+    array_sum(array_column($vazia, 'altura')), 0.0);
+checar('e ainda assim marca o dia de hoje', $vazia[3]['hoje'], true);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

@@ -741,6 +741,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     border-top: 1px solid var(--vidro-borda);
 }
 .item-nome { min-width: 0; }
+/* O nome do produto e um link para a ficha dele, mas continua sendo texto no
+   meio de uma linha. Sem isto ele casa com ".lista li a" (a compra mora dentro
+   de uma .lista) e vira um bloco com padding e fundo proprio — uma caixa
+   dentro da caixa, desalinhada do item de cima que nao tem link. */
+.itens-compra li a { display: inline; padding: 0; background: none; }
 .item-qtd { color: var(--suave); font-size: .8rem; margin-left: .2rem; }
 .item-valor { white-space: nowrap; color: var(--suave); }
 
@@ -792,6 +797,164 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 }
 
 /* ---------------------------------------------------------------
+   Capa do app: o cartao de vendas.
+
+   Superficie cheia de cor em vez de mais um cartao branco: e o unico bloco da
+   tela e precisa ser lido antes de qualquer outra coisa. O azul e o da marca,
+   e no escuro ele nao clareia junto com --marca (que la vira um ciano de
+   texto): um retangulo grande e claro num tema escuro vira lanterna.
+   --------------------------------------------------------------- */
+:root {
+    --painel: #0a5fc4;
+    --painel-tinta: #ffffff;
+    --painel-apoio: rgba(255, 255, 255, .72);
+    --painel-linha: rgba(255, 255, 255, .22);
+    --painel-fundo-aba: rgba(255, 255, 255, .14);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --painel: #0b3f7e;
+        --painel-fundo-aba: rgba(255, 255, 255, .1);
+    }
+}
+
+.inicio-sub { color: var(--suave); margin: -.2rem 0 .8rem; }
+
+.painel {
+    background: var(--painel); color: var(--painel-tinta);
+    border-radius: var(--raio); padding: .5rem;
+    box-shadow: var(--sombra-cartao); margin-bottom: 1rem;
+}
+
+/* Controle segmentado: a pilula e uma so e *desliza* entre as duas metades.
+   Duas pilulas acendendo e apagando contariam uma troca; uma que anda conta o
+   caminho — e e o que o iOS faz. Quem a move e o inicio.js, com a mesma mola
+   do resto do app; sem JS ela fica parada embaixo da aba que ja esta ativa. */
+.segmento {
+    position: relative; display: grid; grid-template-columns: 1fr 1fr;
+    background: var(--painel-fundo-aba); border-radius: 12px; padding: 4px;
+}
+.segmento-pilula {
+    position: absolute; top: 4px; left: 4px; bottom: 4px;
+    width: calc(50% - 4px); border-radius: 9px;
+    /* Branca nos dois temas: ela mora sobre o azul do cartao, que e escuro em
+       qualquer tema. Seguir --cartao fazia a pilula ficar preta no escuro, e
+       a aba ativa parecia a apagada. */
+    background: #ffffff; box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
+}
+.segmento-aba {
+    position: relative; z-index: 1; appearance: none; border: 0; background: none;
+    font: inherit; font-weight: 600; font-size: .95rem; color: var(--painel-tinta);
+    padding: .55rem .4rem; min-height: 44px; border-radius: 9px; cursor: pointer;
+}
+.segmento-aba.ativo { color: var(--painel); }
+
+.painel-corpo { padding: 1.1rem .85rem .85rem; }
+.painel-rotulo { margin: 0; font-size: .9rem; color: var(--painel-apoio); }
+.painel-valor {
+    margin: .1rem 0 0; font-size: 2.2rem; font-weight: 700;
+    letter-spacing: -.028em; line-height: 1.1; font-variant-numeric: tabular-nums;
+}
+
+/* O risco nao e decoracao: ele separa o numero do dia dos numeros do mes, e
+   deixa o "Ver detalhes" na ponta direita, onde o polegar chega. */
+.painel-divisor { display: flex; align-items: center; gap: .8rem; margin: 1.1rem 0 .9rem; }
+.painel-divisor span { flex: 1; height: 1px; background: var(--painel-linha); }
+.painel-divisor a { color: var(--painel-tinta); font-size: .9rem; font-weight: 600; }
+
+.painel-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+.painel-kpis span { display: block; font-size: .78rem; color: var(--painel-apoio); }
+.painel-kpis strong {
+    display: block; font-size: 1rem; font-weight: 600; margin-top: .15rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------
+   A semana, dia a dia.
+
+   Sete colunas fixas: a semana tem sete dias com ou sem venda, e barra que
+   some faria o grafico mudar de forma conforme o movimento — o buraco de
+   terca-feira e informacao.
+
+   Cada coluna inteira e o alvo de toque (44px de sobra), nao so a barra
+   desenhada, que tem 22px e num dia fraco quase nao existe.
+   --------------------------------------------------------------- */
+.painel-grafico { margin-top: 1.2rem; }
+.painel-barras {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: .2rem;
+    align-items: end;
+}
+.painel-coluna {
+    appearance: none; border: 0; background: none; padding: 0; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+    height: 160px; color: var(--painel-tinta); font: inherit;
+}
+/* As tres linhas de fundo do grafico moram na faixa das barras, nao em cada
+   coluna: uma linha por coluna desenharia sete pedacos com emenda visivel no
+   gap. Aqui ela atravessa o grafico inteiro, e para onde o eixo comeca. */
+.painel-barras {
+    background-image: repeating-linear-gradient(
+        to bottom, var(--painel-linha) 0 1px, transparent 1px 33.334%);
+    background-size: 100% calc(160px - 1.5rem);
+    background-repeat: no-repeat;
+}
+.painel-barra {
+    display: block; width: 22px; min-height: 0; border-radius: 4px;
+    background: var(--painel-tinta); opacity: .95;
+}
+.painel-coluna.futuro .painel-barra { opacity: .35; }
+.painel-dia {
+    font-size: .72rem; color: var(--painel-apoio); margin-top: .5rem;
+    height: 1rem; line-height: 1rem;
+}
+.painel-coluna.hoje .painel-dia { color: var(--painel-tinta); font-weight: 600; }
+
+/* Dia escolhido: os outros apagam em vez de ele acender. O cartao ja e branco
+   sobre azul — nao ha "mais branco" pra onde ir. */
+.painel-barras.escolhido .painel-barra { opacity: .35; }
+.painel-barras.escolhido .painel-coluna.ativo .painel-barra { opacity: 1; }
+.painel-coluna.ativo .painel-dia { color: var(--painel-tinta); font-weight: 600; }
+
+/* ---------------------------------------------------------------
+   Transacoes recentes.
+   --------------------------------------------------------------- */
+.titulo-icone { display: flex; align-items: center; gap: .5rem; }
+.titulo-icone svg { width: 22px; height: 22px; flex: none; color: var(--marca); }
+
+/* Rotulo de periodo com o risco seguindo ate a margem: diz de quando e a
+   lista sem gastar uma linha inteira de texto. */
+.faixa-periodo {
+    display: flex; align-items: center; gap: .6rem;
+    margin: 1.2rem 0 .7rem; font-size: .82rem; font-weight: 600; color: var(--marca);
+}
+.faixa-periodo::after { content: ''; flex: 1; height: 1px; background: var(--borda); }
+
+/* Lista solta: cada compra e um cartao proprio, com ar entre eles. A lista
+   grudada continua sendo o padrao das notas, onde a leitura e de varredura;
+   aqui sao poucas linhas e cada uma abre. */
+.lista.solta { display: grid; gap: .55rem; }
+.lista.solta li { border-radius: 14px; border: 1px solid var(--borda); }
+.corta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.compra-detalhe { padding: 0 .85rem .3rem; }
+.compra-detalhe .dados { border-top: 1px solid var(--vidro-borda); padding-top: .4rem; }
+.compra-detalhe .itens-compra { padding-left: 0; padding-right: 0; }
+.compra-detalhe h2 { font-size: .95rem; margin: .8rem 0 .2rem; }
+
+/* Botao flutuante: acao secundaria que nao merece espaco fixo na tela, mas
+   precisa estar a um polegar de distancia. Fica acima da barra de baixo. */
+.flutuante {
+    position: fixed; right: 1rem; bottom: calc(104px + env(safe-area-inset-bottom));
+    width: 56px; height: 56px; border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--marca); color: #fff;
+    box-shadow: 0 6px 20px var(--vidro-sombra);
+    z-index: 5;
+}
+.flutuante:hover { text-decoration: none; }
+.flutuante svg { width: 24px; height: 24px; }
+
+/* ---------------------------------------------------------------
    Resposta ao toque.
 
    O .botao ja acendia no :active; o resto da tela — linha de lista, chip,
@@ -809,7 +972,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
    --------------------------------------------------------------- */
 .lista li a, .linha-cartao, .chip, .aba, .barra a,
 .compra > summary, .item-editor > summary, .colar > summary,
-.engrenagem, .voltar {
+.engrenagem, .voltar, .segmento-aba, .painel-coluna, .flutuante {
     transition: transform .22s cubic-bezier(.32, .72, 0, 1), opacity .22s ease-out;
     -webkit-tap-highlight-color: transparent;
 }
@@ -817,7 +980,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .lista li a.tocando, .linha-cartao.tocando,
 .compra > summary.tocando, .item-editor > summary.tocando,
 .colar > summary.tocando { transform: scale(.985); opacity: .82; }
-.chip.tocando, .aba.tocando { transform: scale(.94); }
+.chip.tocando, .aba.tocando, .segmento-aba.tocando { transform: scale(.94); }
+.flutuante.tocando { transform: scale(.9); }
+/* A coluna do grafico e alta e estreita: encolher a caixa toda pareceria a
+   barra mudando de valor. So a opacidade responde. */
+.painel-coluna.tocando { transform: none; opacity: .75; }
 .barra a.tocando { transform: scale(.9); }
 .engrenagem.tocando, .voltar.tocando { transform: scale(.88); }
 

@@ -148,3 +148,45 @@ function grafico_html_pagamento(array $por_forma, array $rotulos, array $cores):
     return '<div class="grafico-barra-segmentada">' . $segmentos . '</div>'
          . '<div class="grafico-legenda">' . $legenda . '</div>';
 }
+
+/**
+ * As sete barras da semana da tela de inicio (domingo a sabado).
+ *
+ * Semana inteira sempre, inclusive o que ainda nao chegou: uma quarta-feira
+ * que so mostrasse ate quarta faria o grafico "crescer" ao longo da semana e
+ * o sabado grande da semana passada pareceria o de agora. Dia futuro entra
+ * como zero e ganha a marca `futuro`, que a tela apaga um pouco.
+ *
+ * Mesma regra de altura do grafico do dashboard: piso de 4% pra dia com venda
+ * pequena continuar visivel, e zero de verdade pra dia sem venda.
+ *
+ * @param array<string,float> $por_dia 'Y-m-d' => receita daquele dia
+ * @param string $inicio  domingo da semana, 'Y-m-d'
+ * @param string $hoje    'Y-m-d'
+ * @return array<int,array{data:string,dia:string,valor:float,altura:float,hoje:bool,futuro:bool}>
+ */
+function grafico_barras_semana(array $por_dia, string $inicio, string $hoje): array
+{
+    $nomes = ['Dom.', 'Seg.', 'Ter.', 'Qua.', 'Qui.', 'Sex.', 'Sáb.'];
+
+    $max = 0.0;
+    $cursor = new DateTimeImmutable($inicio);
+    for ($i = 0; $i < 7; $i++) {
+        $max = max($max, (float) ($por_dia[$cursor->modify('+' . $i . ' days')->format('Y-m-d')] ?? 0.0));
+    }
+
+    $barras = [];
+    for ($i = 0; $i < 7; $i++) {
+        $data  = $cursor->modify('+' . $i . ' days')->format('Y-m-d');
+        $valor = (float) ($por_dia[$data] ?? 0.0);
+        $barras[] = [
+            'data'   => $data,
+            'dia'    => $nomes[$i],
+            'valor'  => $valor,
+            'altura' => $max > 0 && $valor > 0 ? max(4.0, $valor / $max * 100) : 0.0,
+            'hoje'   => $data === $hoje,
+            'futuro' => $data > $hoje,
+        ];
+    }
+    return $barras;
+}

@@ -60,9 +60,10 @@ app/
   notas.php        criação, disparo ao n8n e ingestão do callback
   loja.php         espelho de preço e estoque do TouchPay
   vendas.php       vendas do TouchPay: disparo, callback e gravação em lote
+  graficos.php     gráficos em HTML/CSS: série diária, semana e barra de pagamento
   routes.php       rotas e controllers
   views/
-assets/            css, leitor de câmera, ícones
+assets/            css, leitor de câmera, movimento, cartão da capa, ícones
 sql/schema.sql     schema MySQL (idempotente)
 n8n/
   nfce-sp-mercadinho.workflow.json   workflow da NFC-e, pronto para importar
@@ -815,6 +816,47 @@ A regra é: **tela de número não tem botão de ajuste**. Antes disso os dois s
 tela inicial, as metas num formulário embaixo do progresso e as taxas num `<details>` no pé
 do relatório — cada coisa num canto, e o dono do app não achava.
 
+## A capa: quanto vendeu hoje
+
+A tela de início e a de notas eram quase a mesma coisa — os mesmos botões em cima, a mesma
+lista embaixo, só que uma mostrava 8 notas e a outra 200. A lista passou a morar num lugar
+só (`/notas`, que herdou também os números e os resumos que o início carregava) e o início
+virou o que se quer saber abrindo o app: **vendi quanto?**
+
+É um cartão só, com duas caras num segmented control:
+
+- **Atual** — o total de hoje em número grande e, embaixo do risco, o mês corrente:
+  faturamento, ticket médio e transações. Mês *até hoje*, não o mês inteiro: comparar o que
+  já aconteceu com o que ainda nem começou não diz nada. *Ver detalhes* abre `/transacoes`.
+- **Semana** — as vendas da semana corrente (domingo a sábado, como o calendário brasileiro
+  desenha) e um gráfico de sete barras. **Tocar num dia troca o número para aquele dia**;
+  tocar de novo volta para a semana inteira. Sem dia escolhido, o número é o total.
+
+A semana aparece inteira mesmo antes de acontecer: um domingo que só mostrasse o domingo
+faria o gráfico *crescer* ao longo da semana, e o sábado grande da semana passada pareceria
+o de agora. Dia que ainda não chegou entra com zero e fica apagado.
+
+Nada é calculado no navegador. O `inicio.js` só troca de aba e troca de dia — cada valor
+já vem formatado do PHP em `data-moeda`, porque formatar dinheiro em dois lugares é
+garantir que um dia os dois vão discordar.
+
+`vendas_painel()` faz **duas** consultas, não quatro: hoje sempre cai dentro da semana
+corrente, então sai do mesmo agrupamento por dia. O corte é o mesmo do relatório
+(`vendas_filtro_sql()`), senão a capa do app somaria transação negada e PDV desligado e
+brigaria com todas as outras telas.
+
+### Transações recentes
+
+`/transacoes` é a irmã pobre de `/vendas/transacoes`, de propósito: sem filtro nenhum, só
+as compras dos últimos 30 dias, cada uma abrindo em sanfona com data, forma de pagamento,
+código no TouchPay e os produtos que saíram. É a resposta ao *Ver detalhes* da capa.
+
+Quando a pergunta cresce — "quanto o PDV X vendeu no Pix em agosto" — o botão flutuante
+leva para `/vendas/transacoes`, que continua sendo a tela de análise, com filtros, busca
+dentro da compra e paginação. No menu de baixo as duas acendem lugares diferentes:
+`/transacoes` é tela de dentro do **Início**, `/vendas/transacoes` é tela de dentro da
+**Loja**.
+
 ## A seção Loja
 
 O item **Loja R$** do menu de baixo tem quatro telas, num submenu no feitio do segmented
@@ -881,6 +923,7 @@ php testes/sync.php         # a conta da barra de progresso e o fluxo dado por p
 php testes/breakdown.php    # o plano diário da meta: linha reta e meta recalculada
 php testes/nav.php          # o menu de baixo acende um item por rota
 php testes/config.php       # a configuração sobrevive a um $cfg no escopo global
+php testes/graficos.php     # série diária, altura/pico e as sete barras da semana
 #   (transações e paginação entram em testes/vendas.php)
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
