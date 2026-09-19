@@ -6,7 +6,12 @@
  * grande, o mes logo abaixo); "Semana" abre o grafico e deixa tocar num dia
  * para ver aquele dia — sem dia escolhido, o numero e a semana inteira.
  *
- * @var array $painel de vendas_painel()
+ * Embaixo do cartao, o que saiu hoje. Escanear e bipar nao moram mais aqui:
+ * os dois botoes ja estao na tela de notas, e repetidos na capa so empurravam
+ * a lista do dia para baixo da dobra.
+ *
+ * @var array $painel   de vendas_painel()
+ * @var array $vendidos uma linha por produto vendido hoje, do maior para o menor
  */
 $h = $painel['hoje'];
 $m = $painel['mes'];
@@ -80,7 +85,32 @@ $longos = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado
     </div>
 </section>
 
-<div class="acoes-topo">
-    <a class="botao botao-grande" href="/escanear">▣ Escanear nota</a>
-    <a class="botao botao-grande botao-alt" href="/bipar">||| Bipar produto</a>
-</div>
+<h2>Vendidos hoje</h2>
+
+<?php if (!$vendidos): ?>
+    <p class="vazio">Nenhum produto vendido hoje ainda.</p>
+<?php else: ?>
+    <ul class="lista">
+        <?php foreach ($vendidos as $p): ?>
+            <?php
+            $qtd = num_br($p['quantidade']);
+            // Unitario e conta, nao coluna: o item grava o total da linha.
+            $unitario = $qtd > 0 ? (float) $p['total'] / $qtd : null;
+            $linha = '<div class="linha-topo">'
+                   . '<span class="forte">' . e($p['descricao']) . '</span>'
+                   . '<span class="valor">' . moeda($p['total']) . '</span>'
+                   . '</div><div class="linha-baixo">'
+                   . '<span>' . e(qtd_fmt($p['quantidade'])) . ' un</span>'
+                   . ($unitario !== null ? '<span>' . moeda($unitario) . ' cada</span>' : '')
+                   . '</div>';
+            ?>
+            <li>
+                <?php if ((int) $p['produto_id'] > 0): ?>
+                    <a href="/produtos/<?= (int) $p['produto_id'] ?>"><?= $linha ?></a>
+                <?php else: ?>
+                    <div class="linha-cartao"><?= $linha ?></div>
+                <?php endif; ?>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+<?php endif; ?>

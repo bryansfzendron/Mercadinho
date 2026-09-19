@@ -845,6 +845,19 @@ corrente, então sai do mesmo agrupamento por dia. O corte é o mesmo do relató
 (`vendas_filtro_sql()`), senão a capa do app somaria transação negada e PDV desligado e
 brigaria com todas as outras telas.
 
+Embaixo do cartão vem **Vendidos hoje**: uma linha por produto que saiu no dia, do que mais
+faturou para o que menos faturou, com a quantidade e o preço unitário (o item grava o total
+da linha, então o unitário é conta nossa). O agrupamento é o mesmo do relatório — EAN,
+senão código interno, senão a descrição —, então o mesmo refrigerante vendido em três
+compras é **uma** linha. Produto já casado com o catálogo leva para a ficha dele.
+
+`vendas_produtos_do_dia()` recebe o dia de `vendas_painel()` em vez de chamar `date()` de
+novo: entre uma consulta e a outra a meia-noite pode virar, e a lista mostraria um dia que
+não bate com o número logo acima dela.
+
+Escanear e bipar **não** ficam aqui: os dois botões já moram na tela de notas, e repetidos
+na capa só empurravam a lista do dia para baixo da dobra.
+
 ### Transações recentes
 
 `/transacoes` é a irmã pobre de `/vendas/transacoes`, de propósito: sem filtro nenhum, só

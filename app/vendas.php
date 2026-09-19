@@ -512,6 +512,37 @@ function vendas_painel(?string $hoje = null): array
     ];
 }
 
+/**
+ * O que saiu hoje, produto a produto — a lista embaixo do cartao da capa.
+ *
+ * Agrupa pela mesma chave do relatorio (EAN, senao codigo interno, senao a
+ * descricao): o mesmo refrigerante vendido em tres compras e uma linha so, e e
+ * assim que a pergunta "o que saiu hoje" se responde.
+ *
+ * @param string|null $dia injetavel para teste; padrao e hoje
+ */
+function vendas_produtos_do_dia(?string $dia = null, int $limite = 60): array
+{
+    $dia = $dia ?: date('Y-m-d');
+    [$onde, $args] = vendas_filtro_sql(['de' => $dia, 'ate' => $dia]);
+
+    return q(
+        'SELECT COALESCE(vi.ean, vi.codigo, vi.descricao) AS grupo,
+                MIN(vi.produto_id) AS produto_id,
+                MIN(vi.descricao) AS descricao,
+                SUM(vi.quantidade) AS quantidade,
+                SUM(vi.valor_total) AS total,
+                COUNT(DISTINCT v.id) AS vendas
+           FROM venda_itens vi
+           JOIN vendas v ON v.id = vi.venda_id
+          WHERE ' . $onde . '
+       GROUP BY grupo
+       ORDER BY total DESC, quantidade DESC
+          LIMIT ' . max(1, $limite),
+        $args
+    );
+}
+
 // ---------------------------------------------------------------------
 // Relatorio
 // ---------------------------------------------------------------------

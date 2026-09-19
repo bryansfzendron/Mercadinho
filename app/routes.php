@@ -112,8 +112,12 @@ function rota_login(string $m): void
 function rota_inicio(array $u): void
 {
     $painel = vendas_painel();
+    // Os produtos de hoje vem do mesmo dia que o cartao chama de "Hoje", e nao
+    // de date() de novo: virada de meia-noite entre uma consulta e a outra
+    // mostraria uma lista que nao bate com o numero logo acima dela.
+    $vendidos = vendas_produtos_do_dia($painel['hoje']['data']);
 
-    ver('inicio', compact('painel'), 'Inicio');
+    ver('inicio', compact('painel', 'vendidos'), 'Inicio');
 }
 
 /**
