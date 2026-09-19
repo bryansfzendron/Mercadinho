@@ -130,10 +130,19 @@ CREATE TABLE IF NOT EXISTS loja_pdvs (
     -- metas. Existe porque um PDV pode estar na mesma conta do TouchPay sem
     -- ser do dono do app — o sync continua trazendo, a tela e que ignora.
     ativo         TINYINT(1)   NOT NULL DEFAULT 1,
+    -- Dois PDVs que sempre foram o mesmo container (troca de dono, recadastro
+    -- no TouchPay com id novo) viram um: o antigo aponta para o que ficou e
+    -- some das telas. E lapide, nao DELETE, porque o sync resolve o PDV pelo
+    -- externo_id — apagar a linha deixaria o proximo sync recriar o velho e
+    -- voltar a partir o historico em dois.
+    unificado_para INT UNSIGNED NULL,
     atualizado_em DATETIME     NULL,
     criado_em     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_pdv_fonte_externo (fonte, externo_id)
+    UNIQUE KEY uq_pdv_fonte_externo (fonte, externo_id),
+    KEY ix_pdv_unificado (unificado_para),
+    CONSTRAINT fk_pdv_unificado FOREIGN KEY (unificado_para)
+        REFERENCES loja_pdvs (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS loja_itens (

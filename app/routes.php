@@ -829,7 +829,12 @@ function rota_config(array $u, string $metodo): void
 
         // Quais pontos de venda contam no app. Vem a lista dos marcados; quem
         // nao veio, desliga.
-        if ($aba === 'pdvs' && isset($_POST['pdvs_enviados'])) {
+        // Dois PDVs que sempre foram o mesmo container viram um so. Fica
+        // antes do "ligar/desligar" porque tambem chega da aba PDVs.
+        if ($aba === 'pdvs' && isset($_POST['unificar'])) {
+            $r = loja_pdvs_unificar((int) ($_POST['de'] ?? 0), (int) ($_POST['para'] ?? 0));
+            flash($r['ok'] ? 'ok' : 'erro', $r['msg']);
+        } elseif ($aba === 'pdvs' && isset($_POST['pdvs_enviados'])) {
             $ligados = array_map('intval', (array) ($_POST['pdvs'] ?? []));
             foreach (loja_pdvs_todos() as $pdv) {
                 loja_pdv_ativo((int) $pdv['id'], in_array((int) $pdv['id'], $ligados, true));
@@ -850,8 +855,9 @@ function rota_config(array $u, string $metodo): void
         redirecionar(rota_atual());
     }
 
-    $p      = custos_parametros();
-    $pdvs   = loja_pdvs_todos();
+    $p          = custos_parametros();
+    $pdvs       = loja_pdvs_todos();
+    $unificados = loja_pdvs_unificados();
 
     // Qual PDV a aba Taxas esta editando. Zero e o padrao, que vale para todos
     // os que nao tem excecao. So PDV ativo entra: os desligados nao pagam nada
@@ -885,7 +891,7 @@ function rota_config(array $u, string $metodo): void
     $sync   = ['loja' => sync_estado('loja'), 'vendas' => sync_estado('vendas')];
     $cron   = cron_formatar(q1('SELECT * FROM sync_estado WHERE fonte = ?', ['cron']));
 
-    ver('config', compact('aba', 'p', 'pdvs', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'imposto'), 'Configuracoes');
+    ver('config', compact('aba', 'p', 'pdvs', 'unificados', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'imposto'), 'Configuracoes');
 }
 
 /**

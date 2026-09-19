@@ -113,14 +113,27 @@ function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
     $nome = trim((string) ($pos['nome'] ?? '')) ?: ('PDV ' . $externo);
     $tipo = mb_substr((string) ($pos['tipo'] ?? ''), 0, 40) ?: null;
 
-    $id = qv('SELECT id FROM loja_pdvs WHERE fonte = ? AND externo_id = ?', ['touchpay', $externo]);
-    if ($id) {
+    $linha = q1(
+        'SELECT id, unificado_para FROM loja_pdvs WHERE fonte = ? AND externo_id = ?',
+        ['touchpay', $externo]
+    );
+    if ($linha) {
+        $unificado = (int) ($linha['unificado_para'] ?? 0);
+        if ($unificado > 0) {
+            // Lapide: o que o TouchPay manda neste id pertence ao PDV que
+            // ficou. O NOME nao vem junto — seria o nome antigo desfazendo a
+            // unificacao a cada sync.
+            if ($marcar_sync) {
+                exec_sql('UPDATE loja_pdvs SET atualizado_em = NOW() WHERE id = ?', [$unificado]);
+            }
+            return $unificado;
+        }
         exec_sql(
             'UPDATE loja_pdvs SET nome = ?, tipo = COALESCE(?, tipo)'
             . ($marcar_sync ? ', atualizado_em = NOW()' : '') . ' WHERE id = ?',
-            [mb_substr($nome, 0, 120), $tipo, $id]
+            [mb_substr($nome, 0, 120), $tipo, $linha['id']]
         );
-        return (int) $id;
+        return (int) $linha['id'];
     }
 
     return (int) inserir('loja_pdvs', [
@@ -416,23 +429,137 @@ function loja_resumo(): array
                 SUM(CASE WHEN li.produto_id IS NOT NULL THEN 1 ELSE 0 END) AS vinculados
            FROM loja_pdvs p
       LEFT JOIN loja_itens li ON li.pdv_id = p.id
-          WHERE p.ativo = 1
+          WHERE p.ativo = 1 AND p.unificado_para IS NULL
        GROUP BY p.id, p.nome, p.atualizado_em
        ORDER BY p.nome'
     );
     return $pdvs;
 }
 
-/** Todos os PDVs, ligados ou nao. So a tela que liga e desliga usa isto. */
+/**
+ * Todos os PDVs de verdade, ligados ou nao. So a tela de configuracao usa
+ * isto. PDV ja unificado nao entra: ele virou outro.
+ *
+ * Traz tambem quantas vendas cada um tem e quando foi o ultimo sync — e com
+ * esses dois numeros que se decide qual sobrevive numa unificacao.
+ */
 function loja_pdvs_todos(): array
 {
     return q(
-        'SELECT p.id, p.nome, p.ativo, COUNT(li.id) AS itens
+        'SELECT p.id, p.nome, p.ativo, p.externo_id, p.atualizado_em,
+                (SELECT COUNT(*) FROM loja_itens li WHERE li.pdv_id = p.id) AS itens,
+                (SELECT COUNT(*) FROM vendas v WHERE v.pdv_id = p.id) AS vendas
            FROM loja_pdvs p
-      LEFT JOIN loja_itens li ON li.pdv_id = p.id
-       GROUP BY p.id, p.nome, p.ativo
+          WHERE p.unificado_para IS NULL
        ORDER BY p.nome'
     );
+}
+
+/** As unificacoes ja feitas, para a tela poder contar o que aconteceu. */
+function loja_pdvs_unificados(): array
+{
+    return q(
+        'SELECT p.id, p.nome, p.externo_id, d.nome AS destino_nome
+           FROM loja_pdvs p
+           JOIN loja_pdvs d ON d.id = p.unificado_para
+          WHERE p.unificado_para IS NOT NULL
+       ORDER BY p.nome'
+    );
+}
+
+/**
+ * Junta dois pontos de venda que sempre foram o mesmo container.
+ *
+ * Acontece quando a maquina troca de dono: o TouchPay cadastra de novo, com
+ * id novo e as vezes nome novo, e o historico nasce partido em dois. Daqui
+ * para a frente tudo que era do $de passa a ser do $para.
+ *
+ * O que muda de dono:
+ *  - VENDAS, que sao o historico e o motivo de tudo isto;
+ *  - CUSTOS por PDV, mas so as chaves que o sobrevivente ainda nao tem: o
+ *    valor de quem fica vale mais do que o de quem sai.
+ *
+ * O ESPELHO (loja_itens) e foto do momento, nao historico: o sync apaga e
+ * regrava o PDV inteiro a cada carga. Entao ele so se muda se o sobrevivente
+ * estiver vazio (unificacao antes do primeiro sync); tendo espelho proprio, o
+ * do antigo e lixo e vai embora — senao o catalogo mostraria cada produto
+ * duas vezes ate o proximo sync passar.
+ *
+ * O PDV antigo nao e apagado: vira lapide apontando para o novo. E o que
+ * impede o proximo sync de recria-lo pelo externo_id e partir tudo de novo.
+ *
+ * @return array{ok:bool, msg:string, vendas:int, itens:int, custos:int}
+ */
+function loja_pdvs_unificar(int $de, int $para): array
+{
+    $nada = ['ok' => false, 'vendas' => 0, 'itens' => 0, 'custos' => 0];
+
+    if ($de <= 0 || $para <= 0) {
+        return $nada + ['msg' => 'Escolha os dois pontos de venda.'];
+    }
+    if ($de === $para) {
+        return $nada + ['msg' => 'Sao o mesmo ponto de venda.'];
+    }
+
+    $origem  = q1('SELECT id, nome, unificado_para FROM loja_pdvs WHERE id = ?', [$de]);
+    $destino = q1('SELECT id, nome, unificado_para FROM loja_pdvs WHERE id = ?', [$para]);
+    if (!$origem || !$destino) {
+        return $nada + ['msg' => 'Ponto de venda nao encontrado.'];
+    }
+    if ((int) ($origem['unificado_para'] ?? 0) > 0) {
+        return $nada + ['msg' => 'O ponto de venda "' . $origem['nome'] . '" ja foi unificado.'];
+    }
+    // Destino que ja e lapide: segue a seta em vez de empilhar lapide sobre
+    // lapide. Duas unificacoes seguidas acabam todas no mesmo PDV vivo.
+    if ((int) ($destino['unificado_para'] ?? 0) > 0) {
+        $para = (int) $destino['unificado_para'];
+        if ($para === $de) {
+            return $nada + ['msg' => 'Esses dois ja estao unificados, ao contrario.'];
+        }
+    }
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $vendas = exec_sql('UPDATE vendas SET pdv_id = ? WHERE pdv_id = ?', [$para, $de]);
+
+        $custos = exec_sql(
+            'INSERT INTO custos_pdv (pdv_id, chave, valor, atualizado_em)
+             SELECT ?, c.chave, c.valor, c.atualizado_em
+               FROM custos_pdv c
+              WHERE c.pdv_id = ?
+                AND NOT EXISTS (SELECT 1 FROM custos_pdv d WHERE d.pdv_id = ? AND d.chave = c.chave)',
+            [$para, $de, $para]
+        );
+        exec_sql('DELETE FROM custos_pdv WHERE pdv_id = ?', [$de]);
+
+        $tem_espelho = (int) qv('SELECT COUNT(*) FROM loja_itens WHERE pdv_id = ?', [$para]) > 0;
+        $itens = $tem_espelho
+            ? -exec_sql('DELETE FROM loja_itens WHERE pdv_id = ?', [$de])
+            : exec_sql('UPDATE loja_itens SET pdv_id = ? WHERE pdv_id = ?', [$para, $de]);
+
+        exec_sql('UPDATE loja_pdvs SET unificado_para = ?, ativo = 0 WHERE id = ?', [$para, $de]);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        return $nada + ['msg' => 'Nao deu para unificar: ' . $e->getMessage()];
+    }
+
+    return [
+        'ok'     => true,
+        'vendas' => $vendas,
+        'itens'  => $itens,
+        'custos' => $custos,
+        'msg'    => '"' . $origem['nome'] . '" virou "' . $destino['nome'] . '": '
+                  . $vendas . ' venda(s) mudaram de dono'
+                  . ($custos > 0 ? ', ' . $custos . ' custo(s) vieram junto' : '')
+                  . ($itens < 0
+                      ? ' e o espelho antigo (' . abs($itens) . ' itens) foi descartado.'
+                      : ($itens > 0 ? ' e ' . $itens . ' itens do espelho vieram junto.' : '.')),
+    ];
 }
 
 /** Liga ou desliga um ponto de venda no app. */

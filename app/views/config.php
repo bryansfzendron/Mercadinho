@@ -244,6 +244,85 @@
         <?php endif; ?>
     </div>
 
+    <div class="cartao">
+        <h2 class="sem-topo">Unificar dois pontos de venda</h2>
+        <p class="ajuda">
+            Quando a máquina troca de dono, o TouchPay a cadastra de novo — id novo, às vezes
+            nome novo — e o histórico nasce partido em dois. Aqui os dois viram um: as vendas
+            do antigo passam para o que fica, junto com os custos que ele ainda não tiver.
+            <strong>Fique com o que ainda sincroniza</strong> (o de sync mais recente): o outro
+            vira uma lápide apontando para ele, e é ela que impede o próximo sync de recriar o
+            antigo e partir tudo outra vez.
+        </p>
+
+        <?php if (count($pdvs) < 2): ?>
+            <p class="vazio">Só dá para unificar com dois ou mais pontos de venda.</p>
+        <?php else: ?>
+            <table class="tabela">
+                <thead><tr><th>Ponto de venda</th><th class="dir">Vendas</th><th class="dir">Itens</th><th>Último sync</th></tr></thead>
+                <tbody>
+                    <?php foreach ($pdvs as $pdv): ?>
+                        <tr>
+                            <td><?= e($pdv['nome']) ?></td>
+                            <td class="dir"><?= (int) $pdv['vendas'] ?></td>
+                            <td class="dir"><?= (int) $pdv['itens'] ?></td>
+                            <td><?= $pdv['atualizado_em'] ? data_fmt($pdv['atualizado_em'], true) : 'nunca' ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <form method="post" action="/config/pdvs" class="sem-topo"
+                  onsubmit="return confirm('Unificar os dois pontos de venda? As vendas do primeiro passam para o segundo.');">
+                <?= csrf_campo() ?>
+                <input type="hidden" name="unificar" value="1">
+                <label>Este some
+                    <select name="de" required>
+                        <option value="">escolha</option>
+                        <?php foreach ($pdvs as $pdv): ?>
+                            <option value="<?= (int) $pdv['id'] ?>"><?= e($pdv['nome']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>e vira este
+                    <select name="para" required>
+                        <option value="">escolha</option>
+                        <?php foreach ($pdvs as $pdv): ?>
+                            <option value="<?= (int) $pdv['id'] ?>"><?= e($pdv['nome']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <button type="submit" class="botao botao-perigo">Unificar</button>
+                <p class="ajuda">
+                    Não tem desfazer. O espelho de preço e estoque do que some é descartado
+                    (ele volta inteiro no próximo sync do que fica); as vendas, não — essas
+                    mudam de dono e ficam. E passam a contar nos relatórios: se parte delas
+                    for de antes de você assumir a loja, o faturamento e o lucro dos períodos
+                    antigos vão passar a mostrá-las (o imposto não muda — o RBT12 já ignora
+                    tudo que é anterior a <?= data_fmt(custos_inicio_atividade()) ?>).
+                </p>
+            </form>
+        <?php endif; ?>
+
+        <?php if ($unificados): ?>
+            <h2>Já unificados</h2>
+            <p class="ajuda">O que o TouchPay mandar nestes ids vai para o ponto de venda da direita.</p>
+            <ul class="lista">
+                <?php foreach ($unificados as $u): ?>
+                    <li><div class="linha-cartao">
+                        <div class="linha-topo">
+                            <span class="forte"><?= e($u['nome']) ?></span>
+                            <span>→ <?= e($u['destino_nome']) ?></span>
+                        </div>
+                        <div class="linha-baixo">
+                            <span>id <?= (int) $u['externo_id'] ?> no TouchPay</span>
+                        </div>
+                    </div></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </div>
+
 <?php elseif ($aba === 'metas'): ?>
 
     <div class="cartao">

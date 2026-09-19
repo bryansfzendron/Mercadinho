@@ -884,6 +884,42 @@ não bate com o número logo acima dela.
 Escanear e bipar **não** ficam aqui: os dois botões já moram na tela de notas, e repetidos
 na capa só empurravam a lista do dia para baixo da dobra.
 
+### Dois PDVs que eram o mesmo
+
+Quando a máquina troca de dono, o TouchPay **cadastra o ponto de venda de novo**: id externo
+novo, às vezes nome novo ("ITALIA" virou "RESIDENCIAL ITALIA"). Como `loja_pdv_resolver()`
+casa por `(fonte, externo_id)`, nascem dois PDVs e o histórico fica partido em dois — as
+vendas antigas num, as novas noutro, e nenhuma tela soma os dois.
+
+**Configurações → PDVs → Unificar** junta. O que muda de dono:
+
+- **vendas** — é o histórico, e o motivo de tudo isto;
+- **custos por PDV**, mas só as chaves que o sobrevivente ainda não tem: o valor de quem
+  fica vale mais do que o de quem sai.
+
+O **espelho** (`loja_itens`) é foto do momento, não histórico — o sync apaga e regrava o PDV
+inteiro a cada carga. Então ele só se muda se o sobrevivente estiver vazio (unificação antes
+do primeiro sync); tendo espelho próprio, o do antigo vai embora, senão o catálogo mostraria
+cada produto duas vezes até o próximo sync passar.
+
+**O PDV antigo não é apagado: vira lápide** (`loja_pdvs.unificado_para`). É o que impede o
+próximo sync de recriá-lo pelo `externo_id` e partir tudo outra vez — se o TouchPay ainda
+mandar dados naquele id, `loja_pdv_resolver()` segue a seta e entrega ao PDV que ficou. O
+nome **não** vem junto nesse caminho: seria o nome antigo desfazendo a unificação a cada
+sync. Lápide sai de todas as listagens (`unificado_para IS NULL`) e fica com `ativo = 0`.
+
+Por isso a tela manda **ficar com o que ainda sincroniza**, e mostra vendas, itens e último
+sync de cada um para a escolha não ser no chute. Ficar com o morto congelaria preço e
+estoque no dia da transferência.
+
+Uma consequência a lembrar: as vendas antigas **passam a contar nos relatórios**. Se parte
+delas for de antes de você assumir a loja, faturamento e lucro dos períodos antigos vão
+passar a mostrá-las. O imposto não muda — `custos_rbt12()` já ignora tudo que é anterior a
+`custos_inicio_atividade()`.
+
+A coluna `unificado_para` é migração: quem já tem o banco criado roda `/setup.php?token=…` e
+clica em criar as colunas que faltam.
+
 ### Transações de hoje
 
 `/transacoes` é a irmã pobre de `/vendas/transacoes`, de propósito: sem filtro nenhum e só
