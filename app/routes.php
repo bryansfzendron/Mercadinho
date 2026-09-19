@@ -36,6 +36,8 @@ function despachar(string $rota): void
 
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
     if ($rota === '/api/produto' && $m === 'GET')  { rota_api_produto($u); return; }
+    if ($rota === '/api/ean' && $m === 'GET')     { rota_api_ean($u); return; }
+    if ($rota === '/api/ean' && $m === 'POST')    { rota_api_ean_gravar($u); return; }
     if ($rota === '/api/sync/estado' && $m === 'GET') { rota_api_sync_estado($u); return; }
     if ($rota === '/api/sincronizar' && $m === 'POST') { rota_api_sincronizar($u); return; }
     if ($rota === '/api/loja/sincronizar' && $m === 'POST') { rota_loja_sincronizar($u); return; }
@@ -628,6 +630,39 @@ function rota_api_sincronizar(array $u): void
         'disparou' => sync_disparou_alguma($r),
         'fontes'   => $r,
     ]);
+}
+
+/**
+ * O nome de um codigo de barras, para a tela Mercado.
+ *
+ * Tela de gondola: responde rapido ou nao responde. A consulta externa tem
+ * quatro segundos de paciencia e, falhando, devolve nome nulo — o preco
+ * continua sendo digitado do mesmo jeito.
+ */
+function rota_api_ean(array $u): void
+{
+    json_resposta(mercado_nome((string) ($_GET['codigo'] ?? ''), (int) $u['id']));
+}
+
+/**
+ * Guarda o nome que a pessoa digitou para um codigo.
+ *
+ * E o degrau que faz a base ficar boa justamente nos produtos que ELA compra
+ * — os de limpeza e os de padaria, que base de fora nenhuma tem.
+ */
+function rota_api_ean_gravar(array $u): void
+{
+    exigir_csrf();
+    $corpo = corpo_json();
+
+    $ean  = mercado_chave($corpo['codigo'] ?? '');
+    $nome = trim((string) ($corpo['nome'] ?? ''));
+    if ($ean === null || $nome === '') {
+        json_resposta(['ok' => false, 'erro' => 'codigo ou nome faltando'], 422);
+    }
+
+    ean_nome_gravar($ean, $nome, 'usuario');
+    json_resposta(['ok' => true, 'codigo' => $ean, 'nome' => $nome]);
 }
 
 /** Placar das duas importacoes, para a tela desenhar a barra de progresso. */

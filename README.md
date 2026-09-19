@@ -873,6 +873,44 @@ O leitor repete o mesmo código enquanto o produto está na mira, então há uma
 segundos por código: sem ela, um produto parado na frente da câmera entraria na lista várias
 vezes enquanto o preço é digitado.
 
+### De onde vem o nome do produto
+
+Na gôndola quase nada é conhecido: a base do app só sabe o que você já comprou. Então o nome
+vem de uma cascata (`mercado_nome()`), e cada degrau só existe porque o de cima não respondeu:
+
+1. **o nome que você digitou** para aquele código — ganha de todos, inclusive das bases de
+   fora: foi escolhido para esta finalidade;
+2. **as suas notas** (`produtos.ean`), que é a sua verdade — e junto vem quanto você pagou da
+   última vez;
+3. **o espelho da loja** (`loja_itens.ean`);
+4. **o cache** do que a Open Food Facts já respondeu antes;
+5. **a [Open Food Facts](https://world.openfoodfacts.org) ao vivo** — grátis, sem chave, sem
+   cadastro.
+
+A Open Food Facts acerta bem em alimento e bebida embalados no Brasil (testado: Leite Moça,
+Coca-Cola 2L, açúcar União, café 3 Corações — todos com marca e gramatura) e é praticamente
+vazia fora disso: limpeza, higiene e padaria não estão lá. Quem cobre esse buraco é o degrau
+1: **o nome que você escreve fica guardado naquele código para sempre**, e a base vai ficando
+boa justamente nos produtos que *você* compra. Eles pedem um User-Agent que identifique o app
+(vai o domínio), limitam a 15 req/min por IP e publicam os dados sob ODbL.
+
+A quantidade entra no nome quando ainda não está nele: numa lista de compras, "Coca-Cola" e
+"Coca-Cola 2 L" são itens de preço diferente. A comparação ignora espaço e caixa, senão
+"Refrigerante Coca-Cola 2Lt" viraria "... 2Lt 2l".
+
+O cache mora em `ean_nomes`, **tabela à parte de propósito**: a tela Mercado não pode criar
+produto no catálogo nem linha no espelho da loja. Ela guarda nome, e só. `usuario` nunca é
+sobrescrito por `off` — quem digitou, mandou.
+
+**Duas memórias.** A do aparelho (`localStorage`) responde primeiro e sem rede — no corredor
+do fundo é a única que responde. A do servidor vem depois e por cima, porque é ela que sabe
+das suas notas e do que a Open Food Facts respondeu. Nome digitado vai para as duas.
+
+A consulta externa tem 4 segundos de paciência e, falhando, devolve nome nulo: o preço
+continua sendo digitado do mesmo jeito. Se nenhum nome nunca aparecer em produção, o
+suspeito é o bundle de CA do PHP da hospedagem — sem ele o cURL recusa o HTTPS e a cascata
+para no degrau 4, calada.
+
 ## A capa: quanto vendeu hoje
 
 A tela de início e a de notas eram quase a mesma coisa — os mesmos botões em cima, a mesma
@@ -1080,6 +1118,7 @@ php testes/breakdown.php    # o plano diário da meta: linha reta e meta recalcu
 php testes/nav.php          # o menu de baixo acende um item por rota
 php testes/config.php       # a configuração sobrevive a um $cfg no escopo global
 php testes/graficos.php     # série diária, altura/pico e as sete barras da semana
+php testes/mercado.php      # a chave do código de barras e o nome vindo da Open Food Facts
 #   (transações e paginação entram em testes/vendas.php)
 node testes/mercado.js      # a conta do Mercado: centavos, total e o veredito do caixa
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético

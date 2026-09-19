@@ -192,7 +192,7 @@ try {
 }
 
 if ($db_ok) {
-    $esperadas = ['usuarios', 'estabelecimentos', 'produtos', 'produto_aliases', 'notas', 'itens', 'loja_pdvs', 'loja_itens', 'vendas', 'venda_itens', 'custos_parametros', 'custos_pdv', 'sync_estado'];
+    $esperadas = ['usuarios', 'estabelecimentos', 'produtos', 'produto_aliases', 'notas', 'itens', 'loja_pdvs', 'loja_itens', 'vendas', 'venda_itens', 'custos_parametros', 'custos_pdv', 'sync_estado', 'ean_nomes'];
     $faltando  = array_diff($esperadas, $tabelas);
 
     // ---- aplicar schema ----

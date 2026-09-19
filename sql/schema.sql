@@ -281,3 +281,20 @@ CREATE TABLE IF NOT EXISTS custos_pdv (
     CONSTRAINT fk_custos_pdv_pdv FOREIGN KEY (pdv_id)
         REFERENCES loja_pdvs (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Nome de um codigo de barras, para a tela Mercado (conferir a conta antes
+-- do caixa). NAO e catalogo: nao vira produto, nao entra no espelho da loja
+-- e nao aparece em relatorio nenhum — guarda nome, e so.
+--
+-- 'usuario' e o nome que a pessoa digitou para aquele codigo e ganha de
+-- qualquer base externa; 'off' veio da Open Food Facts e serve de cache,
+-- para o mesmo produto nao ser perguntado duas vezes.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ean_nomes (
+    ean           VARCHAR(14)  NOT NULL,
+    nome          VARCHAR(255) NOT NULL,
+    fonte         VARCHAR(20)  NOT NULL DEFAULT 'off',
+    atualizado_em DATETIME     NOT NULL,
+    PRIMARY KEY (ean)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -72,5 +72,16 @@ checar('negativo leva o sinal antes do simbolo', M.moeda(-250), '-R$ 2,50');
 checar('quantidade inteira sai sem casas', M.qtdTexto(2), '2');
 checar('quantidade quebrada sai com virgula', M.qtdTexto(0.756), '0,756');
 
+// ------------------------------------------- a chave do codigo de barras
+// A mesma do servidor: so digitos, no maximo 14. Se as duas divergirem, o
+// nome guardado aqui e o guardado la viram gavetas diferentes do mesmo item.
+checar('EAN-13 vira chave', M.chave('7891000100103'), '7891000100103');
+checar('espaco e hifen saem', M.chave(' 789-1000 100103 '), '7891000100103');
+checar('codigo de balanca entra', M.chave('2001234000005'), '2001234000005');
+checar('codigo curto demais nao vira chave', M.chave('123'), '');
+checar('vazio nao vira chave', M.chave(''), '');
+checar('nulo nao quebra', M.chave(null), '');
+checar('chave nao passa de 14 digitos', M.chave('123456789012345678'), '12345678901234');
+
 console.log(`\n${ok} passaram, ${falhou} falharam`);
 process.exit(falhou > 0 ? 1 : 0);

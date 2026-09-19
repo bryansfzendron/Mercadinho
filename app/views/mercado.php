@@ -45,7 +45,7 @@
                    placeholder="bipe ou digite" autocomplete="off">
         </label>
         <label>Produto
-            <input id="m-nome" type="text" placeholder="opcional — o nome vem sozinho quando dá"
+            <input id="m-nome" type="text" placeholder="o nome vem sozinho quando dá"
                    autocomplete="off">
         </label>
         <p class="ajuda" id="m-dica-produto"></p>
@@ -66,6 +66,8 @@
         <button type="submit" class="botao">Adicionar</button>
         <p class="ajuda">
             Produto pesado entra pelo peso: 0,756 na quantidade e o preço do quilo.
+            O nome que você escrever fica guardado naquele código de barras e volta
+            sozinho na próxima compra.
         </p>
     </form>
 
@@ -89,7 +91,7 @@
 </div>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/mercado.js?v=1"></script>
+<script src="/assets/mercado.js?v=2"></script>
 <script>
 (function () {
     /*

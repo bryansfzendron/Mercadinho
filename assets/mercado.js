@@ -12,6 +12,12 @@
  * offline inteira; o que precisa de rede (o nome do produto) e enfeite e some
  * sozinho quando nao ha.
  *
+ * O nome do codigo de barras tem duas memorias. A de ca, neste aparelho, e a
+ * que responde no corredor sem sinal; a de la, no servidor, e a que sabe das
+ * suas notas e da Open Food Facts. Nome que voce digita vai para as duas: da
+ * proxima compra ele aparece sozinho, e num produto que base nenhuma conhece
+ * — os de limpeza, os da padaria — essa e a unica forma de ele aparecer.
+ *
  * Dinheiro e guardado em CENTAVOS inteiros. Somar float em dinheiro erra por
  * volta do terceiro item, e o erro aparece justamente na hora de dizer se a
  * conta bate — que e a unica coisa que esta tela faz.
@@ -20,6 +26,7 @@
     'use strict';
 
     const CHAVE = 'mercadinho:mercado';
+    const CHAVE_NOMES = 'mercadinho:nomes';
 
     /*
      * Um centavo de folga na comparacao.
@@ -63,6 +70,16 @@
             c += 1;
         }
         return partes[1] === '-' ? -c : c;
+    }
+
+    /**
+     * A chave de um codigo de barras: so digitos, no maximo 14 — a mesma do
+     * servidor, senao a memoria daqui e a de la guardariam o mesmo produto em
+     * duas gavetas diferentes.
+     */
+    function chave(codigo) {
+        const d = String(codigo == null ? '' : codigo).replace(/\D/g, '');
+        return d.length >= 6 ? d.slice(0, 14) : '';
     }
 
     /** Centavos -> "R$ 12,34". */
@@ -113,7 +130,7 @@
         };
     }
 
-    const api = { centavos, moeda, qtdTexto, linha, total, conferir, TOLERANCIA, CHAVE };
+    const api = { centavos, moeda, qtdTexto, linha, total, conferir, chave, TOLERANCIA, CHAVE };
 
     // ---------------------------------------------------------------
     // A tela
@@ -137,6 +154,9 @@
         const btnLimpar   = doc.getElementById('m-limpar');
 
         let estado = ler();
+        // O nome que veio pronto (memoria ou servidor). Se o que esta no campo
+        // for diferente disto na hora de adicionar, foi a pessoa que escreveu.
+        let nomeDoServidor = '';
 
         function ler() {
             try {
@@ -155,6 +175,29 @@
             try {
                 global.localStorage.setItem(CHAVE, JSON.stringify(estado));
             } catch (e) { /* modo privado: a lista vive so nesta tela */ }
+        }
+
+        /*
+         * A memoria de nomes deste aparelho. Separada da lista de propósito:
+         * limpar a compra nao pode esquecer o que se aprendeu sobre os
+         * produtos — na proxima ida ao mercado eles sao os mesmos.
+         */
+        function lerNomes() {
+            try {
+                return JSON.parse(global.localStorage.getItem(CHAVE_NOMES) || '{}') || {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function lembrarNome(codigo, nome) {
+            const k = chave(codigo);
+            if (!k || !nome) return;
+            try {
+                const nomes = lerNomes();
+                nomes[k] = nome;
+                global.localStorage.setItem(CHAVE_NOMES, JSON.stringify(nomes));
+            } catch (e) { /* modo privado, ou memoria cheia */ }
         }
 
         function esc(t) {
@@ -232,10 +275,19 @@
                 return false;
             }
             const qtd = Number(String(campoQtd.value).replace(',', '.')) || 1;
+            const codigo = campoCodigo.value.trim();
+            const nome = campoNome.value.trim();
+
+            // Nome que voce escreveu (ou corrigiu) vale mais do que qualquer
+            // base: fica guardado aqui e la, para este codigo, para sempre.
+            if (codigo && nome && nome !== nomeDoServidor) {
+                lembrarNome(codigo, nome);
+                guardarNoServidor(codigo, nome);
+            }
 
             estado.itens.push({
-                codigo: campoCodigo.value.trim(),
-                nome: campoNome.value.trim(),
+                codigo: codigo,
+                nome: nome,
                 centavos: preco,
                 qtd: qtd > 0 ? qtd : 1,
             });
@@ -247,6 +299,7 @@
             campoPreco.value = '';
             campoQtd.value = '1';
             alvoDica.textContent = '';
+            nomeDoServidor = '';
             return true;
         }
 
@@ -279,36 +332,58 @@
             desenhar();
         });
 
+        /** Manda o nome digitado para o servidor. Fire-and-forget. */
+        function guardarNoServidor(codigo, nome) {
+            const meta = doc.querySelector('meta[name="csrf"]');
+            if (!meta) return;
+            fetch('/api/ean', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': meta.getAttribute('content') },
+                body: JSON.stringify({ codigo: codigo, nome: nome }),
+            }).catch(() => { /* sem sinal: a memoria deste aparelho ja guardou */ });
+        }
+
         /**
-         * O nome do produto, quando da. Enfeite: se a rede nao responder em
-         * 2,5s o codigo serve de nome e a compra continua — dentro do mercado
-         * o sinal cai, e esperar a rede para bipar o proximo item seria trocar
-         * a utilidade da tela por um detalhe.
+         * O nome do produto, quando da.
+         *
+         * A memoria do aparelho responde primeiro e sem rede — no corredor do
+         * fundo e a unica que responde. O servidor vem depois e por cima, que
+         * e ele quem sabe das suas notas, do que a Open Food Facts respondeu e
+         * de quanto voce pagou da ultima vez. Se a rede nao vier em 4s, fica o
+         * que ja esta na tela: o preco e digitado do mesmo jeito.
          */
         async function buscarNome(codigo) {
-            alvoDica.textContent = 'Procurando o produto...';
+            const k = chave(codigo);
+            const guardado = k ? lerNomes()[k] : '';
+            if (guardado) {
+                campoNome.value = guardado;
+                nomeDoServidor = guardado;
+                alvoDica.textContent = '';
+            } else {
+                alvoDica.textContent = 'Procurando o nome...';
+            }
+
             try {
                 const corta = new AbortController();
-                const relogio = setTimeout(() => corta.abort(), 2500);
-                const r = await fetch('/api/produto?ean=' + encodeURIComponent(codigo), { signal: corta.signal });
+                const relogio = setTimeout(() => corta.abort(), 4000);
+                const r = await fetch('/api/ean?codigo=' + encodeURIComponent(codigo), { signal: corta.signal });
                 clearTimeout(relogio);
                 const d = await r.json();
 
-                if (d.encontrado && d.descricao) {
-                    campoNome.value = d.descricao;
-                    const ultimo = d.stats && Number(d.stats.ultimo);
-                    alvoDica.textContent = ultimo > 0
-                        ? 'Você pagou ' + moeda(Math.round(ultimo * 100)) + ' na última nota.'
-                        : '';
-                    return;
+                // Nao atropela o que a pessoa ja comecou a escrever.
+                const intocado = campoNome.value === '' || campoNome.value === guardado;
+                if (d.nome && intocado) {
+                    campoNome.value = d.nome;
+                    nomeDoServidor = d.nome;
+                    lembrarNome(codigo, d.nome);
                 }
-                const naLoja = (d.loja && d.loja.length) ? d.loja[0] : null;
-                if (naLoja && naLoja.descricao) {
-                    campoNome.value = naLoja.descricao;
-                }
-                alvoDica.textContent = campoNome.value ? '' : 'Produto novo para o app — digite o preço mesmo assim.';
+
+                const ultimo = Number(d.ultimo);
+                alvoDica.textContent = ultimo > 0
+                    ? 'Você pagou ' + moeda(Math.round(ultimo * 100)) + ' na última nota.'
+                    : (campoNome.value ? '' : 'Produto que ninguém conhece ainda — escreva o nome e ele fica.');
             } catch (e) {
-                alvoDica.textContent = '';
+                alvoDica.textContent = guardado ? '' : '';
             }
         }
 
