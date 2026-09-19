@@ -851,7 +851,22 @@ da linha, então o unitário é conta nossa). O agrupamento é o mesmo do relat�
 senão código interno, senão a descrição —, então o mesmo refrigerante vendido em três
 compras é **uma** linha. Produto já casado com o catálogo leva para a ficha dele.
 
-`vendas_produtos_do_dia()` recebe o dia de `vendas_painel()` em vez de chamar `date()` de
+**A lista segue o gráfico.** Tocar numa barra troca os produtos junto com o número: aba
+*Atual* mostra hoje, aba *Semana* sem dia escolhido mostra a semana inteira, e com um dia
+escolhido mostra aquele dia. Voltar para *Atual* volta para hoje — deixar o sábado na tela
+faria o número de cima e a lista de baixo contarem coisas diferentes.
+
+Os oito blocos (sete dias + a semana) **já vêm prontos do servidor**, escondidos, e o JS só
+troca qual está visível. É uma consulta só para a semana inteira em vez de sete idas ao
+banco, o preço continua sendo formatado num lugar só, e trocar de dia não espera rede — num
+mercadinho a semana inteira de produtos cabe folgado numa página.
+
+A semana **não** é a soma das listas já cortadas: `vendas_produtos_dobrar()` reagrupa o
+produto dia a dia antes de ordenar, senão um item que vende pouco todo dia ficaria atrás de
+um que vendeu uma vez só num dia forte. E se o produto nasceu sem vínculo num dia e ganhou
+EAN no outro, a linha da semana leva o id que existe — senão o link para a ficha sumiria.
+
+`vendas_produtos_por_dia()` recebe os dias de `vendas_painel()` em vez de chamar `date()` de
 novo: entre uma consulta e a outra a meia-noite pode virar, e a lista mostraria um dia que
 não bate com o número logo acima dela.
 
@@ -875,6 +890,24 @@ dentro da compra e paginação. Ele vai **sem** levar o dia de hoje junto: quem 
 justamente porque quer ver além de hoje, e o padrão de lá já são 30 dias. No menu de baixo
 as duas acendem lugares diferentes: `/transacoes` é tela de dentro do **Início**,
 `/vendas/transacoes` é tela de dentro da **Loja**.
+
+## O dashboard
+
+`/dashboard` usa o mesmo cartão azul da capa, e por isso o controle segmentado precisou
+servir a dois casos: na capa são duas abas que trocam no JS, aqui são **quatro períodos e
+cada um é uma página**. A pílula então sai de duas variáveis CSS (`--itens` e `--indice`) em
+vez de um valor fixo, e ganha `view-transition-name` — o navegador a vê nas duas telas e a
+faz *deslizar* até o período novo, igualzinho à da capa, só que atravessando uma navegação.
+
+Os rótulos dos períodos têm versão curta (`vendas_periodos()` devolve um quarto item):
+"Mês corrente" em quatro colunas de celular quebra em duas linhas e desalinha a pílula.
+
+O que está dentro do cartão é o que se lê primeiro — faturamento, lucro líquido, margem e
+vendas, cada um com a variação contra o período anterior. **Mercadoria** e **Outros custos**
+ficam nos dois KPIs brancos logo abaixo: são o que sai do meio do faturamento e do lucro, e
+em custo subir é ruim, então a moldura inverte (`kpi_moldura($v, true)`). Sobre o azul o
+sinal continua verde e vermelho — em tons claros o bastante para o fundo, não em branco:
+apagar a cor de um prejuízo economizaria contraste e custaria a leitura.
 
 ## A seção Loja
 

@@ -206,5 +206,41 @@ checar('quarta no meio devolve o mesmo par', vendas_semana('2026-09-16'), ['2026
 // Virada de mes: a semana atravessa e as duas pontas ficam em meses diferentes.
 checar('semana que atravessa o mes nao se quebra', vendas_semana('2026-10-01'), ['2026-09-27', '2026-10-03']);
 
+// ------------------------------- os produtos vendidos, por dia e na semana
+$cru = [
+    // Sabado: o refrigerante fatura mais; o chocolate vende mais unidades.
+    ['dia' => '2026-09-19', 'grupo' => '789', 'produto_id' => 0,  'descricao' => 'REFRIGERANTE 2L',
+     'quantidade' => 1, 'total' => 7.50, 'vendas' => 1],
+    ['dia' => '2026-09-19', 'grupo' => '790', 'produto_id' => 8,  'descricao' => 'KIT KAT',
+     'quantidade' => 3, 'total' => 5.97, 'vendas' => 3],
+    // Sexta: so o chocolate, e aqui ele ja esta ligado ao catalogo.
+    ['dia' => '2026-09-18', 'grupo' => '790', 'produto_id' => 8,  'descricao' => 'KIT KAT',
+     'quantidade' => 2, 'total' => 3.98, 'vendas' => 2],
+    // O mesmo refrigerante, noutro dia, ainda sem vinculo.
+    ['dia' => '2026-09-18', 'grupo' => '789', 'produto_id' => 12, 'descricao' => 'REFRIGERANTE 2L',
+     'quantidade' => 1, 'total' => 7.50, 'vendas' => 1],
+];
+$dobrado = vendas_produtos_dobrar($cru);
+
+checar('cada dia vira uma lista', count($dobrado['2026-09-19']), 2);
+checar('a semana entra junto das listas de dia', isset($dobrado['semana']), true);
+checar('dentro do dia, quem faturou mais vem primeiro',
+    $dobrado['2026-09-19'][0]['grupo'], '789');
+
+$semana = $dobrado['semana'];
+checar('o mesmo produto em dois dias vira uma linha so na semana', count($semana), 2);
+checar('a semana soma o faturamento dos dias', $semana[0]['total'], 15.0);
+checar('a semana soma a quantidade dos dias',
+    array_values(array_filter($semana, fn ($l) => $l['grupo'] === '790'))[0]['quantidade'], 5.0);
+checar('a semana soma as vendas dos dias',
+    array_values(array_filter($semana, fn ($l) => $l['grupo'] === '790'))[0]['vendas'], 5);
+// O refrigerante nasceu sem vinculo no sabado e ganhou id na sexta: a linha da
+// semana tem que levar o id que existe, senao o link para a ficha some.
+checar('produto vinculado em qualquer dia leva o id para a semana',
+    array_values(array_filter($semana, fn ($l) => $l['grupo'] === '789'))[0]['produto_id'], 12);
+
+checar('o limite corta a lista', count(vendas_produtos_dobrar($cru, 1)['semana']), 1);
+checar('sem venda nenhuma sobra so a semana, vazia', vendas_produtos_dobrar([]), ['semana' => []]);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

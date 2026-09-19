@@ -112,10 +112,14 @@ function rota_login(string $m): void
 function rota_inicio(array $u): void
 {
     $painel = vendas_painel();
-    // Os produtos de hoje vem do mesmo dia que o cartao chama de "Hoje", e nao
-    // de date() de novo: virada de meia-noite entre uma consulta e a outra
-    // mostraria uma lista que nao bate com o numero logo acima dela.
-    $vendidos = vendas_produtos_do_dia($painel['hoje']['data']);
+    // A semana inteira de uma vez: o grafico deixa escolher qualquer dia, e a
+    // lista embaixo tem que acompanhar sem voltar ao servidor. Sao os mesmos
+    // dias que o cartao desenha (e nao date() de novo), senao a virada de
+    // meia-noite entre uma consulta e a outra mostraria uma lista que nao bate
+    // com o numero logo acima dela.
+    $vendidos = vendas_produtos_dobrar(
+        vendas_produtos_por_dia($painel['semana']['de'], $painel['semana']['ate'])
+    );
 
     ver('inicio', compact('painel', 'vendidos'), 'Inicio');
 }
@@ -718,6 +722,13 @@ function rota_dashboard(array $u): void
         'vendas'   => $var($res['vendas'], $res_ant['vendas']),
     ];
 
+    // Tudo que sai alem da mercadoria, num numero so: sem ele o leitor faz
+    // "faturamento - mercadoria" e nao chega no lucro que esta ao lado.
+    $outros = static fn(array $x): float => (float) $x['taxa'] + (float) $x['condominio']
+        + (float) $x['franquia'] + (float) $x['imposto'] + (float) $x['fixos'];
+    $custos_outros = $outros($res);
+    $variacao['outros'] = $var($custos_outros, $outros($res_ant));
+
     // Top produtos por contribuição
     $top = array_slice($r['linhas'], 0, 5);
 
@@ -741,8 +752,8 @@ function rota_dashboard(array $u): void
     $pdvs = vendas_pdvs();
 
     ver('dashboard', compact(
-        'res', 'res_ant', 'variacao', 'top', 'formas_map', 'formas_cores', 'barras_dia',
-        'r', 'chave', 'rotulo', 'de', 'ate', 'periodos', 'pdv_id', 'pdvs'
+        'res', 'res_ant', 'variacao', 'custos_outros', 'top', 'formas_map', 'formas_cores',
+        'barras_dia', 'r', 'chave', 'rotulo', 'de', 'ate', 'periodos', 'pdv_id', 'pdvs'
     ), 'Dashboard');
 }
 

@@ -553,6 +553,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 /* No celular continua uma coluna (a tela nao tem largura pra duas); a
    partir de tablet os cards de "como pagaram" e "top produtos" ficam lado a
    lado — mesma largura de conteudo (.conteudo), so divide em duas. */
+.filtro-pdv { margin-bottom: 1rem; }
 .dashboard-grade { display: grid; gap: 1rem; margin-bottom: 1rem; }
 .dashboard-grade > .cartao { margin-bottom: 0; }
 @media (min-width: 640px) {
@@ -820,6 +821,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 }
 
 .inicio-sub { color: var(--suave); margin: -.2rem 0 .8rem; }
+/* Titulo colado no subtitulo: os dois sao uma coisa so, e o h1 tem margem
+   pensada para texto que vem depois, nao para uma linha de apoio. */
+.titulo-painel { margin-bottom: .15rem; }
 
 .painel {
     background: var(--painel); color: var(--painel-tinta);
@@ -832,12 +836,20 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
    caminho — e e o que o iOS faz. Quem a move e o inicio.js, com a mesma mola
    do resto do app; sem JS ela fica parada embaixo da aba que ja esta ativa. */
 .segmento {
-    position: relative; display: grid; grid-template-columns: 1fr 1fr;
+    position: relative; display: grid;
+    /* Quantas abas o grupo tem e qual esta acesa. A capa tem duas e troca no
+       JS; o dashboard tem quatro e cada uma e um link — por isso a posicao da
+       pilula precisa sair de uma variavel, e nao de um valor fixo. */
+    --itens: 2;
+    --indice: 0;
+    grid-auto-flow: column; grid-auto-columns: 1fr;
     background: var(--painel-fundo-aba); border-radius: 12px; padding: 4px;
 }
 .segmento-pilula {
     position: absolute; top: 4px; left: 4px; bottom: 4px;
-    width: calc(50% - 4px); border-radius: 9px;
+    width: calc((100% - 8px) / var(--itens)); border-radius: 9px;
+    /* Anda multiplos da propria largura: um indice, nao uma conta de pixel. */
+    transform: translateX(calc(var(--indice) * 100%));
     /* Branca nos dois temas: ela mora sobre o azul do cartao, que e escuro em
        qualquer tema. Seguir --cartao fazia a pilula ficar preta no escuro, e
        a aba ativa parecia a apagada. */
@@ -847,7 +859,17 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     position: relative; z-index: 1; appearance: none; border: 0; background: none;
     font: inherit; font-weight: 600; font-size: .95rem; color: var(--painel-tinta);
     padding: .55rem .4rem; min-height: 44px; border-radius: 9px; cursor: pointer;
+    /* Serve a <button> (capa) e a <a> (dashboard) sem duas regras. */
+    display: flex; align-items: center; justify-content: center; text-align: center;
 }
+.segmento-aba:hover { text-decoration: none; }
+/* No dashboard cada aba e uma pagina. Dando nome de view transition a pilula,
+   o navegador a ve nas duas telas e a faz *deslizar* ate o periodo novo, do
+   mesmo jeito que ela desliza na capa — la sem sair da pagina. */
+.segmento-links .segmento-pilula { view-transition-name: pilula-periodo; }
+/* Quatro abas dividindo a largura de um celular: o corpo cede um pouco para
+   caber numa linha so — quebrar em duas desalinharia a pilula. */
+.segmento-links .segmento-aba { font-size: .85rem; }
 .segmento-aba.ativo { color: var(--painel); }
 
 .painel-corpo { padding: 1.1rem .85rem .85rem; }
@@ -869,6 +891,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     display: block; font-size: 1rem; font-weight: 600; margin-top: .15rem;
     font-variant-numeric: tabular-nums;
 }
+/* Sinal financeiro nao vira branco so porque o fundo e azul: subir continua
+   verde e cair continua vermelho, em tons claros o bastante para o azul. */
+.painel-var { display: inline-block; font-size: .68rem; font-weight: 600; margin-top: .2rem; }
+.painel-var.pos { color: #6ee7a8; }
+.painel-var.neg { color: #fca5a5; }
+.painel-kpis .negativo { color: #fca5a5; }
 
 /* ---------------------------------------------------------------
    A semana, dia a dia.

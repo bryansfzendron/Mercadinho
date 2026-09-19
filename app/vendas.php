@@ -513,21 +513,23 @@ function vendas_painel(?string $hoje = null): array
 }
 
 /**
- * O que saiu hoje, produto a produto — a lista embaixo do cartao da capa.
+ * O que saiu no periodo, por dia e por produto — a materia-prima da lista
+ * embaixo do cartao da capa.
+ *
+ * Uma consulta so para a semana inteira: a capa deixa escolher qualquer dia do
+ * grafico, e sete consultas (uma por toque) seriam sete idas ao banco para
+ * responder algo que ja estava na mesa.
  *
  * Agrupa pela mesma chave do relatorio (EAN, senao codigo interno, senao a
- * descricao): o mesmo refrigerante vendido em tres compras e uma linha so, e e
- * assim que a pergunta "o que saiu hoje" se responde.
- *
- * @param string|null $dia injetavel para teste; padrao e hoje
+ * descricao): o mesmo refrigerante vendido em tres compras e uma linha so.
  */
-function vendas_produtos_do_dia(?string $dia = null, int $limite = 60): array
+function vendas_produtos_por_dia(string $de, string $ate): array
 {
-    $dia = $dia ?: date('Y-m-d');
-    [$onde, $args] = vendas_filtro_sql(['de' => $dia, 'ate' => $dia]);
+    [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $ate]);
 
     return q(
-        'SELECT COALESCE(vi.ean, vi.codigo, vi.descricao) AS grupo,
+        'SELECT DATE(v.data_hora) AS dia,
+                COALESCE(vi.ean, vi.codigo, vi.descricao) AS grupo,
                 MIN(vi.produto_id) AS produto_id,
                 MIN(vi.descricao) AS descricao,
                 SUM(vi.quantidade) AS quantidade,
@@ -536,11 +538,69 @@ function vendas_produtos_do_dia(?string $dia = null, int $limite = 60): array
            FROM venda_itens vi
            JOIN vendas v ON v.id = vi.venda_id
           WHERE ' . $onde . '
-       GROUP BY grupo
-       ORDER BY total DESC, quantidade DESC
-          LIMIT ' . max(1, $limite),
+       GROUP BY dia, grupo
+       ORDER BY dia, total DESC
+          LIMIT 20000',
         $args
     );
+}
+
+/**
+ * Dobra as linhas por dia e, de quebra, monta a lista da semana inteira.
+ * Funcao pura — e por isso que a consulta acima devolve linha crua.
+ *
+ * A semana NAO e a soma das listas ja cortadas: o produto e reagrupado dia a
+ * dia antes de ordenar, senao um item que vende pouco todo dia ficaria atras
+ * de um que vendeu uma vez so num dia forte.
+ *
+ * @param array $linhas de vendas_produtos_por_dia()
+ * @return array<string,array> 'Y-m-d' => produtos daquele dia, mais 'semana'
+ */
+function vendas_produtos_dobrar(array $linhas, int $limite = 60): array
+{
+    $por_dia = [];
+    $semana  = [];
+
+    foreach ($linhas as $l) {
+        $dia   = (string) $l['dia'];
+        $grupo = (string) $l['grupo'];
+        $por_dia[$dia][] = $l;
+
+        if (!isset($semana[$grupo])) {
+            $semana[$grupo] = [
+                'grupo'      => $grupo,
+                'produto_id' => (int) $l['produto_id'],
+                'descricao'  => (string) $l['descricao'],
+                'quantidade' => 0.0,
+                'total'      => 0.0,
+                'vendas'     => 0,
+            ];
+        }
+        // Produto que nasceu sem vinculo num dia e ganhou EAN depois: vale o
+        // id que existe, nao o zero do primeiro dia em que apareceu.
+        if ((int) $l['produto_id'] > 0) {
+            $semana[$grupo]['produto_id'] = (int) $l['produto_id'];
+        }
+        $semana[$grupo]['quantidade'] += (float) $l['quantidade'];
+        $semana[$grupo]['total']      += (float) $l['total'];
+        $semana[$grupo]['vendas']     += (int) $l['vendas'];
+    }
+
+    $ordenar = static function (array $lista) use ($limite): array {
+        usort($lista, static function (array $a, array $b): int {
+            return (float) $b['total'] <=> (float) $a['total']
+                ?: (float) $b['quantidade'] <=> (float) $a['quantidade'];
+        });
+        return array_slice($lista, 0, max(1, $limite));
+    };
+
+    $saida = [];
+    foreach ($por_dia as $dia => $lista) {
+        $saida[$dia] = $ordenar($lista);
+    }
+    $saida['semana'] = $ordenar(array_values($semana));
+
+    return $saida;
 }
 
 // ---------------------------------------------------------------------
@@ -983,16 +1043,20 @@ function vendas_categorias(): array
  * Atalhos de periodo. "Mes corrente" e o que da para comparar direto com o
  * painel do TouchPay, que abre sempre no mes.
  *
- * @return array<string,array{0:string,1:string,2:string}> rotulo, de, ate
+ * O quarto item e o rotulo curto, para quando os quatro periodos dividem a
+ * largura da tela (o controle segmentado do dashboard): "Mês corrente" em
+ * quatro colunas de celular quebra em duas linhas e desalinha a pilula.
+ *
+ * @return array<string,array{0:string,1:string,2:string,3:string}> rotulo, de, ate, rotulo curto
  */
 function vendas_periodos(): array
 {
     $hoje = date('Y-m-d');
     return [
-        'mes'      => ['Mês corrente', date('Y-m-01'), $hoje],
+        'mes'      => ['Mês corrente', date('Y-m-01'), $hoje, 'Mês'],
         'passado'  => ['Mês passado',  date('Y-m-01', strtotime('first day of last month')),
-                                       date('Y-m-t', strtotime('last day of last month'))],
-        'dias30'   => ['30 dias',      date('Y-m-d', strtotime('-29 days')), $hoje],
-        'hoje'     => ['Hoje',         $hoje, $hoje],
+                                       date('Y-m-t', strtotime('last day of last month')), 'Anterior'],
+        'dias30'   => ['30 dias',      date('Y-m-d', strtotime('-29 days')), $hoje, '30 dias'],
+        'hoje'     => ['Hoje',         $hoje, $hoje, 'Hoje'],
     ];
 }

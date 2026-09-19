@@ -1,14 +1,79 @@
-<?php /** @var array $res @var array $res_ant @var array $variacao @var array $top @var array $formas_map @var array $formas_cores @var array $barras_dia @var array $r @var string $chave @var string $rotulo @var string $de @var string $ate @var array $periodos @var int $pdv_id @var array $pdvs */ ?>
-<div class="acoes-topo">
-    <h1 style="margin:0">Dashboard</h1>
-    <div class="chips" style="margin-top:.5rem">
-        <?php foreach ($periodos as $k => [$lbl, $d, $a]): ?>
-            <a class="chip <?= $chave === $k ? 'ativo' : '' ?>" href="/dashboard?periodo=<?= e($k) ?><?= $pdv_id ? '&pdv_id=' . (int) $pdv_id : '' ?>"><?= e($lbl) ?></a>
-        <?php endforeach; ?>
-    </div>
-</div>
+<?php /** @var array $res @var array $res_ant @var array $variacao @var float $custos_outros @var array $top @var array $formas_map @var array $formas_cores @var array $barras_dia @var array $r @var string $chave @var string $rotulo @var string $de @var string $ate @var array $periodos @var int $pdv_id @var array $pdvs */ ?>
+<?php
+/** Percentual com sinal, do jeito que o KPI escreve: +12,3% / −4,0pp. */
+$var_txt = static fn (float $v, string $un = '%'): string =>
+    ($v >= 0 ? '+' : '−') . number_format(abs($v), 1, ',', '.') . $un;
 
-<form method="get" action="/dashboard" style="margin-bottom:1rem">
+/** Em qual das abas a pilula do periodo para. */
+$indice = array_search($chave, array_keys($periodos), true) ?: 0;
+?>
+<h1 class="titulo-painel">Dashboard</h1>
+<p class="inicio-sub"><?= e($rotulo) ?> · <?= data_fmt($de) ?> a <?= data_fmt($ate) ?></p>
+
+<section class="painel">
+    <?php // Mesmo controle segmentado da capa, so que cada aba e uma pagina:
+          // sem JS, e a pilula desliza de um periodo ao outro na troca de tela. ?>
+    <nav class="segmento segmento-links" aria-label="Período"
+         style="--itens:<?= count($periodos) ?>;--indice:<?= (int) $indice ?>">
+        <span class="segmento-pilula" aria-hidden="true"></span>
+        <?php foreach ($periodos as $k => $p): ?>
+            <?php // Rotulo curto aqui: sao quatro colunas na largura de um celular. ?>
+            <a class="segmento-aba <?= $chave === $k ? 'ativo' : '' ?>"
+               <?= $chave === $k ? 'aria-current="page"' : '' ?>
+               title="<?= e($p[0]) ?>"
+               href="/dashboard?periodo=<?= e($k) ?><?= $pdv_id ? '&pdv_id=' . (int) $pdv_id : '' ?>"><?= e($p[3] ?? $p[0]) ?></a>
+        <?php endforeach; ?>
+    </nav>
+
+    <div class="painel-corpo">
+        <p class="painel-rotulo">Faturamento</p>
+        <p class="painel-valor"><?= moeda($res['receita']) ?></p>
+        <?php if ($variacao['receita'] !== null): ?>
+            <span class="painel-var <?= $variacao['receita'] >= 0 ? 'pos' : 'neg' ?>">
+                <?= $var_txt($variacao['receita']) ?> vs. período anterior
+            </span>
+        <?php endif; ?>
+
+        <div class="painel-divisor">
+            <span aria-hidden="true"></span>
+            <a href="/vendas?de=<?= e($de) ?>&ate=<?= e($ate) ?>">Ver relatório</a>
+        </div>
+
+        <div class="painel-kpis">
+            <div>
+                <span>Lucro líquido</span>
+                <strong class="<?= $res['lucro'] >= 0 ? '' : 'negativo' ?>">
+                    <?= $res['lucro'] >= 0 ? '+' : '−' ?><?= moeda(abs($res['lucro'])) ?>
+                </strong>
+                <?php if ($variacao['lucro'] !== null): ?>
+                    <span class="painel-var <?= $variacao['lucro'] >= 0 ? 'pos' : 'neg' ?>">
+                        <?= $var_txt($variacao['lucro']) ?>
+                    </span>
+                <?php endif; ?>
+            </div>
+            <div>
+                <span>Margem</span>
+                <strong><?= number_format($res['margem'], 1, ',', '.') ?>%</strong>
+                <?php if ($variacao['margem'] !== null): ?>
+                    <span class="painel-var <?= $variacao['margem'] >= 0 ? 'pos' : 'neg' ?>">
+                        <?= $var_txt($variacao['margem'], 'pp') ?>
+                    </span>
+                <?php endif; ?>
+            </div>
+            <div>
+                <span>Vendas</span>
+                <strong><?= (int) $res['vendas'] ?></strong>
+                <?php if ($variacao['vendas'] !== null): ?>
+                    <span class="painel-var <?= $variacao['vendas'] >= 0 ? 'pos' : 'neg' ?>">
+                        <?= $var_txt($variacao['vendas']) ?>
+                    </span>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</section>
+
+<form method="get" action="/dashboard" class="filtro-pdv">
     <label>Ponto de venda
         <select name="pdv_id" onchange="this.form.submit()">
             <option value="">todos</option>
@@ -22,60 +87,33 @@
     <input type="hidden" name="periodo" value="<?= e($chave) ?>">
 </form>
 
+<?php // O faturamento e o lucro subiram para o painel; aqui fica o que sai do
+      // meio dos dois. Em custo, subir e ruim: a moldura inverte. ?>
 <div class="numeros grade2">
-    <div class="numero kpi <?= kpi_moldura($variacao['receita']) ?>">
-        <span class="kpi-rotulo">Faturamento</span>
-        <strong class="kpi-valor"><?= moeda($res['receita']) ?></strong>
-        <?php if ($variacao['receita'] !== null): ?>
-            <span class="kpi-var <?= $variacao['receita'] >= 0 ? 'pos' : 'neg' ?>">
-                <?= $variacao['receita'] >= 0 ? '+' : '' ?><?= number_format($variacao['receita'], 1, ',', '.') ?>%
-            </span>
-        <?php endif; ?>
-    </div>
-
-    <?php // No CMV subir e ruim: a moldura inverte. ?>
     <div class="numero kpi <?= kpi_moldura($variacao['cmv'], true) ?>">
         <span class="kpi-rotulo">Mercadoria</span>
         <strong class="kpi-valor negativo">− <?= moeda($res['cmv']) ?></strong>
         <?php if ($variacao['cmv'] !== null): ?>
             <span class="kpi-var <?= $variacao['cmv'] <= 0 ? 'pos' : 'neg' ?>">
-                <?= $variacao['cmv'] >= 0 ? '+' : '' ?><?= number_format($variacao['cmv'], 1, ',', '.') ?>%
+                <?= $var_txt($variacao['cmv']) ?>
             </span>
         <?php endif; ?>
     </div>
 
-    <div class="numero kpi <?= kpi_moldura($variacao['lucro']) ?>">
-        <span class="kpi-rotulo">Lucro líquido</span>
-        <strong class="kpi-valor <?= $res['lucro'] >= 0 ? '' : 'negativo' ?>">
-            <?= $res['lucro'] >= 0 ? '+' : '−' ?><?= moeda(abs($res['lucro'])) ?>
-        </strong>
-        <?php if ($variacao['lucro'] !== null): ?>
-            <span class="kpi-var <?= $variacao['lucro'] >= 0 ? 'pos' : 'neg' ?>">
-                <?= $variacao['lucro'] >= 0 ? '+' : '' ?><?= number_format($variacao['lucro'], 1, ',', '.') ?>%
-            </span>
-        <?php endif; ?>
-    </div>
-
-    <div class="numero kpi <?= kpi_moldura($variacao['margem']) ?>">
-        <span class="kpi-rotulo">Margem</span>
-        <strong class="kpi-valor"><?= number_format($res['margem'], 1, ',', '.') ?>%</strong>
-        <?php if ($variacao['margem'] !== null): ?>
-            <span class="kpi-var <?= $variacao['margem'] >= 0 ? 'pos' : 'neg' ?>">
-                <?= $variacao['margem'] >= 0 ? '+' : '' ?><?= number_format($variacao['margem'], 1, ',', '.') ?>pp
+    <div class="numero kpi <?= kpi_moldura($variacao['outros'], true) ?>">
+        <span class="kpi-rotulo">Outros custos</span>
+        <strong class="kpi-valor negativo">− <?= moeda($custos_outros) ?></strong>
+        <?php if ($variacao['outros'] !== null): ?>
+            <span class="kpi-var <?= $variacao['outros'] <= 0 ? 'pos' : 'neg' ?>">
+                <?= $var_txt($variacao['outros']) ?>
             </span>
         <?php endif; ?>
     </div>
 </div>
 
-<?php
-// O que sai alem da mercadoria. Sem esta linha o leitor faz
-// "faturamento - mercadoria" e nao chega no lucro que esta ao lado.
-$outros = (float) $res['taxa'] + (float) $res['condominio']
-        + (float) $res['franquia'] + (float) $res['imposto'] + (float) $res['fixos'];
-?>
-<p class="ajuda centro" style="margin:1rem 0">
-    Além da mercadoria saem <strong><?= moeda($outros) ?></strong> de maquininha,
-    condomínio, franquia, imposto e fixos — o detalhe está no resumo do período, no fim da tela.
+<p class="ajuda centro sem-topo">
+    Maquininha, condomínio, franquia, imposto e fixos — o detalhe está no
+    resumo do período, no fim da tela.
 </p>
 
 <?php if ($barras_dia): ?>
