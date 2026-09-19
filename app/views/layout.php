@@ -9,6 +9,10 @@ $flashes = flash_pegar();
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#071c3d">
 <title><?= e($titulo) ?> · Alpha Market</title>
+<?php // O puxar-para-atualizar pede a sincronizacao por POST, e toda rota que
+      // grava exige o token. So sai para quem esta logado. ?>
+<?php if ($usuario): ?><meta name="csrf" content="<?= e(csrf_token()) ?>">
+<?php endif; ?>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/png" href="/assets/favicon.png">
 <?php // No iPhone, "Adicionar a Tela de Inicio" usa este icone, nao o do manifest. ?>
@@ -94,6 +98,6 @@ $flashes = flash_pegar();
 <script src="/assets/movimento.js?v=1" defer></script>
 <?php // inicio.js so faz algo onde existe o cartao de vendas; nas outras telas sai fora. ?>
 <script src="/assets/inicio.js?v=3" defer></script>
-<script src="/assets/puxar-atualizar.js?v=2" defer></script>
+<script src="/assets/puxar-atualizar.js?v=3" defer></script>
 </body>
 </html>

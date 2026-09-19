@@ -35,6 +35,7 @@ function despachar(string $rota): void
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
     if ($rota === '/api/produto' && $m === 'GET')  { rota_api_produto($u); return; }
     if ($rota === '/api/sync/estado' && $m === 'GET') { rota_api_sync_estado($u); return; }
+    if ($rota === '/api/sincronizar' && $m === 'POST') { rota_api_sincronizar($u); return; }
     if ($rota === '/api/loja/sincronizar' && $m === 'POST') { rota_loja_sincronizar($u); return; }
     if ($rota === '/api/vendas/sincronizar' && $m === 'POST') { rota_vendas_sincronizar($u); return; }
 
@@ -606,6 +607,25 @@ function rota_margens(array $u): void
     $min   = margens_minimos();
 
     ver('margens', compact('itens', 'conta', 'min', 'filtro', 'busca'), 'Margens');
+}
+
+/**
+ * Pede as duas coletas de uma vez — e o que o puxar-para-atualizar chama.
+ *
+ * Mesma trava do cron (`sync_disparar_pendentes`): puxar a tela dez vezes
+ * seguidas nao vira dez idas ao TouchPay. Quando as duas fontes estao dentro
+ * do intervalo, a resposta diz "nada a fazer" e o gesto so recarrega.
+ */
+function rota_api_sincronizar(array $u): void
+{
+    exigir_csrf();
+
+    $r = sync_disparar_pendentes();
+    json_resposta([
+        'ok'       => true,
+        'disparou' => sync_disparou_alguma($r),
+        'fontes'   => $r,
+    ]);
 }
 
 /** Placar das duas importacoes, para a tela desenhar a barra de progresso. */

@@ -61,42 +61,22 @@ function dizer(string $msg): void
 $agora = date('Y-m-d H:i:s');
 $forcar = isset($_GET['forcar']) || in_array('--forcar', $argv ?? [], true);
 
-$fontes = [
-    'vendas' => [
-        'minutos'  => max(1, (int) cfg('cron_vendas_min', 5)),
-        'disparar' => static fn (): array => vendas_disparar_sync(),
-        'nome'     => 'vendas',
-    ],
-    'loja' => [
-        // Preco e estoque mudam devagar e a coleta e pesada (o inventario
-        // inteiro de cada PDV): nao faz sentido no mesmo ritmo das vendas.
-        'minutos'  => max(1, (int) cfg('cron_loja_min', 30)),
-        'disparar' => static fn (): array => loja_disparar_sync(),
-        'nome'     => 'preços e estoque',
-    ],
-];
-
 $resumo = [];
 $falhou = false;
 
-foreach ($fontes as $fonte => $como) {
-    $estado = q1('SELECT * FROM sync_estado WHERE fonte = ?', [$fonte]);
-    $motivo = sync_motivo_para_pular($estado, $como['minutos'], $agora);
-
-    if ($motivo !== null && !$forcar) {
-        dizer($como['nome'] . ': pulou — ' . $motivo);
-        $resumo[] = $como['nome'] . ' pulou';
+foreach (sync_disparar_pendentes($forcar, $agora) as $r) {
+    if ($r['pulou']) {
+        dizer($r['nome'] . ': pulou — ' . $r['motivo']);
+        $resumo[] = $r['nome'] . ' pulou';
         continue;
     }
-
-    $r = $como['disparar']();
     if ($r['ok']) {
-        $janela = isset($r['desde']) ? ' (' . $r['desde'] . ' a ' . $r['ate'] . ')' : '';
-        dizer($como['nome'] . ': disparado' . $janela);
-        $resumo[] = $como['nome'] . ' disparado';
+        $janela = $r['desde'] !== null ? ' (' . $r['desde'] . ' a ' . $r['ate'] . ')' : '';
+        dizer($r['nome'] . ': disparado' . $janela);
+        $resumo[] = $r['nome'] . ' disparado';
     } else {
-        dizer($como['nome'] . ': FALHOU — ' . ($r['erro'] ?? 'sem detalhe'));
-        $resumo[] = $como['nome'] . ': ' . ($r['erro'] ?? 'sem detalhe');
+        dizer($r['nome'] . ': FALHOU — ' . $r['erro']);
+        $resumo[] = $r['nome'] . ': ' . $r['erro'];
         $falhou = true;
     }
 }

@@ -143,6 +143,87 @@ function sync_motivo_para_pular(?array $estado, int $minutos, ?string $agora = n
 }
 
 // ---------------------------------------------------------------------
+// Disparar as duas fontes
+// ---------------------------------------------------------------------
+
+/**
+ * As duas coletas do TouchPay: como se chamam, de quanto em quanto tempo no
+ * maximo, e o que dispara cada uma.
+ *
+ * Mora aqui, e nao no cron, porque agora ha dois chamadores: o cron da
+ * hospedagem e o puxar-para-atualizar do app. Os dois precisam da MESMA
+ * trava — senao o gesto martelaria a API do TouchPay por fora do intervalo
+ * que o cron respeita.
+ *
+ * @return array<string,array{nome:string,minutos:int,disparar:callable}>
+ */
+function sync_fontes(): array
+{
+    return [
+        'vendas' => [
+            'nome'     => 'vendas',
+            'minutos'  => max(1, (int) cfg('cron_vendas_min', 5)),
+            'disparar' => static fn (): array => vendas_disparar_sync(),
+        ],
+        'loja' => [
+            // Preco e estoque mudam devagar e a coleta e pesada (o inventario
+            // inteiro de cada PDV): nao faz sentido no mesmo ritmo das vendas.
+            'nome'     => 'preços e estoque',
+            'minutos'  => max(1, (int) cfg('cron_loja_min', 30)),
+            'disparar' => static fn (): array => loja_disparar_sync(),
+        ],
+    ];
+}
+
+/**
+ * Dispara o que estiver na hora de disparar.
+ *
+ * Devolve uma linha por fonte dizendo o que aconteceu — quem chama e que
+ * decide se imprime (cron), se devolve em JSON (o gesto) ou se ignora.
+ *
+ * @return array<int,array{fonte:string,nome:string,pulou:bool,motivo:?string,ok:bool,erro:?string,desde:?string,ate:?string}>
+ */
+function sync_disparar_pendentes(bool $forcar = false, ?string $agora = null): array
+{
+    $saida = [];
+    foreach (sync_fontes() as $fonte => $como) {
+        $estado = q1('SELECT * FROM sync_estado WHERE fonte = ?', [$fonte]);
+        $motivo = sync_motivo_para_pular($estado, $como['minutos'], $agora);
+
+        if ($motivo !== null && !$forcar) {
+            $saida[] = ['fonte' => $fonte, 'nome' => $como['nome'], 'pulou' => true,
+                        'motivo' => $motivo, 'ok' => true, 'erro' => null,
+                        'desde' => null, 'ate' => null];
+            continue;
+        }
+
+        $r = $como['disparar']();
+        $saida[] = [
+            'fonte'  => $fonte,
+            'nome'   => $como['nome'],
+            'pulou'  => false,
+            'motivo' => null,
+            'ok'     => (bool) $r['ok'],
+            'erro'   => $r['ok'] ? null : ($r['erro'] ?? 'sem detalhe'),
+            'desde'  => $r['desde'] ?? null,
+            'ate'    => $r['ate'] ?? null,
+        ];
+    }
+    return $saida;
+}
+
+/** Alguma fonte foi mesmo disparada? E o que diz se vale a pena esperar. */
+function sync_disparou_alguma(array $resultado): bool
+{
+    foreach ($resultado as $r) {
+        if (!$r['pulou'] && $r['ok']) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------
 // O cron
 // ---------------------------------------------------------------------
 

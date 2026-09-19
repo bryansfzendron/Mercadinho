@@ -84,8 +84,13 @@ async function puxar(pag, pixels, passos = 6) {
         // O gatilho e em pixels ja com a resistencia de 50% (ela so vira borracha
         // depois do gatilho), entao o dedo precisa andar o dobro.
         await puxar(pag, 200);
-        checar('standalone: puxao longo recarrega',
-            (await pag.evaluate('window.__recarregou')) === 1);
+        // O puxao agora pede a coleta ao servidor antes de recarregar, entao o
+        // recarregar chega um tique depois do dedo — esperar o estado, e nao
+        // medir no mesmo quadro. (Aqui a rota nao existe: o fetch falha e o
+        // gesto cai no recarregar, que e exatamente o que se quer garantir.)
+        const recarregou = await pag.waitForFunction('window.__recarregou === 1', { timeout: 5000 })
+            .then(() => true).catch(() => false);
+        checar('standalone: puxao longo recarrega', recarregou);
 
         checar('standalone: sem erro de JS', erros.length === 0, erros.join(' | '));
         await ctx.close();

@@ -10,6 +10,13 @@
  *  - so age quando a pagina ja esta no topo;
  *  - so age em movimento para baixo, com um dedo so;
  *  - enquanto arrasta, resiste cada vez mais em vez de parar de repente.
+ *
+ * E o puxao nao recarrega so a pagina: ele PEDE dados novos ao TouchPay
+ * (estoque e vendas) e segura o indicador girando ate a coleta terminar.
+ * Recarregar sem isso mostraria de novo exatamente os mesmos numeros, que e o
+ * contrario do que o gesto promete. A trava contra martelar a API e do
+ * servidor (a mesma do cron), nao daqui: quando as duas fontes estao dentro do
+ * intervalo, a resposta diz "nada a fazer" e o puxao so recarrega.
  */
 (function (global) {
     'use strict';
@@ -18,6 +25,18 @@
     const TETO = 130;       // px, o limite de que a borracha se aproxima
     const RESISTENCIA = 0.5;
     const ELASTICO = 0.55;  // quanto a borracha cede depois do gatilho
+
+    /*
+     * Ate quando esperar a coleta antes de recarregar assim mesmo.
+     *
+     * Uma carga grande do TouchPay passa disso com folga, e nao da para
+     * prender o app ate ela acabar: passados os 22s a pagina recarrega com o
+     * que ja chegou, e o resto entra na proxima. Vinte e dois porque um ciclo
+     * curto de vendas costuma fechar em menos disso, e mais que isso o gesto
+     * comeca a parecer travado.
+     */
+    const ESPERA_MAXIMA = 22000;
+    const INTERVALO_PLACAR = 1500;
 
     /*
      * Quanto o indicador desce, para um dedo que andou `bruto` pixels.
@@ -167,7 +186,7 @@
             if (distancia >= GATILHO) {
                 recarregando = true;
                 indicador.classList.add('puxar-girando');
-                api.recarregar();
+                api.atualizar();
                 return;
             }
             soltar();
@@ -178,10 +197,61 @@
         document.addEventListener('touchcancel', terminar, { passive: true });
     }
 
+    /** O token que as rotas de gravar exigem; o layout o poe no <head>. */
+    function csrf() {
+        const meta = document.querySelector('meta[name="csrf"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    /** Pede as duas coletas. Devolve se alguma foi mesmo disparada. */
+    async function pedirColeta() {
+        const token = csrf();
+        // Sem token e tela sem sessao: nao ha o que sincronizar.
+        if (!token) {
+            return false;
+        }
+        const r = await fetch('/api/sincronizar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+        });
+        const d = await r.json();
+        return !!(d && d.disparou);
+    }
+
+    /** Segura ate as duas fontes pararem de rodar, ou ate estourar o prazo. */
+    async function esperarColeta(prazo) {
+        while (Date.now() < prazo) {
+            await new Promise((ok) => setTimeout(ok, INTERVALO_PLACAR));
+            const r = await fetch('/api/sync/estado');
+            const d = await r.json();
+            const rodando = (d.loja && d.loja.rodando) || (d.vendas && d.vendas.rodando);
+            if (!rodando) {
+                return;
+            }
+        }
+    }
+
     const api = {
         iniciar,
         ehStandalone,
         GATILHO,
+        /*
+         * O puxao inteiro: pede os dados, espera o que der e recarrega.
+         *
+         * Recarregar e o ULTIMO passo e acontece sempre — rede caida, sessao
+         * expirada ou coleta demorada nao podem deixar o indicador girando
+         * para sempre. No pior caso o gesto faz o que sempre fez.
+         */
+        async atualizar() {
+            try {
+                if (await pedirColeta()) {
+                    await esperarColeta(Date.now() + ESPERA_MAXIMA);
+                }
+            } catch (e) {
+                /* sem rede ou sessao vencida: recarrega do mesmo jeito */
+            }
+            api.recarregar();
+        },
         // Trocavel para o teste conseguir observar sem recarregar de verdade.
         recarregar() {
             global.location.reload();

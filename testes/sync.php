@@ -161,5 +161,22 @@ $ruim = cron_formatar(
 checar('disparo que falhou marca erro', $ruim['erro'], true);
 checar('mas o cron passou', $ruim['atrasado'], false);
 
+// ------------------------------------- vale a pena esperar a coleta?
+// O puxar-para-atualizar so segura o indicador girando quando alguma fonte
+// foi MESMO disparada. Pulado (dentro do intervalo) e falha nao contam: nos
+// dois casos nao ha nada vindo, e prender o gesto seria mentira.
+checar('pulou tudo: nao ha o que esperar', sync_disparou_alguma([
+    ['pulou' => true, 'ok' => true],
+    ['pulou' => true, 'ok' => true],
+]), false);
+checar('uma disparada ja vale a espera', sync_disparou_alguma([
+    ['pulou' => true,  'ok' => true],
+    ['pulou' => false, 'ok' => true],
+]), true);
+checar('disparo que falhou nao vira espera', sync_disparou_alguma([
+    ['pulou' => false, 'ok' => false],
+]), false);
+checar('sem fonte nenhuma, nada a esperar', sync_disparou_alguma([]), false);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

@@ -763,6 +763,29 @@ Duas travas, ambas em `sync_motivo_para_pular()`:
 Cada execução escreve uma linha do que fez ou por que pulou. `?forcar=1` (ou `--forcar`
 no CLI) ignora o intervalo.
 
+### Puxar para atualizar também busca dados novos
+
+No app instalado, o puxão não recarrega só a página: ele **pede as duas coletas** e segura o
+indicador girando até elas acabarem. Recarregar sem isso mostraria de novo exatamente os
+mesmos números — que é o contrário do que o gesto promete.
+
+Quem decide é o servidor, em `POST /api/sincronizar`, com a **mesma** `sync_disparar_pendentes()`
+do cron: puxar a tela dez vezes seguidas não vira dez idas ao TouchPay, porque as duas travas
+continuam valendo. Quando nada está na hora de rodar, a resposta diz `disparou: false` e o
+gesto só recarrega, como antes.
+
+Se alguma coleta foi mesmo disparada, o gesto acompanha `/api/sync/estado` de 1,5 em 1,5
+segundos e recarrega quando as duas param — ou aos **22 segundos**, o que vier primeiro. Uma
+carga grande passa disso com folga, e prender o app até ela acabar leria como travado; o
+resto entra na próxima. Rede caída, sessão vencida ou erro no meio caem todos no mesmo
+lugar: recarrega assim mesmo, que é o que o gesto sempre fez.
+
+O token do CSRF sai num `<meta name="csrf">` do layout, só para quem está logado — é a
+mesma exigência de qualquer rota que grava.
+
+No navegador comum isto não existe: lá o puxão é do próprio Safari/Chrome e só recarrega.
+O gesto do app só é montado em modo standalone, onde o navegador não oferece nenhum.
+
 ### Saber se ele está rodando
 
 Um cron que não roda não roda em silêncio — e a tela fica igual à de um cron que roda e
