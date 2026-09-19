@@ -1,10 +1,11 @@
 <?php
 /**
- * As compras recentes, direto do "Ver detalhes" do inicio.
+ * As compras de hoje, direto do "Ver detalhes" do inicio.
  *
- * Sem filtro na tela: a pergunta aqui e "o que saiu agora ha pouco". Quando a
- * pergunta vira "quanto o PDV X vendeu no Pix em agosto", o botao flutuante
- * leva para /vendas/transacoes, que e a tela de analise e continua intacta.
+ * Sem filtro na tela, e so o dia de hoje: a pergunta aqui e "o que saiu hoje",
+ * a mesma do cartao de onde se clicou. Quando a pergunta vira "quanto o PDV X
+ * vendeu no Pix em agosto", o botao flutuante leva para /vendas/transacoes,
+ * que e a tela de analise e continua intacta.
  *
  * Cada compra abre em sanfona (<details>), do mesmo jeito que la — o
  * movimento.js anima a altura.
@@ -12,7 +13,7 @@
  * @var array $linhas uma transação por linha, da mais recente para a mais antiga
  * @var array $itens  venda_id => itens daquela compra
  * @var array $pag    a paginação já calculada
- * @var array $f      o período mostrado
+ * @var array $f      o dia mostrado (de = ate = hoje)
  * @var array $formas forma bruta => nome de gente
  */
 ?>
@@ -23,14 +24,14 @@
         <path d="M13.5 3v4h4"/>
         <path d="M8.5 12.5h7M8.5 16h5"/>
     </svg>
-    Transações recentes
+    Transações de hoje
 </h1>
-<p class="meta">Últimas compras dos seus pontos de venda.</p>
+<p class="meta">As compras dos seus pontos de venda hoje.</p>
 
-<p class="faixa-periodo"><span>Últimos 30 dias</span></p>
+<p class="faixa-periodo"><span><?= data_fmt($f['de']) ?></span></p>
 
 <?php if (!$linhas): ?>
-    <p class="vazio">Nenhuma compra nos últimos 30 dias.</p>
+    <p class="vazio">Nenhuma compra hoje ainda.</p>
 <?php else: ?>
     <ul class="lista solta">
         <?php foreach ($linhas as $v): $lista = $itens[(int) $v['id']] ?? []; ?>
@@ -42,7 +43,8 @@
                             <span class="valor"><?= moeda($v['valor_pago']) ?></span>
                         </div>
                         <div class="linha-baixo">
-                            <span><?= data_fmt($v['data_hora'], true) ?></span>
+                            <?php // So a hora: o dia ja esta no topo da tela, igual em todas as linhas. ?>
+                            <span><?= hora_fmt($v['data_hora']) ?></span>
                             <span class="corta">
                                 <?= e($formas[$v['forma_pagamento']] ?? $v['forma_pagamento'] ?? 'sem forma') ?>
                                 <?php if (!empty($v['bandeira'])): ?> · <?= e($v['bandeira']) ?><?php endif; ?>
@@ -113,9 +115,11 @@
     <?php endif; ?>
 <?php endif; ?>
 
-<?php // O filtro nao mora aqui: quem precisa dele vai para a tela de analise. ?>
-<a class="flutuante" href="/vendas/transacoes?de=<?= e($f['de']) ?>&ate=<?= e($f['ate']) ?>"
-   aria-label="Filtrar transações" title="Filtrar transações">
+<?php // O filtro nao mora aqui: quem precisa dele vai para a tela de analise,
+      // e sem carregar o dia de hoje junto — vai ate la justamente por querer
+      // ver alem de hoje, e o periodo padrao de la ja e o de 30 dias. ?>
+<a class="flutuante" href="/vendas/transacoes"
+   aria-label="Ver na tela de análise" title="Ver na tela de análise">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 5h16l-6.2 7.3V19l-3.6-2v-4.7Z"/>

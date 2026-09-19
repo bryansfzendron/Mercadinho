@@ -131,5 +131,11 @@ checar('linha sem valor e ignorada', $sujo['custo'], 2.00);
 // Fracionado (granel) tambem fecha.
 checar('quantidade fracionada', produto_custo_estoque([compra(10.0, 1.5)], 1.5)['custo'], 10.0);
 
+// ------------------------------------------------------------------ hora
+checar('hora sai sem a data', hora_fmt('2026-09-19 08:29:00'), '08:29');
+checar('meia-noite nao vira vazio', hora_fmt('2026-09-19 00:05:00'), '00:05');
+checar('sem data nao inventa hora', hora_fmt(null), '-');
+checar('lixo no lugar da data nao vira 01/01/1970', hora_fmt('nao e data'), '-');
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

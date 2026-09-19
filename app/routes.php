@@ -121,16 +121,20 @@ function rota_inicio(array $u): void
 }
 
 /**
- * As transacoes recentes, sem filtro nenhum.
+ * As transacoes de hoje, sem filtro nenhum.
  *
- * Irma pobre de /vendas/transacoes de proposito: la e a tela de analise (data,
- * PDV, forma, categoria, busca dentro da compra); aqui e "o que saiu nos
- * ultimos 30 dias", que e o que o "Ver detalhes" do inicio esta perguntando.
- * O botao flutuante leva para a tela cheia quando a pergunta cresce.
+ * Hoje e so hoje: esta tela e o "Ver detalhes" do cartao da capa, que fala do
+ * dia — abrir trinta dias aqui responderia outra pergunta e faria o total da
+ * lista brigar com o numero de onde se clicou.
+ *
+ * Quem quer periodo, PDV, forma de pagamento ou busca dentro da compra tem a
+ * tela de analise em Loja > Vendas > Transacoes, para onde o botao flutuante
+ * leva.
  */
 function rota_transacoes(array $u): void
 {
-    $f = ['de' => date('Y-m-d', strtotime('-29 days')), 'ate' => date('Y-m-d')];
+    $hoje = date('Y-m-d');
+    $f = ['de' => $hoje, 'ate' => $hoje];
 
     $pag    = vendas_paginacao(vendas_transacoes_contar($f), (int) ($_GET['p'] ?? 1));
     $linhas = vendas_transacoes($f, $pag);

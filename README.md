@@ -858,17 +858,23 @@ não bate com o número logo acima dela.
 Escanear e bipar **não** ficam aqui: os dois botões já moram na tela de notas, e repetidos
 na capa só empurravam a lista do dia para baixo da dobra.
 
-### Transações recentes
+### Transações de hoje
 
-`/transacoes` é a irmã pobre de `/vendas/transacoes`, de propósito: sem filtro nenhum, só
-as compras dos últimos 30 dias, cada uma abrindo em sanfona com data, forma de pagamento,
-código no TouchPay e os produtos que saíram. É a resposta ao *Ver detalhes* da capa.
+`/transacoes` é a irmã pobre de `/vendas/transacoes`, de propósito: sem filtro nenhum e só
+**o dia de hoje**, cada compra abrindo em sanfona com data, forma de pagamento, código no
+TouchPay e os produtos que saíram. É a resposta ao *Ver detalhes* da capa, e o cartão de
+onde se clicou fala do dia — abrir trinta dias aqui responderia outra pergunta e faria o
+total da lista brigar com o número logo acima do link.
+
+Na linha da compra vai só a **hora**: a data está no topo da tela e é a mesma em todas as
+linhas; a data cheia continua dentro do detalhe.
 
 Quando a pergunta cresce — "quanto o PDV X vendeu no Pix em agosto" — o botão flutuante
 leva para `/vendas/transacoes`, que continua sendo a tela de análise, com filtros, busca
-dentro da compra e paginação. No menu de baixo as duas acendem lugares diferentes:
-`/transacoes` é tela de dentro do **Início**, `/vendas/transacoes` é tela de dentro da
-**Loja**.
+dentro da compra e paginação. Ele vai **sem** levar o dia de hoje junto: quem clica ali é
+justamente porque quer ver além de hoje, e o padrão de lá já são 30 dias. No menu de baixo
+as duas acendem lugares diferentes: `/transacoes` é tela de dentro do **Início**,
+`/vendas/transacoes` é tela de dentro da **Loja**.
 
 ## A seção Loja
 

@@ -432,6 +432,16 @@ function data_fmt(?string $v, bool $com_hora = false): string
     return date($com_hora ? 'd/m/Y H:i' : 'd/m/Y', $ts);
 }
 
+/**
+ * So a hora: 14:07. Serve a lista que ja diz de que dia e — repetir a data em
+ * cada linha e ruido, e a data cheia continua dentro do detalhe.
+ */
+function hora_fmt(?string $v): string
+{
+    $ts = $v ? strtotime($v) : false;
+    return $ts ? date('H:i', $ts) : '-';
+}
+
 function cnpj_fmt(?string $c): string
 {
     $d = so_digitos($c);
