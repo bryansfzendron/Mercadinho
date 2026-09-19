@@ -91,7 +91,7 @@
 </div>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/mercado.js?v=2"></script>
+<script src="/assets/mercado.js?v=3"></script>
 <script>
 (function () {
     /*

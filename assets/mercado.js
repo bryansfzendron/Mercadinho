@@ -300,6 +300,7 @@
             campoQtd.value = '1';
             alvoDica.textContent = '';
             nomeDoServidor = '';
+            jaProcurado = '';
             return true;
         }
 
@@ -387,12 +388,35 @@
             }
         }
 
+        /*
+         * Qual codigo ja foi procurado. Sem isto, sair do campo tres vezes
+         * seguidas faria tres consultas para o mesmo produto — e uma delas
+         * chegando fora de ordem sobrescreveria o nome com o anterior.
+         */
+        let jaProcurado = '';
+
+        function talvezBuscar() {
+            const k = chave(campoCodigo.value);
+            if (!k || k === jaProcurado) {
+                return;
+            }
+            jaProcurado = k;
+            buscarNome(campoCodigo.value.trim());
+        }
+
+        // Codigo digitado na mao merece o mesmo nome do codigo bipado: o campo
+        // diz "bipe ou digite", e quem digita costuma ser justamente quem esta
+        // com o codigo de barras amassado que a camera nao pegou.
+        campoCodigo.addEventListener('change', talvezBuscar);
+        campoCodigo.addEventListener('blur', talvezBuscar);
+
         // O scanner entrega o codigo aqui; o resto da tela cuida do preco.
         tela.addEventListener('mercado:codigo', (ev) => {
             campoCodigo.value = ev.detail;
             campoNome.value = '';
             campoPreco.value = '';
             campoPreco.focus();
+            jaProcurado = chave(ev.detail);
             buscarNome(ev.detail);
         });
 
