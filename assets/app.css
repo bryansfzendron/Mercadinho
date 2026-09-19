@@ -179,6 +179,11 @@ h2 { font-size: 1.1rem; line-height: 1.25; letter-spacing: -.013em; margin: 1.4r
        isolar, "atras do link" viraria "atras do vidro da barra". */
     position: relative; isolation: isolate;
 }
+/* Seis itens dividindo a largura de um celular: o rotulo nao pode quebrar em
+   duas linhas, senao a barra cresce e os icones desencontram. Em tela estreita
+   o corpo cede um ponto — continua legivel e continua numa linha so. */
+.barra a { white-space: nowrap; }
+@media (max-width: 400px) { .barra a { font-size: .58rem; padding-left: .1rem; padding-right: .1rem; } }
 .barra a span { display: block; line-height: 0; margin-bottom: .2rem; }
 .barra a svg { width: 23px; height: 23px; }
 .barra a.ativo { color: var(--marca); font-weight: 600; }
@@ -954,6 +959,18 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .painel-mes .grafico-rotulo { color: var(--painel-tinta); }
 .painel-mes .grafico-eixo { color: var(--painel-apoio); }
 .painel-rodape { margin: 1.2rem 0 0; color: var(--painel-apoio); font-size: .85rem; }
+
+/* ---------------------------------------------------------------
+   Mercado: conferir a conta antes do caixa.
+
+   Preco, quantidade e o botao numa linha so — a mao esta segurando o celular
+   com uma mao dentro do mercado, e cada campo a mais e uma rolagem a mais
+   entre bipar e adicionar. A quantidade e estreita porque quase sempre e 1.
+   --------------------------------------------------------------- */
+.mercado-linha { display: grid; grid-template-columns: 1fr 5rem; gap: .5rem; }
+.mercado-linha label { min-width: 0; }
+#m-dica-produto:empty { display: none; }
+#m-total { margin: .2rem 0 0; }
 
 /* ---------------------------------------------------------------
    Transacoes recentes.

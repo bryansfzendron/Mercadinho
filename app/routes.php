@@ -21,6 +21,8 @@ function despachar(string $rota): void
     if ($rota === '/dashboard') { rota_dashboard($u); return; }
     if ($rota === '/escanear')  { ver('escanear', [], 'Escanear nota'); }
     if ($rota === '/bipar')     { ver('bipar', [], 'Bipar produto'); }
+    // Conferir a conta do supermercado: tela de rascunho, sem banco.
+    if ($rota === '/mercado')   { ver('mercado', [], 'Mercado'); }
     if ($rota === '/notas')     { rota_notas($u); return; }
     if ($rota === '/transacoes') { rota_transacoes($u); return; }
     if ($rota === '/produtos')  { rota_produtos($u); return; }

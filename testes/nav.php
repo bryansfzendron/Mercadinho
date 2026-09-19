@@ -64,6 +64,7 @@ $rotas = [
     '/dashboard'   => '/dashboard',
     '/escanear'    => '/notas',
     '/manual'      => '/notas',
+    '/mercado'     => '/mercado',
     '/notas'       => '/notas',
     '/notas/12'    => '/notas',
     '/bipar'       => '/produtos',
@@ -93,7 +94,7 @@ $conteudo = ''; $titulo = 'teste';
 ob_start(); require APP . '/views/layout.php'; $html = ob_get_clean();
 preg_match_all('#<nav class="barra">(.*?)</nav>#s', $html, $m);
 $menu = $m[1][0] ?? '';
-checar('menu tem 5 itens', substr_count($menu, '<a href='), 5);
+checar('menu tem 6 itens', substr_count($menu, '<a href='), 6);
 checar('nao ha item so de margens', strpos($menu, 'href="/margens"'), false);
 checar('nao ha item so de escanear', strpos($menu, 'href="/escanear"'), false);
 checar('nao ha item so de bipar', strpos($menu, 'href="/bipar"'), false);

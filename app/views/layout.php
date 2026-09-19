@@ -20,7 +20,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=40">
+<link rel="stylesheet" href="/assets/app.css?v=41">
 </head>
 <body>
 
@@ -73,6 +73,15 @@ $flashes = flash_pegar();
             <path d="M13.5 3v4h4"/>
             <path d="M8.5 12.5h7M8.5 16h5"/>
         </svg></span>Notas
+    </a>
+    <?php // Mercado e a compra em andamento: mora ao lado das notas, que sao as
+          // compras que ja aconteceram — e longe da Loja, que e o outro lado do balcao. ?>
+    <a href="/mercado"   class="<?= $rota === '/mercado' ? 'ativo' : '' ?>">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 4h2.2l2 10.5a1.5 1.5 0 0 0 1.5 1.2h7.9a1.5 1.5 0 0 0 1.5-1.2L19.5 8H6"/>
+            <circle cx="9.5" cy="19.5" r="1.3"/>
+            <circle cx="16.5" cy="19.5" r="1.3"/>
+        </svg></span>Mercado
     </a>
     <a href="/produtos"  class="<?= str_starts_with($rota, '/produtos') || $rota === '/bipar' ? 'ativo' : '' ?>">
         <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

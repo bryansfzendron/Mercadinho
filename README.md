@@ -63,7 +63,7 @@ app/
   graficos.php     gráficos em HTML/CSS: série diária, semana e barra de pagamento
   routes.php       rotas e controllers
   views/
-assets/            css, leitor de câmera, movimento, cartão da capa, ícones
+assets/            css, leitor de câmera, movimento, cartão da capa, lista do mercado, ícones
 sql/schema.sql     schema MySQL (idempotente)
 n8n/
   nfce-sp-mercadinho.workflow.json   workflow da NFC-e, pronto para importar
@@ -839,6 +839,40 @@ A regra é: **tela de número não tem botão de ajuste**. Antes disso os dois s
 tela inicial, as metas num formulário embaixo do progresso e as taxas num `<details>` no pé
 do relatório — cada coisa num canto, e o dono do app não achava.
 
+## Mercado: conferir a conta antes do caixa
+
+`/mercado` é uma lista de rascunho para usar **dentro do supermercado**: bipa o produto na
+gôndola, digita o preço da etiqueta, e no fim informa o total que o caixa cobrou. O app diz
+se bate, e de quanto é a diferença.
+
+Ela **não toca em nada**: não grava nota, não mexe no catálogo, não entra no espelho da loja
+nem em relatório nenhum. Vive no `localStorage` do aparelho e some quando você manda limpar.
+
+**Por que no aparelho, e não no banco.** Dentro do mercado o sinal cai. Uma lista que depende
+do servidor para aceitar mais um item é uma lista que falha bipando o oitavo produto no
+corredor do fundo. Assim ela funciona offline inteira; o que precisa de rede — o nome do
+produto, buscado em `/api/produto` — é enfeite, tem 2,5s de paciência e some sozinho quando
+não há. O preço continua sendo digitado do mesmo jeito.
+
+**Dinheiro em centavos inteiros**, e a conversão é feita nos dígitos, não em float:
+`parseFloat('1,005') * 100` dá 100,49999… e arredonda para baixo, virando R$ 1,00 onde a
+etiqueta diz R$ 1,01. Numa tela que existe para dizer se a conta bate, um centavo perdido na
+leitura é o bastante para mentir. `testes/mercado.js` cobre isso, a soma e o veredito.
+
+**Um centavo de tolerância** na comparação: item pesado (0,756 kg a R$ 24,90) é arredondado
+pela balança e a lista arredonda por conta própria; exigir igualdade exata acusaria diferença
+onde não há. Dois centavos já é diferença de verdade e aparece.
+
+O veredito tem três caras, e as duas pontas não dizem a mesma coisa:
+
+- **caixa cobrou mais** — vermelho, e manda conferir o cupom item a item antes de sair;
+- **caixa cobrou menos** — só informa: costuma ser promoção que a etiqueta não mostrava, ou
+  item que ficou de fora da lista.
+
+O leitor repete o mesmo código enquanto o produto está na mira, então há uma trava de 3
+segundos por código: sem ela, um produto parado na frente da câmera entraria na lista várias
+vezes enquanto o preço é digitado.
+
 ## A capa: quanto vendeu hoje
 
 A tela de início e a de notas eram quase a mesma coisa — os mesmos botões em cima, a mesma
@@ -1047,6 +1081,7 @@ php testes/nav.php          # o menu de baixo acende um item por rota
 php testes/config.php       # a configuração sobrevive a um $cfg no escopo global
 php testes/graficos.php     # série diária, altura/pico e as sete barras da semana
 #   (transações e paginação entram em testes/vendas.php)
+node testes/mercado.js      # a conta do Mercado: centavos, total e o veredito do caixa
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 node n8n/teste-vendas.js    # o coletor de vendas: lotes, devolução e total da linha
