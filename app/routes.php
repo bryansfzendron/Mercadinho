@@ -117,9 +117,14 @@ function rota_inicio(array $u): void
     // dias que o cartao desenha (e nao date() de novo), senao a virada de
     // meia-noite entre uma consulta e a outra mostraria uma lista que nao bate
     // com o numero logo acima dela.
-    $vendidos = vendas_produtos_dobrar(
-        vendas_produtos_por_dia($painel['semana']['de'], $painel['semana']['ate'])
+    $cru = vendas_produtos_por_dia(
+        min($painel['mes']['de'], $painel['semana']['de']),
+        $painel['semana']['ate']
     );
+    $vendidos = vendas_produtos_dobrar($cru) + [
+        'semana' => vendas_produtos_juntar($cru, $painel['semana']['de'], $painel['semana']['ate']),
+        'mes'    => vendas_produtos_juntar($cru, $painel['mes']['de'], $painel['mes']['ate']),
+    ];
 
     ver('inicio', compact('painel', 'vendidos'), 'Inicio');
 }

@@ -52,8 +52,9 @@
     const abas = Array.prototype.slice.call(painel.querySelectorAll('.segmento-aba'));
     const pilula = painel.querySelector('.segmento-pilula');
 
-    // A pilula tem exatamente a largura de uma metade, entao a segunda posicao
-    // fica a 100% dela mesma — nao precisa medir nada em pixel.
+    // A pilula tem exatamente a largura de uma aba (o CSS divide pelo --itens),
+    // entao cada posicao fica a um multiplo de 100% dela mesma — nao precisa
+    // medir nada em pixel nem saber quantas abas existem.
     let molaPilula = null;
     function moverPilula(indice) {
         const destino = indice * 100;
@@ -83,14 +84,16 @@
         });
         moverPilula(indice);
 
-        // Voltando para "Atual", a lista volta para hoje: aquela aba fala do
-        // dia, e deixar na tela o sabado que se estava olhando faria o numero
-        // de cima e a lista de baixo contarem coisas diferentes.
-        if (indice === 0) {
-            mostrarVendidos(hoje);
-        } else {
+        // A lista segue a aba pelo nome dela. Voltando para "Atual" ela volta
+        // para hoje: aquela aba fala do dia, e deixar na tela o sabado que se
+        // estava olhando faria o numero de cima e a lista de baixo contarem
+        // coisas diferentes.
+        const qual = abas[indice] ? abas[indice].dataset.aba : 'atual';
+        if (qual === 'semana') {
             const escolhido = barras ? barras.querySelector('.painel-coluna.ativo') : null;
             mostrarVendidos(escolhido ? escolhido.dataset.data : 'semana');
+        } else {
+            mostrarVendidos(qual === 'atual' ? hoje : qual);
         }
     }
 

@@ -223,24 +223,34 @@ $cru = [
 $dobrado = vendas_produtos_dobrar($cru);
 
 checar('cada dia vira uma lista', count($dobrado['2026-09-19']), 2);
-checar('a semana entra junto das listas de dia', isset($dobrado['semana']), true);
+checar('so os dias entram — o periodo e outra funcao', array_keys($dobrado),
+    ['2026-09-19', '2026-09-18']);
 checar('dentro do dia, quem faturou mais vem primeiro',
     $dobrado['2026-09-19'][0]['grupo'], '789');
+checar('o limite corta a lista do dia', count(vendas_produtos_dobrar($cru, 1)['2026-09-19']), 1);
+checar('sem venda nenhuma nao sobra dia nenhum', vendas_produtos_dobrar([]), []);
 
-$semana = $dobrado['semana'];
-checar('o mesmo produto em dois dias vira uma linha so na semana', count($semana), 2);
-checar('a semana soma o faturamento dos dias', $semana[0]['total'], 15.0);
-checar('a semana soma a quantidade dos dias',
-    array_values(array_filter($semana, fn ($l) => $l['grupo'] === '790'))[0]['quantidade'], 5.0);
-checar('a semana soma as vendas dos dias',
-    array_values(array_filter($semana, fn ($l) => $l['grupo'] === '790'))[0]['vendas'], 5);
-// O refrigerante nasceu sem vinculo no sabado e ganhou id na sexta: a linha da
-// semana tem que levar o id que existe, senao o link para a ficha some.
-checar('produto vinculado em qualquer dia leva o id para a semana',
-    array_values(array_filter($semana, fn ($l) => $l['grupo'] === '789'))[0]['produto_id'], 12);
+/** A linha de um produto dentro de uma lista ja junta. */
+$linha_de = static fn (array $lista, string $grupo): array =>
+    array_values(array_filter($lista, static fn (array $l): bool => $l['grupo'] === $grupo))[0];
 
-checar('o limite corta a lista', count(vendas_produtos_dobrar($cru, 1)['semana']), 1);
-checar('sem venda nenhuma sobra so a semana, vazia', vendas_produtos_dobrar([]), ['semana' => []]);
+$semana = vendas_produtos_juntar($cru, '2026-09-13', '2026-09-19');
+checar('o mesmo produto em dois dias vira uma linha so no periodo', count($semana), 2);
+checar('o periodo soma o faturamento dos dias', $semana[0]['total'], 15.0);
+checar('o periodo soma a quantidade dos dias', $linha_de($semana, '790')['quantidade'], 5.0);
+checar('o periodo soma as vendas dos dias', $linha_de($semana, '790')['vendas'], 5);
+// O refrigerante nasceu sem vinculo no sabado e ganhou id na sexta: a linha do
+// periodo tem que levar o id que existe, senao o link para a ficha some.
+checar('produto vinculado em qualquer dia leva o id para o periodo',
+    $linha_de($semana, '789')['produto_id'], 12);
+checar('o limite corta a lista do periodo',
+    count(vendas_produtos_juntar($cru, '2026-09-13', '2026-09-19', 1)), 1);
+
+// A janela e de verdade: as mesmas linhas cruas servem a semana e ao mes, e
+// cada uma so pode somar os dias que lhe pertencem.
+$so_sexta = vendas_produtos_juntar($cru, '2026-09-18', '2026-09-18');
+checar('dia fora da janela nao entra na soma', $linha_de($so_sexta, '790')['quantidade'], 2.0);
+checar('janela vazia devolve lista vazia', vendas_produtos_juntar($cru, '2026-08-01', '2026-08-31'), []);
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

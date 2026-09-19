@@ -823,7 +823,7 @@ lista embaixo, só que uma mostrava 8 notas e a outra 200. A lista passou a mora
 só (`/notas`, que herdou também os números e os resumos que o início carregava) e o início
 virou o que se quer saber abrindo o app: **vendi quanto?**
 
-É um cartão só, com duas caras num segmented control:
+É um cartão só, com três caras num segmented control:
 
 - **Atual** — o total de hoje em número grande e, embaixo do risco, o mês corrente:
   faturamento, ticket médio e transações. Mês *até hoje*, não o mês inteiro: comparar o que
@@ -831,6 +831,13 @@ virou o que se quer saber abrindo o app: **vendi quanto?**
 - **Semana** — as vendas da semana corrente (domingo a sábado, como o calendário brasileiro
   desenha) e um gráfico de sete barras. **Tocar num dia troca o número para aquele dia**;
   tocar de novo volta para a semana inteira. Sem dia escolhido, o número é o total.
+- **Mês** — o mês até hoje, dia a dia, no mesmo gráfico de barras do dashboard, só que
+  vestido de painel (tinta branca no lugar da cor de marca, que sobre o azul sumiria).
+
+**Só a semana é tocável.** Sete colunas gordas são alvo de dedo; trinta e uma barras finas
+não são — o mês é panorama, e quem quer cavar um dia dele tem o filtro de período em
+Loja > Vendas. No dia 1º o gráfico do mês nem aparece: uma barra sozinha não é um gráfico,
+então entra a contagem de transações no lugar.
 
 A semana aparece inteira mesmo antes de acontecer: um domingo que só mostrasse o domingo
 faria o gráfico *crescer* ao longo da semana, e o sábado grande da semana passada pareceria
@@ -840,10 +847,11 @@ Nada é calculado no navegador. O `inicio.js` só troca de aba e troca de dia �
 já vem formatado do PHP em `data-moeda`, porque formatar dinheiro em dois lugares é
 garantir que um dia os dois vão discordar.
 
-`vendas_painel()` faz **duas** consultas, não quatro: hoje sempre cai dentro da semana
-corrente, então sai do mesmo agrupamento por dia. O corte é o mesmo do relatório
-(`vendas_filtro_sql()`), senão a capa do app somaria transação negada e PDV desligado e
-brigaria com todas as outras telas.
+`vendas_painel()` faz **uma** consulta por dia para os três números: hoje é uma linha dela,
+a semana é uma fatia e o mês é outra. A janela começa no mais antigo entre o dia 1º e o
+domingo da semana — numa virada de mês o domingo cai no mês passado, e cortar no dia 1º
+comeria o começo da semana. O corte é o mesmo do relatório (`vendas_filtro_sql()`), senão a
+capa do app somaria transação negada e PDV desligado e brigaria com todas as outras telas.
 
 Embaixo do cartão vem **Vendidos hoje**: uma linha por produto que saiu no dia, do que mais
 faturou para o que menos faturou, com a quantidade e o preço unitário (o item grava o total
@@ -852,19 +860,22 @@ senão código interno, senão a descrição —, então o mesmo refrigerante ve
 compras é **uma** linha. Produto já casado com o catálogo leva para a ficha dele.
 
 **A lista segue o gráfico.** Tocar numa barra troca os produtos junto com o número: aba
-*Atual* mostra hoje, aba *Semana* sem dia escolhido mostra a semana inteira, e com um dia
-escolhido mostra aquele dia. Voltar para *Atual* volta para hoje — deixar o sábado na tela
-faria o número de cima e a lista de baixo contarem coisas diferentes.
+*Atual* mostra hoje, *Semana* sem dia escolhido mostra a semana inteira (e com um dia
+escolhido, aquele dia), *Mês* mostra o mês. Voltar para *Atual* volta para hoje — deixar o
+sábado na tela faria o número de cima e a lista de baixo contarem coisas diferentes.
 
-Os oito blocos (sete dias + a semana) **já vêm prontos do servidor**, escondidos, e o JS só
-troca qual está visível. É uma consulta só para a semana inteira em vez de sete idas ao
-banco, o preço continua sendo formatado num lugar só, e trocar de dia não espera rede — num
-mercadinho a semana inteira de produtos cabe folgado numa página.
+Os nove blocos (sete dias + a semana + o mês) **já vêm prontos do servidor**, escondidos, e
+o JS só troca qual está visível. É uma consulta só em vez de uma por toque, o preço continua
+sendo formatado num lugar só, e trocar de período não espera rede — num mercadinho isso cabe
+folgado numa página. (Se um dia couber mal, o caminho é servir os blocos por uma rota
+própria e trocar por `fetch`; o HTML continuaria vindo montado do PHP.)
 
-A semana **não** é a soma das listas já cortadas: `vendas_produtos_dobrar()` reagrupa o
-produto dia a dia antes de ordenar, senão um item que vende pouco todo dia ficaria atrás de
-um que vendeu uma vez só num dia forte. E se o produto nasceu sem vínculo num dia e ganhou
-EAN no outro, a linha da semana leva o id que existe — senão o link para a ficha sumiria.
+O período **não** é a soma das listas de dia já cortadas: `vendas_produtos_juntar()` reagrupa
+o produto dia a dia antes de ordenar, senão um item que vende pouco todo dia ficaria atrás de
+um que vendeu uma vez só num dia forte. Ela recebe a janela (`de`, `ate`) porque as mesmas
+linhas cruas servem a semana e o mês, e cada uma só pode somar os dias que lhe pertencem. E
+se o produto nasceu sem vínculo num dia e ganhou EAN no outro, a linha do período leva o id
+que existe — senão o link para a ficha sumiria.
 
 `vendas_produtos_por_dia()` recebe os dias de `vendas_painel()` em vez de chamar `date()` de
 novo: entre uma consulta e a outra a meia-noite pode virar, e a lista mostraria um dia que

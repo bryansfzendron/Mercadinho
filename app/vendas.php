@@ -461,17 +461,15 @@ function vendas_painel(?string $hoje = null): array
 {
     $hoje = $hoje ?: date('Y-m-d');
     [$sem_de, $sem_ate] = vendas_semana($hoje);
-
     // Mes ate hoje, nao o mes inteiro: comparar o que ja acumulou com o que
     // ainda nem aconteceu nao diz nada.
-    [$onde, $args] = vendas_filtro_sql(['de' => substr($hoje, 0, 7) . '-01', 'ate' => $hoje]);
-    $mes = q1(
-        'SELECT COUNT(*) AS vendas, COALESCE(SUM(v.valor_pago), 0) AS total
-           FROM vendas v WHERE ' . $onde,
-        $args
-    ) ?: ['vendas' => 0, 'total' => 0];
+    $mes_de = substr($hoje, 0, 7) . '-01';
 
-    [$onde, $args] = vendas_filtro_sql(['de' => $sem_de, 'ate' => $sem_ate]);
+    // Uma consulta so, por dia, da ponta mais antiga (o domingo da semana pode
+    // cair no mes passado) ate o fim da semana. Dela saem os tres numeros do
+    // cartao: hoje e uma linha, a semana e uma fatia e o mes e outra.
+    $de = min($mes_de, $sem_de);
+    [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $sem_ate]);
     $linhas = q(
         'SELECT DATE(v.data_hora) AS dia, COUNT(*) AS n,
                 COALESCE(SUM(v.valor_pago), 0) AS total
@@ -486,8 +484,20 @@ function vendas_painel(?string $hoje = null): array
         $por_dia_n[(string) $l['dia']] = (int) $l['n'];
     }
 
-    $mes_vendas = (int) $mes['vendas'];
-    $mes_total  = (float) $mes['total'];
+    /** Soma de uma fatia de dias. Dia fora da janela nao entra. */
+    $fatia = static function (array $mapa, string $de, string $ate) {
+        $soma = 0;
+        foreach ($mapa as $dia => $v) {
+            if ($dia >= $de && $dia <= $ate) {
+                $soma += $v;
+            }
+        }
+        return $soma;
+    };
+
+    $mes_total  = (float) $fatia($por_dia, $mes_de, $hoje);
+    $mes_vendas = (int) $fatia($por_dia_n, $mes_de, $hoje);
+    $mes_serie  = grafico_serie_diaria($por_dia, $mes_de, $hoje);
 
     return [
         'hoje' => [
@@ -496,17 +506,22 @@ function vendas_painel(?string $hoje = null): array
             'vendas' => $por_dia_n[$hoje] ?? 0,
         ],
         'mes' => [
+            'de'     => $mes_de,
+            'ate'    => $hoje,
             'total'  => $mes_total,
             'vendas' => $mes_vendas,
             // Ticket medio e receita / transacoes. Sem transacao nao ha ticket:
             // zero e mais honesto do que dividir por zero.
             'ticket' => $mes_vendas > 0 ? $mes_total / $mes_vendas : 0.0,
+            // Mesmo grafico de barras do dashboard: o mes tem dias demais para
+            // as sete colunas gordas da semana.
+            'barras' => grafico_alturas_diarias($mes_serie),
         ],
         'semana' => [
             'de'     => $sem_de,
             'ate'    => $sem_ate,
-            'total'  => array_sum($por_dia),
-            'vendas' => array_sum($por_dia_n),
+            'total'  => (float) $fatia($por_dia, $sem_de, $sem_ate),
+            'vendas' => (int) $fatia($por_dia_n, $sem_de, $sem_ate),
             'barras' => grafico_barras_semana($por_dia, $sem_de, $hoje),
         ],
     ];
@@ -546,28 +561,59 @@ function vendas_produtos_por_dia(string $de, string $ate): array
 }
 
 /**
- * Dobra as linhas por dia e, de quebra, monta a lista da semana inteira.
- * Funcao pura — e por isso que a consulta acima devolve linha crua.
- *
- * A semana NAO e a soma das listas ja cortadas: o produto e reagrupado dia a
- * dia antes de ordenar, senao um item que vende pouco todo dia ficaria atras
- * de um que vendeu uma vez so num dia forte.
+ * Ordena uma lista de produtos do que mais faturou para o que menos, e corta
+ * no limite. Funcao pura, usada pelas duas de baixo.
+ */
+function vendas_produtos_ordenar(array $lista, int $limite = 60): array
+{
+    usort($lista, static function (array $a, array $b): int {
+        return (float) $b['total'] <=> (float) $a['total']
+            ?: (float) $b['quantidade'] <=> (float) $a['quantidade'];
+    });
+    return array_slice($lista, 0, max(1, $limite));
+}
+
+/**
+ * Dobra as linhas por dia. Funcao pura — e por isso que a consulta acima
+ * devolve linha crua.
  *
  * @param array $linhas de vendas_produtos_por_dia()
- * @return array<string,array> 'Y-m-d' => produtos daquele dia, mais 'semana'
+ * @return array<string,array> 'Y-m-d' => produtos daquele dia
  */
 function vendas_produtos_dobrar(array $linhas, int $limite = 60): array
 {
     $por_dia = [];
-    $semana  = [];
-
     foreach ($linhas as $l) {
-        $dia   = (string) $l['dia'];
-        $grupo = (string) $l['grupo'];
-        $por_dia[$dia][] = $l;
+        $por_dia[(string) $l['dia']][] = $l;
+    }
+    foreach ($por_dia as $dia => $lista) {
+        $por_dia[$dia] = vendas_produtos_ordenar($lista, $limite);
+    }
+    return $por_dia;
+}
 
-        if (!isset($semana[$grupo])) {
-            $semana[$grupo] = [
+/**
+ * A lista de um periodo inteiro (a semana, o mes), a partir das mesmas linhas
+ * cruas. Funcao pura.
+ *
+ * O periodo NAO e a soma das listas ja cortadas: o produto e reagrupado dia a
+ * dia antes de ordenar, senao um item que vende pouco todo dia ficaria atras
+ * de um que vendeu uma vez so num dia forte.
+ *
+ * @param array $linhas de vendas_produtos_por_dia()
+ */
+function vendas_produtos_juntar(array $linhas, string $de, string $ate, int $limite = 60): array
+{
+    $juntos = [];
+    foreach ($linhas as $l) {
+        $dia = (string) $l['dia'];
+        if ($dia < $de || $dia > $ate) {
+            continue;
+        }
+        $grupo = (string) $l['grupo'];
+
+        if (!isset($juntos[$grupo])) {
+            $juntos[$grupo] = [
                 'grupo'      => $grupo,
                 'produto_id' => (int) $l['produto_id'],
                 'descricao'  => (string) $l['descricao'],
@@ -579,28 +625,13 @@ function vendas_produtos_dobrar(array $linhas, int $limite = 60): array
         // Produto que nasceu sem vinculo num dia e ganhou EAN depois: vale o
         // id que existe, nao o zero do primeiro dia em que apareceu.
         if ((int) $l['produto_id'] > 0) {
-            $semana[$grupo]['produto_id'] = (int) $l['produto_id'];
+            $juntos[$grupo]['produto_id'] = (int) $l['produto_id'];
         }
-        $semana[$grupo]['quantidade'] += (float) $l['quantidade'];
-        $semana[$grupo]['total']      += (float) $l['total'];
-        $semana[$grupo]['vendas']     += (int) $l['vendas'];
+        $juntos[$grupo]['quantidade'] += (float) $l['quantidade'];
+        $juntos[$grupo]['total']      += (float) $l['total'];
+        $juntos[$grupo]['vendas']     += (int) $l['vendas'];
     }
-
-    $ordenar = static function (array $lista) use ($limite): array {
-        usort($lista, static function (array $a, array $b): int {
-            return (float) $b['total'] <=> (float) $a['total']
-                ?: (float) $b['quantidade'] <=> (float) $a['quantidade'];
-        });
-        return array_slice($lista, 0, max(1, $limite));
-    };
-
-    $saida = [];
-    foreach ($por_dia as $dia => $lista) {
-        $saida[$dia] = $ordenar($lista);
-    }
-    $saida['semana'] = $ordenar(array_values($semana));
-
-    return $saida;
+    return vendas_produtos_ordenar(array_values($juntos), $limite);
 }
 
 // ---------------------------------------------------------------------

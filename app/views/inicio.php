@@ -2,9 +2,14 @@
 /**
  * A capa do app: quanto vendeu hoje e como foi a semana.
  *
- * Um cartao so, com duas caras. "Atual" responde de relance (hoje em numero
- * grande, o mes logo abaixo); "Semana" abre o grafico e deixa tocar num dia
- * para ver aquele dia — sem dia escolhido, o numero e a semana inteira.
+ * Um cartao so, com tres caras. "Atual" responde de relance (hoje em numero
+ * grande, o mes logo abaixo); "Semana" abre o grafico de sete colunas e deixa
+ * tocar num dia para ver aquele dia — sem dia escolhido, o numero e a semana
+ * inteira; "Mes" mostra o mes ate hoje, dia a dia.
+ *
+ * So a semana e tocavel: sete colunas gordas sao alvo de dedo, trinta e uma
+ * barras finas nao — o mes e panorama, e quem quer um dia dele tem o filtro
+ * de periodo em Loja > Vendas.
  *
  * Embaixo do cartao, o que saiu hoje. Escanear e bipar nao moram mais aqui:
  * os dois botoes ja estao na tela de notas, e repetidos na capa so empurravam
@@ -56,12 +61,14 @@ $lista_vendidos = static function (array $produtos, string $vazio): string {
 <p class="inicio-sub">Gestão do seu negócio</p>
 
 <section class="painel" data-painel>
-    <div class="segmento" role="tablist" aria-label="Período">
+    <div class="segmento" role="tablist" aria-label="Período" style="--itens:3">
         <span class="segmento-pilula" aria-hidden="true"></span>
         <button type="button" class="segmento-aba ativo" role="tab" id="aba-atual"
                 aria-selected="true" aria-controls="painel-atual" data-aba="atual">Atual</button>
         <button type="button" class="segmento-aba" role="tab" id="aba-semana"
                 aria-selected="false" aria-controls="painel-semana" data-aba="semana">Semana</button>
+        <button type="button" class="segmento-aba" role="tab" id="aba-mes"
+                aria-selected="false" aria-controls="painel-mes" data-aba="mes">Mês</button>
     </div>
 
     <div class="painel-corpo" id="painel-atual" role="tabpanel" aria-labelledby="aba-atual" data-corpo="atual">
@@ -117,6 +124,23 @@ $lista_vendidos = static function (array $produtos, string $vazio): string {
             </div>
         </div>
     </div>
+
+    <div class="painel-corpo" id="painel-mes" role="tabpanel" aria-labelledby="aba-mes"
+         data-corpo="mes" hidden>
+        <p class="painel-rotulo">Vendas deste mês</p>
+        <p class="painel-valor"><?= moeda($m['total']) ?></p>
+
+        <?php
+        // Mesmo grafico do dashboard, vestido de painel. Vazio com menos de
+        // dois dias: no dia 1 do mes uma barra sozinha nao e um grafico.
+        $grafico_mes = grafico_html_barras_dia($m['barras'], $m['de'], $m['ate']);
+        ?>
+        <?php if ($grafico_mes !== ''): ?>
+            <div class="painel-grafico painel-mes"><?= $grafico_mes ?></div>
+        <?php else: ?>
+            <p class="painel-rodape"><?= (int) $m['vendas'] ?> transações neste mês.</p>
+        <?php endif; ?>
+    </div>
 </section>
 
 <?php // Oito blocos, um visivel por vez: os sete dias e a semana inteira. Quem
@@ -140,5 +164,10 @@ $lista_vendidos = static function (array $produtos, string $vazio): string {
     <section data-lista="semana" hidden>
         <h2>Vendidos na semana</h2>
         <?= $lista_vendidos($vendidos['semana'] ?? [], 'Nenhum produto vendido nesta semana.') ?>
+    </section>
+
+    <section data-lista="mes" hidden>
+        <h2>Vendidos no mês</h2>
+        <?= $lista_vendidos($vendidos['mes'] ?? [], 'Nenhum produto vendido neste mês.') ?>
     </section>
 </div>

@@ -944,6 +944,17 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .painel-barras.escolhido .painel-coluna.ativo .painel-barra { opacity: 1; }
 .painel-coluna.ativo .painel-dia { color: var(--painel-tinta); font-weight: 600; }
 
+/* O mes reusa o grafico de barras do dashboard — trinta e uma colunas nao
+   cabem no formato gordo da semana. So troca de roupa: tinta do painel no
+   lugar da cor de marca, que sobre o azul sumiria. */
+.painel-mes .grafico-dia { height: 128px; }
+.painel-mes .grafico-barra { background: rgba(255, 255, 255, .55); }
+.painel-mes .grafico-barra.pico { background: var(--painel-tinta); }
+.painel-mes .grafico-barra.vazio { background: var(--painel-linha); }
+.painel-mes .grafico-rotulo { color: var(--painel-tinta); }
+.painel-mes .grafico-eixo { color: var(--painel-apoio); }
+.painel-rodape { margin: 1.2rem 0 0; color: var(--painel-apoio); font-size: .85rem; }
+
 /* ---------------------------------------------------------------
    Transacoes recentes.
    --------------------------------------------------------------- */
