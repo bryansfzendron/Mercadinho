@@ -340,6 +340,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .duas .botao { width: auto; margin-bottom: .7rem; }
 .tres { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: .5rem; }
 .item-linha { position: relative; }
+/* O nome que veio do codigo de barras so ocupa lugar quando tem o que dizer:
+   uma nota de vinte itens com vinte paragrafos vazios vira vinte degraus. */
+.dica-nome { margin: -.4rem 0 .6rem; }
+.dica-nome:empty { display: none; }
 .remover { background: none; border: none; color: var(--vermelho); font-size: .78rem; cursor: pointer; padding: 0; }
 .total-previa { font-size: 1.1rem; font-weight: 600; text-align: right; margin: .8rem 0; }
 

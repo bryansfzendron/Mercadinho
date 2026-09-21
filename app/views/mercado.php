@@ -91,7 +91,8 @@
 </div>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/mercado.js?v=3"></script>
+<script src="/assets/ean-nome.js?v=1"></script>
+<script src="/assets/mercado.js?v=4"></script>
 <script>
 (function () {
     /*

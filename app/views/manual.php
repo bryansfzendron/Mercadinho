@@ -1,5 +1,20 @@
 <?php
-/** @var array $lojas */
+/**
+ * Lancar nota manual.
+ *
+ * O codigo de barras de cada item traz o nome junto, pela mesma cascata da
+ * tela Mercado (app/mercado.php, /assets/ean-nome.js): o que voce ja digitou
+ * para aquele codigo, as suas notas, o espelho da loja e a Open Food Facts.
+ * Quem bipa o acougue inteiro em casa nao deveria digitar de novo o nome de
+ * um produto que o app ja conhece.
+ *
+ * O nome que vier e so um rascunho do campo: o que vale e o que estiver
+ * escrito ali na hora de salvar. Esta tela nao grava nome em lugar nenhum
+ * porque a propria nota faz isso melhor — salva, o produto entra no catalogo
+ * com aquele EAN e vira o segundo degrau da cascata para todo mundo.
+ *
+ * @var array $lojas
+ */
 $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
 ?>
 <a class="voltar" href="/notas">‹ Notas</a>
@@ -58,6 +73,7 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
 </form>
 
 <script src="/assets/scanner.js?v=3"></script>
+<script src="/assets/ean-nome.js?v=1"></script>
 <script>
 (function () {
     const itens   = document.getElementById('itens');
@@ -82,8 +98,10 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
               '<button type="button" class="botao botao-alt bipar">Bipar</button>' +
             '</div>' +
             '<label>Descrição' +
-              '<input type="text" name="itens[' + i + '][descricao]" required placeholder="Arroz 5kg">' +
+              '<input type="text" name="itens[' + i + '][descricao]" class="campo-desc" required ' +
+                     'placeholder="Arroz 5kg">' +
             '</label>' +
+            '<p class="ajuda dica-nome"></p>' +
             '<div class="tres">' +
               '<label>Qtd<input type="text" name="itens[' + i + '][quantidade]" class="qtd" ' +
                      'inputmode="decimal" value="1"></label>' +
@@ -96,8 +114,80 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
         div.querySelector('.remover').addEventListener('click', () => { div.remove(); recalcular(); });
         div.querySelector('.bipar').addEventListener('click', () => ligarCamera(div.querySelector('.campo-ean')));
         div.querySelectorAll('.qtd, .vu').forEach(c => c.addEventListener('input', recalcular));
+        procurarNome(div);
         itens.appendChild(div);
+        if (ean) avisarCodigo(div.querySelector('.campo-ean'));
         return div;
+    }
+
+    /*
+     * O nome que vem junto com o codigo de barras, linha a linha.
+     *
+     * Cada item da nota tem o seu campo e a sua procura: sao caixas
+     * independentes, e o nome que chegar atrasado para a linha 3 nao pode cair
+     * na linha 5, que e onde o dedo esta agora.
+     *
+     * A memoria do aparelho responde primeiro e sem rede; o servidor vem
+     * depois e por cima, que e ele quem sabe das suas notas e de quanto voce
+     * pagou da ultima vez. O que a pessoa ja escreveu nunca e atropelado:
+     * quem digita a nota em casa esta com o cupom na mao e sabe mais que a
+     * Open Food Facts.
+     */
+    function procurarNome(div) {
+        const campoEan  = div.querySelector('.campo-ean');
+        const campoDesc = div.querySelector('.campo-desc');
+        const dica      = div.querySelector('.dica-nome');
+
+        // Qual codigo esta linha ja procurou. Sem isto, sair do campo tres
+        // vezes seguidas viraria tres consultas para o mesmo produto, e uma
+        // delas chegando fora de ordem sobrescreveria o nome com o anterior.
+        let jaProcurado = '';
+        // O nome que veio pronto. Se o campo tiver outra coisa, foi a pessoa
+        // que escreveu, e ai ninguem mexe.
+        let veioPronto = '';
+
+        const intocado = () => campoDesc.value === '' || campoDesc.value === veioPronto;
+
+        async function buscar() {
+            const k = EanNome.chave(campoEan.value);
+            if (!k || k === jaProcurado) return;
+            jaProcurado = k;
+
+            const codigo = campoEan.value.trim();
+            const guardado = EanNome.local(codigo);
+            if (guardado && intocado()) {
+                campoDesc.value = guardado;
+                veioPronto = guardado;
+                dica.textContent = '';
+            } else if (intocado()) {
+                dica.textContent = 'Procurando o nome...';
+            }
+
+            const d = await EanNome.buscar(codigo);
+            if (!d) { dica.textContent = ''; return; }
+
+            if (d.nome && intocado()) {
+                campoDesc.value = d.nome;
+                veioPronto = d.nome;
+            }
+
+            const ultimo = Number(d.ultimo);
+            dica.textContent = ultimo > 0
+                ? 'Você pagou R$ ' + ultimo.toFixed(2).replace('.', ',') + ' na última nota.'
+                : '';
+        }
+
+        campoEan.addEventListener('change', buscar);
+        campoEan.addEventListener('blur', buscar);
+    }
+
+    /*
+     * A camera preenche o campo por fora, e campo preenchido por script nao
+     * dispara 'change' sozinho. Sem este aviso, o codigo bipado seria o unico
+     * que nao traria o nome.
+     */
+    function avisarCodigo(campo) {
+        campo.dispatchEvent(new Event('change'));
     }
 
     function num(v) {
@@ -143,7 +233,7 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
         if (leitor) return;
         try {
             leitor = await Scanner.iniciar(video, Scanner.BARRAS, (codigo) => {
-                if (alvoEan) alvoEan.value = codigo;
+                if (alvoEan) { alvoEan.value = codigo; avisarCodigo(alvoEan); }
                 if (navigator.vibrate) navigator.vibrate(60);
                 fecharCamera({ guardar: true });
             });

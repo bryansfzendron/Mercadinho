@@ -12,11 +12,11 @@
  * offline inteira; o que precisa de rede (o nome do produto) e enfeite e some
  * sozinho quando nao ha.
  *
- * O nome do codigo de barras tem duas memorias. A de ca, neste aparelho, e a
- * que responde no corredor sem sinal; a de la, no servidor, e a que sabe das
- * suas notas e da Open Food Facts. Nome que voce digita vai para as duas: da
- * proxima compra ele aparece sozinho, e num produto que base nenhuma conhece
- * — os de limpeza, os da padaria — essa e a unica forma de ele aparecer.
+ * O nome do codigo de barras vem do /assets/ean-nome.js, que e o mesmo da
+ * nota manual: duas memorias, a deste aparelho e a do servidor. Nome que voce
+ * digita vai para as duas — da proxima compra ele aparece sozinho, e num
+ * produto que base nenhuma conhece (os de limpeza, os da padaria) essa e a
+ * unica forma de ele aparecer.
  *
  * Dinheiro e guardado em CENTAVOS inteiros. Somar float em dinheiro erra por
  * volta do terceiro item, e o erro aparece justamente na hora de dizer se a
@@ -26,7 +26,12 @@
     'use strict';
 
     const CHAVE = 'mercadinho:mercado';
-    const CHAVE_NOMES = 'mercadinho:nomes';
+
+    // O nome do codigo de barras mora num arquivo so, que a nota manual
+    // tambem carrega. No Node (teste da conta) nao ha <script> antes deste.
+    const EanNome = global.EanNome
+        || (typeof require === 'function' ? require('./ean-nome.js') : null);
+    const chave = EanNome.chave;
 
     /*
      * Um centavo de folga na comparacao.
@@ -70,16 +75,6 @@
             c += 1;
         }
         return partes[1] === '-' ? -c : c;
-    }
-
-    /**
-     * A chave de um codigo de barras: so digitos, no maximo 14 — a mesma do
-     * servidor, senao a memoria daqui e a de la guardariam o mesmo produto em
-     * duas gavetas diferentes.
-     */
-    function chave(codigo) {
-        const d = String(codigo == null ? '' : codigo).replace(/\D/g, '');
-        return d.length >= 6 ? d.slice(0, 14) : '';
     }
 
     /** Centavos -> "R$ 12,34". */
@@ -177,29 +172,6 @@
             } catch (e) { /* modo privado: a lista vive so nesta tela */ }
         }
 
-        /*
-         * A memoria de nomes deste aparelho. Separada da lista de propósito:
-         * limpar a compra nao pode esquecer o que se aprendeu sobre os
-         * produtos — na proxima ida ao mercado eles sao os mesmos.
-         */
-        function lerNomes() {
-            try {
-                return JSON.parse(global.localStorage.getItem(CHAVE_NOMES) || '{}') || {};
-            } catch (e) {
-                return {};
-            }
-        }
-
-        function lembrarNome(codigo, nome) {
-            const k = chave(codigo);
-            if (!k || !nome) return;
-            try {
-                const nomes = lerNomes();
-                nomes[k] = nome;
-                global.localStorage.setItem(CHAVE_NOMES, JSON.stringify(nomes));
-            } catch (e) { /* modo privado, ou memoria cheia */ }
-        }
-
         function esc(t) {
             const d = doc.createElement('div');
             d.textContent = t == null ? '' : String(t);
@@ -281,8 +253,8 @@
             // Nome que voce escreveu (ou corrigiu) vale mais do que qualquer
             // base: fica guardado aqui e la, para este codigo, para sempre.
             if (codigo && nome && nome !== nomeDoServidor) {
-                lembrarNome(codigo, nome);
-                guardarNoServidor(codigo, nome);
+                EanNome.lembrar(codigo, nome);
+                EanNome.guardar(codigo, nome);
             }
 
             estado.itens.push({
@@ -333,17 +305,6 @@
             desenhar();
         });
 
-        /** Manda o nome digitado para o servidor. Fire-and-forget. */
-        function guardarNoServidor(codigo, nome) {
-            const meta = doc.querySelector('meta[name="csrf"]');
-            if (!meta) return;
-            fetch('/api/ean', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': meta.getAttribute('content') },
-                body: JSON.stringify({ codigo: codigo, nome: nome }),
-            }).catch(() => { /* sem sinal: a memoria deste aparelho ja guardou */ });
-        }
-
         /**
          * O nome do produto, quando da.
          *
@@ -354,8 +315,7 @@
          * que ja esta na tela: o preco e digitado do mesmo jeito.
          */
         async function buscarNome(codigo) {
-            const k = chave(codigo);
-            const guardado = k ? lerNomes()[k] : '';
+            const guardado = EanNome.local(codigo);
             if (guardado) {
                 campoNome.value = guardado;
                 nomeDoServidor = guardado;
@@ -364,28 +324,23 @@
                 alvoDica.textContent = 'Procurando o nome...';
             }
 
-            try {
-                const corta = new AbortController();
-                const relogio = setTimeout(() => corta.abort(), 4000);
-                const r = await fetch('/api/ean?codigo=' + encodeURIComponent(codigo), { signal: corta.signal });
-                clearTimeout(relogio);
-                const d = await r.json();
-
-                // Nao atropela o que a pessoa ja comecou a escrever.
-                const intocado = campoNome.value === '' || campoNome.value === guardado;
-                if (d.nome && intocado) {
-                    campoNome.value = d.nome;
-                    nomeDoServidor = d.nome;
-                    lembrarNome(codigo, d.nome);
-                }
-
-                const ultimo = Number(d.ultimo);
-                alvoDica.textContent = ultimo > 0
-                    ? 'Você pagou ' + moeda(Math.round(ultimo * 100)) + ' na última nota.'
-                    : (campoNome.value ? '' : 'Produto que ninguém conhece ainda — escreva o nome e ele fica.');
-            } catch (e) {
-                alvoDica.textContent = guardado ? '' : '';
+            const d = await EanNome.buscar(codigo);
+            if (!d) {
+                alvoDica.textContent = '';
+                return;
             }
+
+            // Nao atropela o que a pessoa ja comecou a escrever.
+            const intocado = campoNome.value === '' || campoNome.value === guardado;
+            if (d.nome && intocado) {
+                campoNome.value = d.nome;
+                nomeDoServidor = d.nome;
+            }
+
+            const ultimo = Number(d.ultimo);
+            alvoDica.textContent = ultimo > 0
+                ? 'Você pagou ' + moeda(Math.round(ultimo * 100)) + ' na última nota.'
+                : (campoNome.value ? '' : 'Produto que ninguém conhece ainda — escreva o nome e ele fica.');
         }
 
         /*

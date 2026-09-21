@@ -911,6 +911,22 @@ continua sendo digitado do mesmo jeito. Se nenhum nome nunca aparecer em produç
 suspeito é o bundle de CA do PHP da hospedagem — sem ele o cURL recusa o HTTPS e a cascata
 para no degrau 4, calada.
 
+**O lançamento manual usa a mesma cascata.** Era a segunda tela com um campo de código de
+barras ao lado de um campo de nome, e a única onde o app sabia o nome e não dizia — quem
+lança o cupom da feira em casa digitava "Leite Moça 395g" com o código já preenchido ao lado.
+Bipar ou digitar o código numa linha de item agora traz a descrição junto, e com ela quanto
+você pagou da última vez. A procura é por linha, e não uma só para a tela: numa nota de
+vinte itens, o nome que chega atrasado para a linha 3 não pode cair na linha 5, que é onde o
+dedo está agora. O que a pessoa já escreveu nunca é atropelado — ela está com o cupom na
+mão e sabe mais que a Open Food Facts.
+
+O código dessa procura mora em `/assets/ean-nome.js`, carregado pelas duas telas: as duas
+memórias, a chave do código e os 4 segundos de paciência existem uma vez só. Se a chave
+daqui divergisse da do servidor (`mercado_chave()`), o mesmo produto ficaria em duas gavetas.
+Diferença entre as telas: o Mercado **grava** o nome que você digita (é o degrau 1); o
+lançamento manual não grava nada, porque a própria nota faz isso melhor — salva, o produto
+entra no catálogo com aquele EAN e vira o degrau 2 para todo mundo.
+
 ## A capa: quanto vendeu hoje
 
 A tela de início e a de notas eram quase a mesma coisa — os mesmos botões em cima, a mesma
@@ -1121,6 +1137,7 @@ php testes/graficos.php     # série diária, altura/pico e as sete barras da se
 php testes/mercado.php      # a chave do código de barras e o nome vindo da Open Food Facts
 #   (transações e paginação entram em testes/vendas.php)
 node testes/mercado.js      # a conta do Mercado: centavos, total e o veredito do caixa
+node testes/ean-nome.js     # o nome do código de barras: chave, memória do aparelho e servidor
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 node n8n/teste-vendas.js    # o coletor de vendas: lotes, devolução e total da linha
