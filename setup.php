@@ -33,6 +33,34 @@ function listar_tabelas(): array
 }
 
 /**
+ * As tabelas que o schema.sql cria, lidas DO PROPRIO schema.sql.
+ *
+ * Isto ja foi uma lista escrita na mao aqui dentro, e a lista e o arquivo
+ * andaram separados: `touchpay_sessao` e `planograma_log` entraram no schema
+ * e ninguem lembrou de acrescenta-las aqui. O efeito e traicoeiro — o botao
+ * de criar o que falta some, o setup diz que esta tudo certo, e o erro so
+ * aparece semanas depois na tela que dependia da tabela.
+ *
+ * Lendo do arquivo nao ha duas listas para manter em dia. Se a leitura
+ * falhar (arquivo movido, permissao), cai no minimo conhecido em vez de
+ * devolver vazio: lista vazia diria "nao falta nada", que e o pior erro
+ * possivel para esta tela.
+ */
+function tabelas_do_schema(): array
+{
+    $sql = @file_get_contents(dirname(__FILE__) . '/sql/schema.sql');
+    if (is_string($sql)
+        && preg_match_all('/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?/i', $sql, $m)
+        && count($m[1]) >= 10
+    ) {
+        return array_values(array_unique($m[1]));
+    }
+    return ['usuarios', 'estabelecimentos', 'produtos', 'produto_aliases', 'notas', 'itens',
+            'loja_pdvs', 'loja_itens', 'vendas', 'venda_itens', 'custos_parametros',
+            'custos_pdv', 'sync_estado', 'ean_nomes', 'touchpay_sessao', 'planograma_log'];
+}
+
+/**
  * Colunas acrescentadas depois da primeira versao. O schema.sql cria tabela
  * nova ja completa; aqui e o caminho de quem instalou antes.
  */
@@ -194,7 +222,7 @@ try {
 }
 
 if ($db_ok) {
-    $esperadas = ['usuarios', 'estabelecimentos', 'produtos', 'produto_aliases', 'notas', 'itens', 'loja_pdvs', 'loja_itens', 'vendas', 'venda_itens', 'custos_parametros', 'custos_pdv', 'sync_estado', 'ean_nomes'];
+    $esperadas = tabelas_do_schema();
     $faltando  = array_diff($esperadas, $tabelas);
 
     // ---- aplicar schema ----
