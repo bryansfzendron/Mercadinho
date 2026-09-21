@@ -71,6 +71,9 @@ $rotas = [
     '/produtos'    => '/produtos',
     '/produtos/3'  => '/produtos',
     '/loja'        => '/loja',
+    // Repor a gondola e uma aba de dentro da Loja: acende Loja, e nao um
+    // item proprio — a barra tem seis e nao cabe um setimo.
+    '/planograma'  => '/loja',
     '/margens'     => '/loja',
     '/vendas'      => '/loja',
     // A lista de transacoes e uma tela de dentro de Vendas: acende Loja igual.

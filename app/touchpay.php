@@ -1,0 +1,337 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * O painel do TouchPay, falado direto daqui.
+ *
+ * O espelho da loja (loja.php) passa pelo n8n porque e raspagem pesada e
+ * demorada: dispara, esquece, e o callback chega quando chegar. Repor gondola
+ * e o contrario disso — bipa, ve, corrige, salva, tudo com o carrinho parado
+ * no corredor. Callback assincrono nessa tela seria pedir para a pessoa
+ * recarregar a pagina para descobrir se o preco pegou.
+ *
+ * Entao aqui e cURL direto, igual ao off_buscar() do mercado.php. As
+ * credenciais ja moram no config.php e ja eram as mesmas que o n8n recebia.
+ *
+ * ESTA E A UNICA PARTE DO APP QUE ESCREVE NA LOJA DE VERDADE. Preco errado
+ * daqui e preco errado cobrado do cliente no caixa — por isso toda alteracao
+ * passa por planograma_salvar(), que rele o valor atual antes de gravar e
+ * registra de/para em planograma_log.
+ */
+
+const TP_BASE = 'https://touchpay.market';
+
+/**
+ * O painel e um SPA de navegador; pedir com cara de navegador e o que ele
+ * espera. Mesmo user-agent do coletor do n8n, de proposito: se um dia eles
+ * passarem a barrar, os dois param juntos e o motivo fica obvio.
+ */
+const TP_NAVEGADOR = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                   . '(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
+
+/** Paciencia de cada chamada. Quem esta na gondola desiste antes do servidor. */
+const TP_TIMEOUT = 12;
+
+/**
+ * Folga antes do vencimento do JWT.
+ *
+ * O token dura uma hora. Usar ate o ultimo segundo garante que, uma hora
+ * depois de logar, alguma chamada vai vencer no meio do caminho — e a que
+ * vence pode ser justamente o PUT do preco, ja com a alteracao confirmada na
+ * tela. Dois minutos de folga fazem a renovacao cair sempre numa leitura.
+ */
+const TP_FOLGA_EXP = 120;
+
+/** Erro vindo do TouchPay. Separado para a rota saber que a culpa nao e nossa. */
+class TouchPayErro extends RuntimeException
+{
+}
+
+/** Tem login configurado? Sem isso a tela inteira nao faz sentido. */
+function tp_configurado(): bool
+{
+    return trim((string) cfg('touchpay_email')) !== ''
+        && trim((string) cfg('touchpay_senha')) !== '';
+}
+
+/**
+ * Quando este JWT vence, em epoch. Funcao pura.
+ *
+ * Le o `exp` do proprio token em vez de cravar uma hora no relogio daqui: o
+ * dia em que eles mudarem a duracao, isto acompanha sozinho. Token que nao se
+ * deixa ler devolve null, e quem chama trata como "vence logo".
+ */
+function tp_jwt_exp(string $jwt): ?int
+{
+    $partes = explode('.', $jwt);
+    if (count($partes) < 2 || $partes[1] === '') {
+        return null;
+    }
+
+    // base64url: '-' e '_' no lugar de '+' e '/', e sem o '=' do fim.
+    $b64 = strtr($partes[1], '-_', '+/');
+    $b64 .= str_repeat('=', (4 - strlen($b64) % 4) % 4);
+
+    $corpo = base64_decode($b64, true);
+    if (!is_string($corpo)) {
+        return null;
+    }
+    $json = json_decode($corpo, true);
+    $exp = is_array($json) ? ($json['exp'] ?? null) : null;
+
+    return is_numeric($exp) ? (int) $exp : null;
+}
+
+/**
+ * Faz login e devolve o JWT.
+ *
+ * O /account/login responde 200 com CORPO VAZIO: o token vem no header
+ * `authorization`. Procurar no body devolve nada — foi o que o n8n descobriu
+ * primeiro (n8n/codigo/tp-02-pegar-token.js) e vale o mesmo aqui.
+ */
+function tp_entrar(): string
+{
+    $email = (string) cfg('touchpay_email');
+    $senha = (string) cfg('touchpay_senha');
+    if ($email === '' || $senha === '') {
+        throw new TouchPayErro('touchpay_email/touchpay_senha nao configurados no config.php');
+    }
+
+    $cabecalhos = [];
+    $ch = curl_init(TP_BASE . '/account/login');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode(['email' => $email, 'password' => $senha]),
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json;charset=UTF-8',
+            'Accept: application/json, text/plain, */*',
+            'Referer: ' . TP_BASE . '/',
+        ],
+        CURLOPT_USERAGENT      => TP_NAVEGADOR,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 6,
+        CURLOPT_TIMEOUT        => TP_TIMEOUT,
+        CURLOPT_HEADERFUNCTION => static function ($ch, $linha) use (&$cabecalhos) {
+            $par = explode(':', $linha, 2);
+            if (count($par) === 2) {
+                $cabecalhos[strtolower(trim($par[0]))] = trim($par[1]);
+            }
+            return strlen($linha);
+        },
+    ]);
+    curl_exec($ch);
+    $errno = curl_errno($ch);
+    $http  = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($errno !== 0) {
+        throw new TouchPayErro('Nao consegui falar com o TouchPay: ' . curl_strerror($errno));
+    }
+    if ($http === 401 || $http === 400) {
+        throw new TouchPayErro('O TouchPay recusou o login. Confira touchpay_email e touchpay_senha.');
+    }
+
+    $jwt = trim(preg_replace('/^Bearer\s+/i', '', $cabecalhos['authorization'] ?? ''));
+    if ($jwt === '') {
+        throw new TouchPayErro('O TouchPay nao devolveu o header authorization (HTTP ' . $http . ').');
+    }
+    return $jwt;
+}
+
+/**
+ * O JWT de agora: o guardado, enquanto valer, ou um login novo.
+ *
+ * Guardado no banco e nao na sessao do PHP porque quem repoe a gondola abre a
+ * tela pelo celular e o cron tambem passa por aqui: um login por hora para o
+ * app inteiro, em vez de um por aparelho e por aba.
+ */
+function tp_token(bool $renovar = false): string
+{
+    static $memoria = null;
+
+    if ($renovar) {
+        $memoria = null;
+    } elseif ($memoria !== null) {
+        return $memoria;
+    }
+
+    if (!$renovar) {
+        $linha = q1('SELECT jwt, expira_em FROM touchpay_sessao WHERE id = 1');
+        if ($linha && strtotime((string) $linha['expira_em']) > time()) {
+            return $memoria = (string) $linha['jwt'];
+        }
+    }
+
+    $jwt = tp_entrar();
+    $exp = tp_jwt_exp($jwt);
+    // Token ilegivel nao e motivo para parar: vale meia hora e a proxima
+    // renovacao resolve.
+    $expira = $exp !== null ? $exp - TP_FOLGA_EXP : time() + 1800;
+
+    exec_sql(
+        'INSERT INTO touchpay_sessao (id, jwt, expira_em, criado_em) VALUES (1, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE jwt = VALUES(jwt), expira_em = VALUES(expira_em),
+                                 criado_em = VALUES(criado_em)',
+        [$jwt, date('Y-m-d H:i:s', $expira), date('Y-m-d H:i:s')]
+    );
+
+    return $memoria = $jwt;
+}
+
+/**
+ * Uma chamada ao painel, ja autenticada.
+ *
+ * `$corpo === null` manda requisicao sem corpo — o PUT do estoque e assim,
+ * com a quantidade na propria URL e Content-Length zero.
+ *
+ * 401 renova o token e repete UMA vez. Sem isso, o primeiro toque depois de
+ * uma hora parada sempre falharia; com mais de uma vez, um login que passou a
+ * ser recusado viraria um laco de tentativas contra o servidor deles.
+ */
+function tp_chamar(string $metodo, string $caminho, ?array $corpo = null, bool $renovou = false)
+{
+    $jwt = tp_token($renovou);
+
+    $cabecalhos = [
+        'Accept: application/json, text/plain, */*',
+        'Authorization: Bearer ' . $jwt,
+        'Referer: ' . TP_BASE . '/',
+    ];
+    $opcoes = [
+        CURLOPT_CUSTOMREQUEST  => $metodo,
+        CURLOPT_USERAGENT      => TP_NAVEGADOR,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 6,
+        CURLOPT_TIMEOUT        => TP_TIMEOUT,
+    ];
+
+    if ($corpo !== null) {
+        $cabecalhos[] = 'Content-Type: application/json';
+        $opcoes[CURLOPT_POSTFIELDS] = json_encode($corpo, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    } elseif ($metodo !== 'GET') {
+        // PUT sem corpo: sem isto o cURL nao manda Content-Length e parte dos
+        // servidores devolve 411.
+        $cabecalhos[] = 'Content-Length: 0';
+    }
+    $opcoes[CURLOPT_HTTPHEADER] = $cabecalhos;
+
+    $ch = curl_init(TP_BASE . $caminho);
+    curl_setopt_array($ch, $opcoes);
+    $resposta = curl_exec($ch);
+    $errno    = curl_errno($ch);
+    $http     = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($errno !== 0) {
+        throw new TouchPayErro('Nao consegui falar com o TouchPay: ' . curl_strerror($errno));
+    }
+    if ($http === 401 && !$renovou) {
+        return tp_chamar($metodo, $caminho, $corpo, true);
+    }
+    if ($http >= 400) {
+        throw new TouchPayErro(tp_erro_legivel($http, is_string($resposta) ? $resposta : ''));
+    }
+
+    // 204 e 200-com-corpo-vazio sao respostas validas de escrita.
+    if (!is_string($resposta) || trim($resposta) === '') {
+        return [];
+    }
+    $json = json_decode($resposta, true);
+    return is_array($json) ? $json : [];
+}
+
+/**
+ * O que deu errado, em portugues.
+ *
+ * O corpo do erro deles as vezes e JSON com `message`, as vezes e HTML de
+ * pagina de erro inteira. Jogar HTML cru numa tela de celular nao ajuda
+ * ninguem, entao so o que couber numa linha sai daqui.
+ */
+function tp_erro_legivel(int $http, string $corpo): string
+{
+    $json = json_decode($corpo, true);
+    if (is_array($json)) {
+        foreach (['message', 'Message', 'error', 'title'] as $chave) {
+            $msg = trim((string) ($json[$chave] ?? ''));
+            if ($msg !== '') {
+                return 'TouchPay (HTTP ' . $http . '): ' . mb_substr($msg, 0, 180);
+            }
+        }
+    }
+    if ($http === 403) {
+        return 'TouchPay recusou (HTTP 403): este login nao tem permissao para esta alteracao.';
+    }
+    return 'TouchPay respondeu HTTP ' . $http . '.';
+}
+
+// ---------------------------------------------------------------------
+// As chamadas que a tela usa
+// ---------------------------------------------------------------------
+
+/** Pontos de venda, com o planograma ativo de cada um. */
+function tp_pdvs(): array
+{
+    return pg_itens(tp_chamar('GET', '/api/pointsOfSale'));
+}
+
+/** Os planogramas de um PDV — sao mais de um, e so um esta valendo. */
+function tp_planogramas(int $pos_id): array
+{
+    $r = tp_chamar('GET', '/api/Planograms?posId=' . $pos_id);
+    return pg_itens($r);
+}
+
+/**
+ * Procura um produto dentro de um planograma.
+ *
+ * pageSize pequeno de proposito: isto responde um bipe, nao monta relatorio.
+ */
+function tp_planograma_buscar(int $planograma_id, string $termo): array
+{
+    return pg_itens(tp_chamar(
+        'GET',
+        '/api/Planograms/' . $planograma_id
+        . '?page=1&pageSize=20&sortOrder=quantityToSupply&descending=true'
+        . '&search=' . rawurlencode($termo) . '&showOnlyCritical=false'
+    ));
+}
+
+/** Procura no cadastro de produtos — o degrau de quem nao esta no planograma. */
+function tp_catalogo_buscar(string $termo): array
+{
+    return pg_itens(tp_chamar(
+        'GET',
+        '/api/products/productBaseSimpleInfo?page=1&pageSize=30&descending=false'
+        . '&search=' . rawurlencode($termo) . '&showProductGroups=true'
+    ));
+}
+
+/** Altera uma linha que JA esta no planograma. O corpo vai inteiro de volta. */
+function tp_entrada_alterar(array $entrada): array
+{
+    return tp_chamar('PUT', '/api/PlanogramEntries', $entrada);
+}
+
+/** Inclui um produto do cadastro no planograma. */
+function tp_entrada_incluir(array $dados): array
+{
+    return tp_chamar('POST', '/api/PlanogramEntries', $dados);
+}
+
+/**
+ * DEFINE o estoque de um item — nao soma.
+ *
+ * A quantidade vai na URL e o corpo e vazio. Conferido: `.../quantity/3` faz
+ * o estoque passar a ser 3, seja qual for o numero que estava la. Quem quer
+ * "entrou mais 3" soma ANTES de chamar; aqui ja chega o total que vai ficar.
+ */
+function tp_estoque_definir(int $pos_id, int $item_id, float $quantidade): array
+{
+    // Inteiro quando for inteiro: ".../quantity/3.0" nao e o que a tela deles
+    // manda, e nao vale descobrir na pratica se o servidor aceita.
+    $n = fmod($quantidade, 1.0) === 0.0
+        ? (string) (int) $quantidade
+        : rtrim(rtrim(number_format($quantidade, 3, '.', ''), '0'), '.');
+
+    return tp_chamar('PUT', '/api/inventory/' . $pos_id . '/' . $item_id . '/quantity/' . $n);
+}

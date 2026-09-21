@@ -20,7 +20,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=42">
+<link rel="stylesheet" href="/assets/app.css?v=43">
 </head>
 <body>
 
@@ -91,7 +91,7 @@ $flashes = flash_pegar();
             <rect x="13" y="13" width="7" height="7" rx="1.5"/>
         </svg></span>Produtos
     </a>
-    <a href="/loja"      class="<?= in_array($rota, ['/loja', '/margens', '/metas'], true) || str_starts_with($rota, '/vendas') ? 'ativo' : '' ?>">
+    <a href="/loja"      class="<?= in_array($rota, ['/loja', '/planograma', '/margens', '/metas'], true) || str_starts_with($rota, '/vendas') ? 'ativo' : '' ?>">
         <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M6 8h12l-1 12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 8Z"/>
             <path d="M9 8V6a3 3 0 0 1 6 0v2"/>

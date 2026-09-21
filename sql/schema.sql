@@ -136,6 +136,11 @@ CREATE TABLE IF NOT EXISTS loja_pdvs (
     -- externo_id — apagar a linha deixaria o proximo sync recriar o velho e
     -- voltar a partir o historico em dois.
     unificado_para INT UNSIGNED NULL,
+    -- O planograma que esta valendo e o inventario deste PDV, do jeito que o
+    -- TouchPay chama. Vem no callback do sync desde sempre; passaram a ser
+    -- guardados quando a tela de repor precisou escrever de volta la.
+    planograma_id INT UNSIGNED NULL,
+    inventario_id INT UNSIGNED NULL,
     atualizado_em DATETIME     NULL,
     criado_em     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -297,4 +302,54 @@ CREATE TABLE IF NOT EXISTS ean_nomes (
     fonte         VARCHAR(20)  NOT NULL DEFAULT 'off',
     atualizado_em DATETIME     NOT NULL,
     PRIMARY KEY (ean)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- O JWT do painel do TouchPay.
+--
+-- Uma linha so (id = 1). Fica no banco e nao na sessao do PHP porque o token
+-- vale para o app inteiro: um login por hora, em vez de um por aparelho e por
+-- aba. Quem repoe a gondola abre isto no celular, e o cron passa pelo mesmo
+-- caminho.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS touchpay_sessao (
+    id         TINYINT UNSIGNED NOT NULL DEFAULT 1,
+    jwt        TEXT             NOT NULL,
+    -- Ja com a folga: o `exp` do token menos dois minutos.
+    expira_em  DATETIME         NOT NULL,
+    criado_em  DATETIME         NOT NULL,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Diario das alteracoes feitas NO TOUCHPAY pela tela de repor.
+--
+-- E a unica parte do app que escreve na loja de verdade: preco errado daqui
+-- e preco errado cobrado do cliente no caixa. O painel deles nao diz quem
+-- mexeu nem o que havia antes, entao fica aqui — uma linha por campo, com
+-- de/para, porque planograma e estoque sao duas chamadas sem transacao entre
+-- elas e quando uma metade cai e preciso saber qual foi.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS planograma_log (
+    id                 INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    usuario_id         INT UNSIGNED NULL,
+    pdv_id             INT UNSIGNED NULL,
+    planograma_id      INT UNSIGNED NULL,
+    produto_externo_id INT UNSIGNED NULL,
+    ean                VARCHAR(14)  NULL,
+    descricao          VARCHAR(255) NULL,
+    -- incluir | alterar | estoque
+    acao               VARCHAR(20)  NOT NULL,
+    -- preco | necessaria | critico | estoque
+    campo              VARCHAR(30)  NULL,
+    de                 VARCHAR(40)  NULL,
+    para               VARCHAR(40)  NULL,
+    ok                 TINYINT(1)   NOT NULL DEFAULT 1,
+    erro               VARCHAR(255) NULL,
+    criado_em          DATETIME     NOT NULL,
+    PRIMARY KEY (id),
+    KEY ix_pglog_data (criado_em),
+    KEY ix_pglog_pdv (pdv_id),
+    CONSTRAINT fk_pglog_pdv FOREIGN KEY (pdv_id)
+        REFERENCES loja_pdvs (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

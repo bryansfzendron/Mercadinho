@@ -102,7 +102,8 @@ function loja_callback_normalizar(array $p): array
  * $marcar_sync so vale para quem acabou de trazer preco e estoque: o fluxo de
  * vendas tambem passa por aqui e nao pode dizer que o espelho foi atualizado.
  * Pelo mesmo motivo nome e tipo so sobrescrevem quando vem preenchidos — a
- * venda manda o nome do PDV mas nao manda o tipo.
+ * venda manda o nome do PDV mas nao manda o tipo, e nao manda planograma nem
+ * inventario. COALESCE em todos: quem nao sabe nao apaga o que outro soube.
  */
 function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
 {
@@ -112,6 +113,10 @@ function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
     }
     $nome = trim((string) ($pos['nome'] ?? '')) ?: ('PDV ' . $externo);
     $tipo = mb_substr((string) ($pos['tipo'] ?? ''), 0, 40) ?: null;
+    // A tela de repor escreve no planograma que estiver valendo; sem guardar
+    // qual e, ela teria de perguntar ao TouchPay a cada bipe.
+    $plano = ((int) ($pos['planograma_id'] ?? 0)) ?: null;
+    $inv   = ((int) ($pos['inventario_id'] ?? 0)) ?: null;
 
     $linha = q1(
         'SELECT id, unificado_para FROM loja_pdvs WHERE fonte = ? AND externo_id = ?',
@@ -129,9 +134,11 @@ function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
             return $unificado;
         }
         exec_sql(
-            'UPDATE loja_pdvs SET nome = ?, tipo = COALESCE(?, tipo)'
+            'UPDATE loja_pdvs SET nome = ?, tipo = COALESCE(?, tipo),'
+            . ' planograma_id = COALESCE(?, planograma_id),'
+            . ' inventario_id = COALESCE(?, inventario_id)'
             . ($marcar_sync ? ', atualizado_em = NOW()' : '') . ' WHERE id = ?',
-            [mb_substr($nome, 0, 120), $tipo, $linha['id']]
+            [mb_substr($nome, 0, 120), $tipo, $plano, $inv, $linha['id']]
         );
         return (int) $linha['id'];
     }
@@ -141,6 +148,8 @@ function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
         'externo_id'    => $externo,
         'nome'          => mb_substr($nome, 0, 120),
         'tipo'          => $tipo,
+        'planograma_id' => $plano,
+        'inventario_id' => $inv,
         // PDV que aparece primeiro numa venda entra sem data de espelho: ele
         // ainda nao tem preco nem estoque nossos.
         'atualizado_em' => $marcar_sync ? date('Y-m-d H:i:s') : null,

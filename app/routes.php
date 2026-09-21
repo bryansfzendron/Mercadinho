@@ -27,6 +27,7 @@ function despachar(string $rota): void
     if ($rota === '/transacoes') { rota_transacoes($u); return; }
     if ($rota === '/produtos')  { rota_produtos($u); return; }
     if ($rota === '/loja')      { rota_loja($u); return; }
+    if ($rota === '/planograma') { rota_planograma($u); return; }
     if ($rota === '/margens')   { rota_margens($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }
     if ($rota === '/vendas/transacoes') { rota_vendas_transacoes($u); return; }
@@ -41,6 +42,8 @@ function despachar(string $rota): void
     if ($rota === '/api/sync/estado' && $m === 'GET') { rota_api_sync_estado($u); return; }
     if ($rota === '/api/sincronizar' && $m === 'POST') { rota_api_sincronizar($u); return; }
     if ($rota === '/api/loja/sincronizar' && $m === 'POST') { rota_loja_sincronizar($u); return; }
+    if ($rota === '/api/planograma/buscar' && $m === 'GET')  { rota_api_planograma_buscar($u); return; }
+    if ($rota === '/api/planograma/salvar' && $m === 'POST') { rota_api_planograma_salvar($u); return; }
     if ($rota === '/api/vendas/sincronizar' && $m === 'POST') { rota_vendas_sincronizar($u); return; }
 
     if (preg_match('#^/api/notas/(\d+)/status$#', $rota, $mm)) {
@@ -274,6 +277,71 @@ function rota_produtos(array $u): void
 }
 
 /** Catalogo da loja: tudo que veio do TouchPay, nao so o que voce ja comprou. */
+/**
+ * Repor a gondola: bipar o produto e mexer no planograma do TouchPay.
+ *
+ * Abrir a tela pergunta ao painel qual planograma esta valendo em cada PDV.
+ * E a unica ida extra da sessao inteira — os bipes seguintes usam o que
+ * ficou guardado, senao repor trinta produtos custaria trinta consultas so
+ * para descobrir a mesma coisa trinta vezes.
+ */
+function rota_planograma(array $u): void
+{
+    if (!tp_configurado()) {
+        ver('planograma', [
+            'pdvs' => [],
+            'erro' => 'Falta touchpay_email e touchpay_senha no config.php.',
+            'log'  => [],
+        ], 'Repor');
+    }
+
+    // Painel fora do ar nao pode deixar a tela em branco: os PDVs do espelho
+    // ja servem, e o planograma guardado do ultimo sync costuma ser o mesmo.
+    $erro = null;
+    try {
+        planograma_sincronizar_pdvs();
+    } catch (TouchPayErro $e) {
+        $erro = $e->getMessage();
+    }
+
+    ver('planograma', [
+        'pdvs' => planograma_pdvs(),
+        'erro' => $erro,
+        'log'  => planograma_log_recente(10),
+    ], 'Repor');
+}
+
+/** O que foi bipado: planograma, cadastro, ou lugar nenhum. */
+function rota_api_planograma_buscar(array $u): void
+{
+    try {
+        json_resposta(planograma_para_tela(planograma_procurar(
+            (int) ($_GET['pdv'] ?? 0),
+            (string) ($_GET['codigo'] ?? '')
+        )));
+    } catch (TouchPayErro $e) {
+        // 502 e nao 500: quem recusou foi o painel deles, e a tela diz isso
+        // com todas as letras em vez de "erro inesperado".
+        json_resposta(['erro' => $e->getMessage()], 502);
+    }
+}
+
+/** Grava no TouchPay. Toda alteracao daqui vira linha em planograma_log. */
+function rota_api_planograma_salvar(array $u): void
+{
+    exigir_csrf();
+    $corpo = corpo_json();
+
+    try {
+        $r = planograma_salvar($u, (int) ($corpo['pdv'] ?? 0), $corpo);
+        // 409: alguem mexeu no mesmo campo depois que esta tela leu. A
+        // resposta leva o valor de agora, para a pessoa decidir de novo.
+        json_resposta(planograma_para_tela($r), ($r['conflito'] ?? false) ? 409 : 200);
+    } catch (TouchPayErro $e) {
+        json_resposta(['ok' => false, 'erro' => $e->getMessage()], 502);
+    }
+}
+
 function rota_loja(array $u): void
 {
     $busca   = trim((string) ($_GET['q'] ?? ''));

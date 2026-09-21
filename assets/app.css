@@ -977,6 +977,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 #m-total { margin: .2rem 0 0; }
 
 /* ---------------------------------------------------------------
+   Repor a gondola.
+
+   Quatro campos em dois pares. Preco e estoque em cima porque sao os
+   dois que se mexe sempre; necessaria e critico embaixo, que so mudam
+   quando a gondola muda de tamanho.
+   --------------------------------------------------------------- */
+.pg-campos { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.pg-campos label { min-width: 0; }
+
+/* ---------------------------------------------------------------
    Transacoes recentes.
    --------------------------------------------------------------- */
 .titulo-icone { display: flex; align-items: center; gap: .5rem; }

@@ -594,10 +594,11 @@ function abas(array $abas, string $atual): string
 function abas_loja(string $atual): string
 {
     return abas([
-        '/loja'    => 'Catálogo',
-        '/margens' => 'Margens',
-        '/vendas'  => 'Vendas',
-        '/metas'   => 'Metas',
+        '/loja'       => 'Catálogo',
+        '/planograma' => 'Repor',
+        '/margens'    => 'Margens',
+        '/vendas'     => 'Vendas',
+        '/metas'      => 'Metas',
     ], $atual);
 }
 

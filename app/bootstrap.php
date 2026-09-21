@@ -87,3 +87,5 @@ require APP . '/metas.php';
 require APP . '/graficos.php';
 require APP . '/sync.php';
 require APP . '/mercado.php';
+require APP . '/touchpay.php';
+require APP . '/planograma.php';

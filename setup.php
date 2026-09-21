@@ -42,6 +42,8 @@ function migracoes(): array
         'loja_pdvs' => [
             'ativo'          => 'TINYINT(1) NOT NULL DEFAULT 1 AFTER tipo',
             'unificado_para' => 'INT UNSIGNED NULL AFTER ativo',
+            'planograma_id'  => 'INT UNSIGNED NULL AFTER unificado_para',
+            'inventario_id'  => 'INT UNSIGNED NULL AFTER planograma_id',
         ],
         'itens' => [
             'valor_total_liquido'    => 'DECIMAL(14,2) NOT NULL DEFAULT 0 AFTER desconto',

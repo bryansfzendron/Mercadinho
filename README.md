@@ -400,6 +400,93 @@ As credenciais do TouchPay ficam **só no `config.php`** (`touchpay_email`,
 `touchpay_senha`), que não vai para o git — o PHP as manda no corpo do disparo em vez de
 elas viverem dentro do workflow. O botão *Atualizar preços e estoque* fica na tela inicial.
 
+## Repor a gôndola (escrever no TouchPay)
+
+Tudo acima é leitura. `/planograma` — a aba **Repor**, dentro de Loja — é a **única
+tela do app que escreve na loja de verdade**: o preço digitado ali é o preço que o
+cliente paga no caixa. Bipa o produto na gôndola e mexe em preço, quantidade
+necessária, crítico e estoque sem abrir o painel deles no celular.
+
+A cascata tem três degraus, e cada um só existe porque o de cima não respondeu:
+
+1. **está no planograma ativo** → altera os quatro campos;
+2. **não está no planograma mas está no cadastro** → entra no planograma na hora
+   (aí o preço é obrigatório: preço é coisa do planograma, o cadastro não tem);
+3. **não está em lugar nenhum** → a tela diz isso e para. Cadastrar produto novo
+   continua sendo na mão, no painel: aqui falta foto, categoria, unidade e
+   tributação — nada que se preencha de pé no corredor.
+
+Os campos, do jeito que o TouchPay os chama: **necessária** é `quantityToSupply`,
+**crítico** é `minimumQuantity`, **preço** é `price`.
+
+### Isto não passa pelo n8n
+
+O espelho passa porque é raspagem pesada: dispara, esquece, o callback chega quando
+chegar. Repor é o contrário — bipa, vê, corrige, salva, com o carrinho parado no
+corredor. Callback assíncrono aqui seria pedir para a pessoa recarregar a página para
+descobrir se o preço pegou. Então `app/touchpay.php` fala cURL direto com o painel,
+igual ao `off_buscar()` do Mercado. O JWT vale ~1h, mora em `touchpay_sessao` (uma
+linha) e não na sessão do PHP: um login por hora para o app inteiro, em vez de um por
+aparelho e por aba. 401 renova e repete **uma** vez — mais que isso, um login que
+passou a ser recusado viraria laço de tentativas contra o servidor deles.
+
+### O que se aprendeu da API deles
+
+- `PUT /api/PlanogramEntries` altera uma linha e quer o **objeto inteiro de volta**;
+  mandar só os campos alterados zera o resto. Por isso o servidor **relê a linha**
+  imediatamente antes de gravar, em vez de confiar no que veio do celular.
+- `POST /api/PlanogramEntries` inclui, e **não devolve o `inventoryItemId`** — ele
+  nasce com a linha. Sem reler depois do POST, não há como mexer no estoque do que
+  acabou de entrar.
+- `PUT /api/inventory/{posId}/{inventoryItemId}/quantity/{n}` **define** o estoque,
+  não soma: `.../quantity/3` faz passar a ser 3, seja qual for o número que estava
+  lá. A quantidade vai na URL e o corpo é vazio (daí o `Content-Length: 0`). A tela
+  diz isso com todas as letras, e o campo já vem preenchido com o estoque atual.
+- A busca deles é por **pedaço de texto**: `search=789` volta meia gôndola, e mesmo
+  o EAN inteiro pode trazer o produto irmão. Pegar o primeiro da lista é como se
+  troca o preço do produto errado — `pg_casar()` exige `productId` igual, ou código
+  igual, ou nada.
+
+### O bipe é resolvido no espelho primeiro
+
+O planograma só tem `productCode`, e parte dos códigos vem com `OM` grudado. O EAN de
+verdade só existe do lado do inventário — que é justamente o que `loja_itens` já
+guarda. Então o código bipado vira `externo_produto_id` no banco daqui **antes** de
+ir ao TouchPay, e a busca lá vai com o `productId` na mão. É o único ponto em que
+esta tela acerta mais que a tela deles.
+
+O planograma ativo de cada PDV é perguntado **uma vez, quando a tela abre**
+(`planograma_sincronizar_pdvs()`), e guardado em `loja_pdvs.planograma_id`. Repor são
+trinta bipes seguidos; perguntar a cada um seriam trinta consultas para descobrir a
+mesma coisa trinta vezes. Planograma não troca no meio de uma reposição.
+
+### Nada vai embora no primeiro toque
+
+"Salvar" abre um resumo **de → para** e só o segundo toque manda. É a única chance
+de ver que o preço foi de `R$ 9,50` para `R$ 950,00` porque a vírgula não entrou —
+quem está de pé no corredor com o celular numa mão erra o alvo, e errar o alvo aqui
+custa o preço de um produto.
+
+**Campo vazio não é zero**, é "não encostei neste campo". Sem essa regra, apagar o
+preço sem querer deixaria o produto saindo de graça. Zero digitado, esse sim, é zero
+de verdade — estoque zerado existe.
+
+E se alguém mexeu no mesmo campo enquanto a tela estava aberta, a gravação **para**
+(HTTP 409) em vez de desfazer o trabalho do outro calada. A comparação é só nos
+campos que **esta** pessoa está mudando: preço alheio não atrapalha quem só repõe
+estoque.
+
+### O diário
+
+O painel deles não diz quem mexeu nem o que havia antes. `planograma_log` diz: uma
+linha por campo, com de/para, usuário, PDV e hora. Uma linha **por campo** e não por
+salvamento porque planograma e estoque são duas chamadas sem transação entre elas —
+quando uma metade cai, dá para ver exatamente qual foi. As últimas dez aparecem no pé
+da tela.
+
+**Tabelas novas:** rode `/setup.php?token=...` e aplique o schema e as migrações
+(`loja_pdvs` ganhou `planograma_id` e `inventario_id`).
+
 ## Vendas (TouchPay)
 
 O espelho acima diz por quanto a loja vende hoje. As **vendas que aconteceram** vêm de
@@ -1135,9 +1222,11 @@ php testes/nav.php          # o menu de baixo acende um item por rota
 php testes/config.php       # a configuração sobrevive a um $cfg no escopo global
 php testes/graficos.php     # série diária, altura/pico e as sete barras da semana
 php testes/mercado.php      # a chave do código de barras e o nome vindo da Open Food Facts
+php testes/planograma.php   # repor: qual item foi o bipado, o de/para e a leitura do JWT
 #   (transações e paginação entram em testes/vendas.php)
 node testes/mercado.js      # a conta do Mercado: centavos, total e o veredito do caixa
 node testes/ean-nome.js     # o nome do código de barras: chave, memória do aparelho e servidor
+node testes/planograma.js   # o resumo de/para antes de escrever no TouchPay
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 node n8n/teste-vendas.js    # o coletor de vendas: lotes, devolução e total da linha
