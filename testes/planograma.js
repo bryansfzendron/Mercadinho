@@ -143,5 +143,30 @@ checar('a frase da validade', P.fraseValidade('2027-02-14', '2027-06-30'),
 checar('sem validade antes, o travessao aparece',
     P.fraseValidade(null, '2027-06-30'), 'Validade — → 30/06/2027');
 
+// ------------------------------- o resumo nao pode descrever o passado
+// O bug: com o resumo na tela os campos continuam editaveis, e Confirmar
+// mandava a fotografia tirada la no Salvar. Agora o resumo cai quando o
+// campo muda, e esta funcao e quem sabe dizer se mudou.
+const foto = { preco: 9.5, estoque: 4, necessaria: 12, critico: 3 };
+checar('nada mexido: o resumo continua valendo',
+    P.mesmosCampos(foto, { preco: 9.5, estoque: 4, necessaria: 12, critico: 3 }), true);
+checar('um centavo ja derruba o resumo',
+    P.mesmosCampos(foto, { preco: 9.51, estoque: 4, necessaria: 12, critico: 3 }), false);
+checar('estoque mexido derruba',
+    P.mesmosCampos(foto, { preco: 9.5, estoque: 10, necessaria: 12, critico: 3 }), false);
+// Folga de float: reabrir a conferencia a cada bit seria a tela piscando.
+checar('sobra de float nao derruba',
+    P.mesmosCampos({ preco: 9.1 }, { preco: 9.1000001 }), true);
+// Apagar o campo depois de pedir o resumo e mudar de ideia, nao "deixa como esta".
+checar('apagar o preco derruba',
+    P.mesmosCampos({ preco: 9.5 }, { preco: null }), false);
+checar('preencher o que estava vazio derruba',
+    P.mesmosCampos({ preco: null }, { preco: 9.5 }), false);
+checar('vazio dos dois lados continua igual',
+    P.mesmosCampos({ preco: null }, { preco: null }), true);
+// Zero digitado e um valor, nao ausencia — a regra vale aqui tambem.
+checar('zero nao se confunde com vazio',
+    P.mesmosCampos({ estoque: 0 }, { estoque: null }), false);
+
 console.log(`\n${ok} passaram, ${falhou} falharam`);
 process.exit(falhou > 0 ? 1 : 0);

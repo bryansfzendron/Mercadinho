@@ -204,6 +204,26 @@
         return saida;
     }
 
+    /**
+     * Os campos lidos agora sao os mesmos de quando o resumo foi montado?
+     * Funcao pura.
+     *
+     * Serve para o resumo nao poder mentir. Campo vazio (null) e diferente de
+     * zero aqui tambem: quem apagou o preco depois de pedir o resumo mudou de
+     * ideia, e isso tem de reabrir a conferencia em vez de mandar o valor
+     * antigo que ninguem esta mais vendo.
+     */
+    function mesmosCampos(a, b) {
+        return CAMPOS.every((campo) => {
+            const x = (a ? a[campo] : null) ?? null;
+            const y = (b ? b[campo] : null) ?? null;
+            if (x === null || y === null) {
+                return x === y;
+            }
+            return Math.abs(Number(x) - Number(y)) <= FOLGA;
+        });
+    }
+
     /** "Preço R$ 9,00 → R$ 9,50". Funcao pura, e o que o resumo mostra. */
     function frase(m) {
         return ROTULOS[m.campo] + ' ' + valorTexto(m.campo, m.de) + ' → ' + valorTexto(m.campo, m.para);
@@ -211,7 +231,7 @@
 
     const api = { numero, moeda, qtdTexto, valorTexto, precoSugerido, mudancas, frase,
                   dataIso, dataBr, validadePlausivel, validadeDecidir, fraseValidade,
-                  CAMPOS, ROTULOS, FOLGA };
+                  mesmosCampos, CAMPOS, ROTULOS, FOLGA };
 
     // ---------------------------------------------------------------
     // A tela
@@ -534,6 +554,21 @@
          * e a unica chance de ver que o preco foi de 9,50 para 950 porque a
          * virgula nao entrou.
          */
+        /** Todo campo que a pessoa consegue mexer na ficha. */
+        function camposDaFicha() {
+            return alvo.querySelectorAll(
+                '[data-campo], [data-aux], [data-data], input[name="pg-val"]');
+        }
+
+        /** De volta ao botao de Salvar, com o resumo descartado. */
+        function voltarAoSalvar(ctx) {
+            const acao = doc.getElementById('pg-acao');
+            if (!acao) return;
+            acao.innerHTML = '<button type="button" class="botao" id="pg-salvar">'
+                + (ctx.novo ? 'Incluir no planograma' : 'Salvar') + '</button>';
+            doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
+        }
+
         function resumir(ctx) {
             const agora = lidos();
             const lista = ctx.novo
@@ -550,15 +585,14 @@
             const acao = doc.getElementById('pg-acao');
 
             if (ctx.novo && !(agora.preco > 0)) {
-                acao.innerHTML = '<p class="aviso aviso-erro">Produto novo no planograma precisa de preço.</p>'
-                    + '<button type="button" class="botao" id="pg-salvar">Incluir no planograma</button>';
-                doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
+                voltarAoSalvar(ctx);
+                acao.insertAdjacentHTML('afterbegin',
+                    '<p class="aviso aviso-erro">Produto novo no planograma precisa de preço.</p>');
                 return;
             }
             if (!ctx.novo && !lista.length && !trocaValidade) {
-                acao.innerHTML = '<p class="ajuda">Nada mudou.</p>'
-                    + '<button type="button" class="botao" id="pg-salvar">Salvar</button>';
-                doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
+                voltarAoSalvar(ctx);
+                acao.insertAdjacentHTML('afterbegin', '<p class="ajuda">Nada mudou.</p>');
                 return;
             }
 
@@ -577,13 +611,38 @@
                   '<button type="button" class="botao botao-alt" id="pg-cancelar">Voltar</button>' +
                 '</div>';
 
-            doc.getElementById('pg-cancelar').addEventListener('click', () => {
-                acao.innerHTML = '<button type="button" class="botao" id="pg-salvar">'
-                    + (ctx.novo ? 'Incluir no planograma' : 'Salvar') + '</button>';
-                doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
+            doc.getElementById('pg-cancelar').addEventListener('click', () => voltarAoSalvar(ctx));
+
+            // Os campos continuam editaveis com o resumo na tela, e e assim
+            // que tem de ser: quem viu o de/para e reparou que digitou errado
+            // corrige ali mesmo. So que dai o resumo passa a descrever um
+            // estado que nao existe mais — entao mexer em qualquer campo o
+            // derruba, e a conferencia recomeca. Confirmar so confirma o que
+            // esta escrito na tela naquele instante.
+            let vivo = true;
+            const derrubar = () => {
+                if (!vivo) return;
+                vivo = false;
+                voltarAoSalvar(ctx);
+            };
+            camposDaFicha().forEach((el) => {
+                el.addEventListener('input', derrubar);
+                el.addEventListener('change', derrubar);
             });
-            doc.getElementById('pg-confirmar').addEventListener('click',
-                () => enviar(ctx, agora, lista, val, linhas));
+
+            doc.getElementById('pg-confirmar').addEventListener('click', () => {
+                // Cinto e suspensorio. Se algum campo mudou por um caminho que
+                // nao disparou os eventos acima, o resumo volta em vez de
+                // mandar numero que ninguem conferiu.
+                const conferir = lidos();
+                const valAgora = validadeLida(ctx.atual.validade || null);
+                if (!mesmosCampos(agora, conferir)
+                    || val.acao !== valAgora.acao || val.data !== valAgora.data) {
+                    resumir(ctx);
+                    return;
+                }
+                enviar(ctx, agora, lista, val, linhas);
+            });
         }
 
         async function enviar(ctx, agora, lista, val, linhas) {
