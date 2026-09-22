@@ -14,6 +14,9 @@
  * Os numeros aqui sao float e nao centavos, ao contrario do Mercado. La a
  * lista e somada item a item e o erro de float aparece; aqui cada valor vai
  * sozinho para o TouchPay, sem soma nenhuma no meio.
+ *
+ * Dos seis campos da ficha, dois — custo e taxa — nao existem do lado de la:
+ * sao a conta que produz o preco, e param nesta tela.
  */
 (function (global) {
     'use strict';
@@ -73,6 +76,30 @@
     }
 
     /**
+     * O preco da etiqueta: o que se pagou no mercado, vezes a taxa.
+     *
+     * Custo e taxa sao os dois unicos campos desta tela que NAO vao para o
+     * TouchPay — o painel deles so conhece o preco final. Eles existem aqui
+     * porque e no corredor, com a nota do atacado na mao, que se sabe por
+     * quanto o produto entrou; fazer essa conta na calculadora e digitar o
+     * resultado e um passo a mais para errar.
+     *
+     * Faltando qualquer um dos dois, devolve null — "nao mexe no preco" — e
+     * nao zero. Zero aqui seria o produto saindo de graca no caixa, que e
+     * exatamente o erro que esta tela inteira existe para nao cometer. Custo
+     * zero e taxa zero caem na mesma regra: sao digitacao pela metade, nunca
+     * uma etiqueta de R$ 0,00 de verdade.
+     *
+     * O arredondamento e no centavo, porque centavo e o que a etiqueta tem.
+     */
+    function precoSugerido(custo, taxa) {
+        const c = Number(custo);
+        const t = Number(taxa);
+        if (!(c > 0) || !(t > 0)) return null;
+        return Math.round(c * t * 100) / 100;
+    }
+
+    /**
      * O que mudou, campo a campo. Funcao pura.
      *
      * Campo vazio (null em `agora`) nao e alteracao: e campo que a pessoa nao
@@ -99,7 +126,7 @@
         return ROTULOS[m.campo] + ' ' + valorTexto(m.campo, m.de) + ' → ' + valorTexto(m.campo, m.para);
     }
 
-    const api = { numero, moeda, qtdTexto, valorTexto, mudancas, frase, CAMPOS, ROTULOS, FOLGA };
+    const api = { numero, moeda, qtdTexto, valorTexto, precoSugerido, mudancas, frase, CAMPOS, ROTULOS, FOLGA };
 
     // ---------------------------------------------------------------
     // A tela
@@ -118,6 +145,13 @@
         const dicaCam  = doc.getElementById('dica');
 
         const LEMBRAR_PDV = 'mercadinho:planograma-pdv';
+        // A taxa e a mesma o dia inteiro: quem repoe trabalha com uma margem
+        // so. O custo muda a cada produto e por isso nao se guarda; a taxa,
+        // se nao voltasse sozinha, seria digitada trinta vezes seguidas.
+        const LEMBRAR_TAXA = 'mercadinho:planograma-taxa';
+
+        const AJUDA_CONTA = 'Custo × taxa vira o preço. Nenhum dos dois vai para o TouchPay.';
+
         let pdvs = [];
         try {
             pdvs = JSON.parse(tela.dataset.pdvs || '[]') || [];
@@ -219,6 +253,13 @@
                       + 'Salvando, ele entra.</p>'
                     : '<p class="ajuda">No planograma. Tem <strong>' + qtdTexto(atual.estoque)
                       + '</strong> em estoque agora.</p>') +
+                  '<div class="pg-calc">' +
+                    '<div class="pg-campos">' +
+                      linhaAux('custo', 'Custo (R$)', '', '0,00') +
+                      linhaAux('taxa', 'Taxa (×)', taxaLembrada(), '1,90') +
+                    '</div>' +
+                    '<p class="ajuda" id="pg-conta"></p>' +
+                  '</div>' +
                   '<div class="pg-campos">' +
                     linhaCampo('preco', 'Preço (R$)', atual.preco, '0,00') +
                     linhaCampo('estoque', 'Estoque', atual.estoque, '0') +
@@ -237,6 +278,7 @@
                 '</div>';
 
             const ctx = { d: d, novo: novo, ficha: ficha, atual: atual };
+            ligarConta();
             doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
         }
 
@@ -248,6 +290,66 @@
                        'value="' + esc(v) + '" placeholder="' + esc(dica) + '" ' +
                        'autocomplete="off" autocorrect="off" spellcheck="false">' +
                 '</label>';
+        }
+
+        /**
+         * Campo que morre nesta tela.
+         *
+         * Vai com `data-aux` e nao com `data-campo` de proposito: `lidos()`
+         * procura por `data-campo`, entao o que nasce aqui nunca entra no
+         * corpo do POST nem no resumo de/para. O TouchPay continua recebendo
+         * os mesmos quatro campos de sempre.
+         */
+        function linhaAux(nome, rotulo, valor, dica) {
+            return '<label>' + rotulo +
+                '<input type="text" inputmode="decimal" data-aux="' + nome + '" ' +
+                       'value="' + esc(valor) + '" placeholder="' + esc(dica) + '" ' +
+                       'autocomplete="off" autocorrect="off" spellcheck="false">' +
+                '</label>';
+        }
+
+        function taxaLembrada() {
+            try { return global.localStorage.getItem(LEMBRAR_TAXA) || ''; } catch (e) { return ''; }
+        }
+
+        /**
+         * Custo x taxa -> preco, a cada tecla.
+         *
+         * A linha de baixo repete a conta por extenso, e nao so o resultado,
+         * porque e nela que se ve o custo que entrou como R$ 950,00 em vez de
+         * R$ 9,50. O preco calculado continua sendo um campo comum: da para
+         * corrigir na mao por cima, e o resumo do "Salvar" confere o numero
+         * final de um jeito so, venha ele da conta ou do dedo.
+         */
+        function ligarConta() {
+            const elCusto = alvo.querySelector('[data-aux="custo"]');
+            const elTaxa  = alvo.querySelector('[data-aux="taxa"]');
+            const elPreco = alvo.querySelector('[data-campo="preco"]');
+            const elConta = doc.getElementById('pg-conta');
+            if (!elCusto || !elTaxa || !elPreco || !elConta) return;
+
+            function refazer() {
+                const custo = numero(elCusto.value);
+                const taxa  = numero(elTaxa.value);
+
+                if (taxa !== null) {
+                    try { global.localStorage.setItem(LEMBRAR_TAXA, qtdTexto(taxa)); } catch (e) { /* modo privado */ }
+                }
+
+                const p = precoSugerido(custo, taxa);
+                if (p === null) {
+                    // Falta um dos dois: o preco que ja esta no campo fica
+                    // onde esta. Apagar o custo nao pode apagar o preco.
+                    elConta.textContent = AJUDA_CONTA;
+                    return;
+                }
+                elPreco.value = p.toFixed(2).replace('.', ',');
+                elConta.textContent = moeda(custo) + ' × ' + qtdTexto(taxa) + ' = ' + moeda(p);
+            }
+
+            elCusto.addEventListener('input', refazer);
+            elTaxa.addEventListener('input', refazer);
+            refazer();
         }
 
         function lidos() {

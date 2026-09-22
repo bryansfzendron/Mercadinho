@@ -33,7 +33,8 @@
 <p class="ajuda">
     Bipe o produto na gôndola: se ele estiver no planograma, dá para mudar preço,
     quantidade necessária, crítico e estoque. Se não estiver, mas existir no cadastro,
-    ele entra no planograma na hora.
+    ele entra no planograma na hora. O preço pode sair da conta
+    <strong>custo × taxa</strong>, com o custo da nota do atacado.
 </p>
 
 <div id="planograma"
@@ -116,7 +117,7 @@
 </div>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/planograma.js?v=1"></script>
+<script src="/assets/planograma.js?v=2"></script>
 <script>
 (function () {
     /*

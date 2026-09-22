@@ -419,6 +419,33 @@ A cascata tem três degraus, e cada um só existe porque o de cima não responde
 Os campos, do jeito que o TouchPay os chama: **necessária** é `quantityToSupply`,
 **crítico** é `minimumQuantity`, **preço** é `price`.
 
+### O preço pode nascer de uma conta
+
+Acima dos quatro campos há dois que **não existem do lado de lá**: **custo** e
+**taxa**. Custo × taxa preenche o preço, e é só isso que eles fazem — o corpo do
+POST continua sendo `preço, estoque, necessária, crítico`, os mesmos de sempre.
+Eles não têm `data-campo`, que é o atributo que `lidos()` procura, então não há
+como vazarem para o TouchPay nem para o resumo de/para.
+
+Existem porque é no corredor, com a nota do atacado na mão, que se sabe por quanto
+o produto entrou. Fazer `9,50 × 1,9` na calculadora e transcrever o resultado é um
+passo a mais para errar, e errar aqui é o preço que o cliente paga.
+
+A linha embaixo repete a conta por extenso — `R$ 9,50 × 1,9 = R$ 18,05` — e não só
+o resultado: é nela que se vê o custo que entrou como `R$ 950,00` porque a vírgula
+não pegou. O preço calculado continua sendo um campo comum, dá para corrigir por
+cima na mão, e o resumo do "Salvar" confere o número final de um jeito só — venha
+ele da conta ou do dedo.
+
+**Faltando um dos dois, o preço não se mexe.** Apagar o custo não pode apagar o
+preço, e custo ou taxa em zero devolve "sem preço" em vez de `R$ 0,00` — mesma
+regra do resto da tela: zero aqui seria o produto saindo de graça no caixa. O
+arredondamento é no centavo, porque centavo é o que a etiqueta tem.
+
+**A taxa fica lembrada** (`localStorage`), o custo não. Quem repõe trabalha com uma
+margem só o dia inteiro e um custo diferente a cada produto; sem isso, seriam trinta
+vezes digitando `1,9`.
+
 ### Isto não passa pelo n8n
 
 O espelho passa porque é raspagem pesada: dispara, esquece, o callback chega quando
@@ -1226,7 +1253,7 @@ php testes/planograma.php   # repor: qual item foi o bipado, o de/para e a leitu
 #   (transações e paginação entram em testes/vendas.php)
 node testes/mercado.js      # a conta do Mercado: centavos, total e o veredito do caixa
 node testes/ean-nome.js     # o nome do código de barras: chave, memória do aparelho e servidor
-node testes/planograma.js   # o resumo de/para antes de escrever no TouchPay
+node testes/planograma.js   # custo x taxa -> preco, e o resumo de/para antes de escrever
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 node n8n/teste-vendas.js    # o coletor de vendas: lotes, devolução e total da linha

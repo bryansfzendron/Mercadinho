@@ -36,6 +36,26 @@ checar('quantidade quebrada sai com virgula', P.qtdTexto(0.756), '0,756');
 checar('preco usa moeda', P.valorTexto('preco', 9.5), 'R$ 9,50');
 checar('quantidade nao usa moeda', P.valorTexto('estoque', 3), '3');
 
+// ----------------------------------------------- o preco que a conta da
+// Custo e taxa sao os dois campos que nao vao para o TouchPay: o que sai
+// deles e o preco, e so o preco viaja.
+checar('custo vezes taxa', P.precoSugerido(9.5, 1.9), 18.05);
+checar('taxa 1 devolve o proprio custo', P.precoSugerido(7.3, 1), 7.3);
+checar('sobra de float nao vira meio centavo', P.precoSugerido(0.1, 3), 0.3);
+checar('meio centavo sobe', P.precoSugerido(1.11, 1.5), 1.67);
+checar('o que ja e exato fica', P.precoSugerido(2.5, 1.5), 3.75);
+// A tela recebe texto: e o mesmo caminho que o dedo percorre.
+checar('digitado com virgula', P.precoSugerido(P.numero('12,90'), P.numero('1,9')), 24.51);
+
+// Faltando um dos dois, null: "nao mexe no preco". Zero aqui seria o produto
+// saindo de graca no caixa.
+checar('sem custo nao calcula', P.precoSugerido(null, 1.9), null);
+checar('sem taxa nao calcula', P.precoSugerido(9.5, null), null);
+checar('custo em branco nao zera o preco', P.precoSugerido(P.numero(''), 1.9), null);
+checar('custo zero nao vira etiqueta de graca', P.precoSugerido(0, 1.9), null);
+checar('taxa zero nao vira etiqueta de graca', P.precoSugerido(9.5, 0), null);
+checar('taxa negativa nao passa', P.precoSugerido(9.5, -1), null);
+
 // ---------------------------------------------------------- o que mudou
 const antes = { preco: 9, estoque: 0, necessaria: 3, critico: 1 };
 

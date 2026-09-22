@@ -986,6 +986,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .pg-campos { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
 .pg-campos label { min-width: 0; }
 
+/* Custo e taxa. O risco na lateral separa o que e conta do que e gravacao:
+   estes dois produzem o preco e morrem aqui, os quatro de baixo sao os que
+   viajam para o TouchPay. */
+.pg-calc { margin-bottom: .7rem; padding-left: .6rem; border-left: 2px solid var(--borda); }
+.pg-calc .ajuda { margin: .35rem 0 0; }
+
 /* ---------------------------------------------------------------
    Transacoes recentes.
    --------------------------------------------------------------- */
