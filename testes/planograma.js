@@ -96,5 +96,52 @@ checar('a frase do estoque', P.frase({ campo: 'estoque', de: 0, para: 3 }),
 checar('virgula perdida fica visivel', P.frase({ campo: 'preco', de: 9.5, para: 950 }),
     'Preço R$ 9,50 → R$ 950,00');
 
+// -------------------------------------------------------- a validade
+// A data chega de tres lugares: do TouchPay, do <input type="date"> e do
+// dedo quando o campo de data nao existe no aparelho.
+checar('do jeito que o TouchPay manda', P.dataIso('2027-02-14T00:00:00Z'), '2027-02-14');
+checar('do campo de data', P.dataIso('2027-02-14'), '2027-02-14');
+checar('do dedo, em portugues', P.dataIso('14/02/2027'), '2027-02-14');
+checar('dia que nao existe e null', P.dataIso('2027-02-31'), null);
+checar('bissexto de verdade passa', P.dataIso('2028-02-29'), '2028-02-29');
+checar('bissexto falso nao passa', P.dataIso('2027-02-29'), null);
+// Vazio e "nao encostei nesta validade", nunca "apague a validade".
+checar('vazio e null', P.dataIso(''), null);
+checar('texto solto e null', P.dataIso('amanha'), null);
+checar('data em portugues', P.dataBr('2027-02-14'), '14/02/2027');
+checar('sem data, travessao', P.dataBr(null), '—');
+
+// O ano 5027 existe de verdade no inventario deles.
+const HOJE = '2026-09-22';
+checar('daqui a um ano passa', P.validadePlausivel('2027-09-22', HOJE), true);
+checar('ontem passa: cadastrar o que venceu e uso legitimo',
+    P.validadePlausivel('2026-09-21', HOJE), true);
+checar('o ano 5027 nao passa', P.validadePlausivel('5027-02-18', HOJE), false);
+checar('onze anos nao passa', P.validadePlausivel('2037-10-01', HOJE), false);
+checar('tres anos atras nao passa', P.validadePlausivel('2023-01-01', HOJE), false);
+
+// A regra do corredor: vale a que vence PRIMEIRO. Repor com lote novo nao
+// pode empurrar a data para a frente e esconder o pacote velho la atras.
+checar('sem nada cadastrado, grava',
+    P.validadeDecidir(null, '2027-06-30').acao, 'gravar');
+checar('a nova vence antes: grava',
+    P.validadeDecidir('2027-06-30', '2027-02-14').acao, 'gravar');
+checar('a do estoque vence antes: mantem',
+    P.validadeDecidir('2027-02-14', '2027-06-30').acao, 'manter');
+checar('mantendo, a data que fica e a antiga',
+    P.validadeDecidir('2027-02-14', '2027-06-30').data, '2027-02-14');
+checar('data igual nao e alteracao',
+    P.validadeDecidir('2027-02-14', '2027-02-14').acao, 'nada');
+checar('sem digitar nada, nada acontece',
+    P.validadeDecidir('2027-02-14', null).acao, 'nada');
+// A recomendada e a que vem marcada na tela — mas so marcada.
+checar('a recomendacao acompanha a acao',
+    P.validadeDecidir('2027-02-14', '2027-06-30').recomendado, 'manter');
+
+checar('a frase da validade', P.fraseValidade('2027-02-14', '2027-06-30'),
+    'Validade 14/02/2027 → 30/06/2027');
+checar('sem validade antes, o travessao aparece',
+    P.fraseValidade(null, '2027-06-30'), 'Validade — → 30/06/2027');
+
 console.log(`\n${ok} passaram, ${falhou} falharam`);
 process.exit(falhou > 0 ? 1 : 0);

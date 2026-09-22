@@ -265,6 +265,16 @@ h2 { font-size: 1.1rem; line-height: 1.25; letter-spacing: -.013em; margin: 1.4r
 .selo-pendente, .selo-processando { color: var(--ambar); background: var(--tinta-ambar); }
 .selo-manual { color: var(--suave); }
 
+/* Validade. Sem cor enquanto falta muito: pintar tudo faria o vermelho de
+   quem vence semana que vem se perder no meio de trezentas linhas pintadas. */
+.selo-validade { color: var(--suave); }
+.selo-validade.vencendo { color: var(--ambar); background: var(--tinta-ambar); }
+.selo-validade.vencido { color: var(--vermelho); background: var(--tinta-vermelha); }
+/* Data absurda (o ano 5027 que achamos no inventario deles): nao e urgencia,
+   e erro de digitacao — chama a atencao sem gritar como o vencido. */
+.selo-validade.suspeita { color: var(--ambar); }
+.selos-linha { display: flex; gap: .3rem; align-items: center; flex: none; }
+
 /* ---------- formularios ---------- */
 label { display: block; margin-bottom: .7rem; font-size: .82rem; color: var(--suave); }
 input, select, textarea {
@@ -991,6 +1001,24 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
    viajam para o TouchPay. */
 .pg-calc { margin-bottom: .7rem; padding-left: .6rem; border-left: 2px solid var(--borda); }
 .pg-calc .ajuda { margin: .35rem 0 0; }
+
+/* Validade. Separada dos quatro campos por uma linha porque a decisao aqui
+   nao e "que numero eu digito", e sim "qual das duas datas vale" — e essa
+   pergunta so existe neste bloco. */
+.pg-validade { margin-top: .8rem; padding-top: .7rem; border-top: 1px solid var(--borda); }
+.pg-validade .ajuda { margin: .35rem 0 0; }
+.pg-validade input[type="date"] { width: 100%; }
+
+/* As duas opcoes. Alvo grande: quem escolhe esta de pe, com o celular numa
+   mao e o produto na outra. */
+.pg-escolha {
+    display: flex; align-items: center; gap: .55rem;
+    margin-top: .4rem; padding: .5rem .6rem;
+    border: 1px solid var(--borda); border-radius: 12px;
+    font-size: .9rem; cursor: pointer;
+}
+.pg-escolha input { width: auto; margin: 0; flex: none; }
+.pg-escolha:has(input:checked) { border-color: var(--marca); background: var(--vidro); }
 
 /* ---------------------------------------------------------------
    Transacoes recentes.

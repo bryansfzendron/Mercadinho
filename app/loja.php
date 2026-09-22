@@ -12,6 +12,71 @@ declare(strict_types=1);
  * o workflow do n8n as recebe no corpo, igual ao token do fluxo da NFC-e.
  */
 
+/**
+ * A validade do jeito que o TouchPay manda, virada em DATE. Funcao pura.
+ *
+ * De la vem "2027-02-14T00:00:00Z"; aqui interessa so o dia. Hora e fuso
+ * nao existem em validade — o produto nao vence as 21h de ontem porque o
+ * servidor deles fala UTC.
+ *
+ * Qualquer coisa que nao seja uma data reconhecivel vira null, inclusive
+ * string vazia: no espelho, null quer dizer "nao tem validade cadastrada",
+ * que e o caso da maioria dos itens da loja.
+ */
+function loja_validade($v): ?string
+{
+    $texto = trim((string) ($v ?? ''));
+    if ($texto === '') {
+        return null;
+    }
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $texto, $m)) {
+        return null;
+    }
+    return checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $m[1] . '-' . $m[2] . '-' . $m[3] : null;
+}
+
+/**
+ * Como a validade se apresenta numa lista. Funcao pura.
+ *
+ * Data crua nao diz nada de pe no corredor: "12/10/2026" obriga a fazer a
+ * conta de cabeca. O que interessa e quanto falta, e so quando falta pouco.
+ *
+ * O estado "suspeita" existe por causa de um achado real no inventario
+ * deles: um item com validade em 5027, de alguem que digitou 5 no lugar de
+ * 2. Mostrar isso como "vence em 3001 anos" seria esconder um erro de
+ * digitacao atras de uma conta correta.
+ *
+ * @return array{texto:string, classe:string, dias:?int}
+ */
+function validade_estado(?string $data, ?string $hoje = null): array
+{
+    if (!$data) {
+        return ['texto' => '', 'classe' => '', 'dias' => null];
+    }
+    $ts = strtotime($data);
+    $ref = strtotime($hoje ?? date('Y-m-d'));
+    if ($ts === false || $ref === false) {
+        return ['texto' => '', 'classe' => '', 'dias' => null];
+    }
+
+    $dias = (int) floor(($ts - $ref) / 86400);
+    $br   = date('d/m/Y', $ts);
+
+    if ($dias > 3650) {
+        return ['texto' => 'validade ' . $br . '?', 'classe' => 'suspeita', 'dias' => $dias];
+    }
+    if ($dias < 0) {
+        return ['texto' => 'venceu ' . $br, 'classe' => 'vencido', 'dias' => $dias];
+    }
+    if ($dias === 0) {
+        return ['texto' => 'vence hoje', 'classe' => 'vencendo', 'dias' => 0];
+    }
+    if ($dias <= 30) {
+        return ['texto' => 'vence em ' . $dias . ($dias === 1 ? ' dia' : ' dias'), 'classe' => 'vencendo', 'dias' => $dias];
+    }
+    return ['texto' => 'validade ' . $br, 'classe' => '', 'dias' => $dias];
+}
+
 /** Dispara a sincronizacao no n8n. Fire-and-forget, como o fluxo da nota. */
 function loja_disparar_sync(array $pos_ids = []): array
 {
@@ -216,7 +281,7 @@ function loja_processar_callback(array $p): array
         $colunas = [
             'pdv_id', 'produto_id', 'externo_produto_id', 'ean', 'codigo', 'descricao',
             'categoria', 'preco_venda', 'estoque', 'reservado', 'custo_medio',
-            'minimo', 'capacidade', 'unidade', 'imagem', 'atualizado_em',
+            'minimo', 'capacidade', 'unidade', 'imagem', 'validade', 'atualizado_em',
         ];
         $linhas = [];
 
@@ -250,6 +315,7 @@ function loja_processar_callback(array $p): array
                 isset($it['capacidade']) && $it['capacidade'] !== null ? num_br($it['capacidade']) : null,
                 mb_substr(trim((string) ($it['unidade'] ?? '')), 0, 10) ?: null,
                 mb_substr(trim((string) ($it['imagem'] ?? '')), 0, 500) ?: null,
+                loja_validade($it['validade'] ?? null),
                 $agora,
             ];
         }
@@ -399,7 +465,7 @@ function loja_listar(
     return q(
         'SELECT li.id, li.produto_id, li.ean, li.codigo, li.descricao, li.categoria,
                 li.preco_venda, li.estoque, li.reservado, li.custo_medio, li.unidade,
-                li.imagem, li.atualizado_em,
+                li.imagem, li.validade, li.atualizado_em,
                 p.id AS pdv_id, p.nome AS pdv
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id

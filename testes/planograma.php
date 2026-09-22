@@ -149,5 +149,172 @@ checar('HTML nao vaza para a tela',
 checar('403 explica que e permissao',
     str_contains(tp_erro_legivel(403, ''), 'permissao'), true);
 
+// ===================================================================
+// VALIDADE
+// ===================================================================
+
+// ------------------------------------------------------ ler a data
+checar('do jeito que o TouchPay manda', pg_data_iso('2027-02-14T00:00:00Z'), '2027-02-14');
+checar('do campo de data', pg_data_iso('2027-02-14'), '2027-02-14');
+checar('do dedo, em portugues', pg_data_iso('14/02/2027'), '2027-02-14');
+// 31 de fevereiro passa em qualquer regex e nao existe no calendario.
+checar('dia que nao existe e null', pg_data_iso('2027-02-31'), null);
+checar('mes que nao existe e null', pg_data_iso('2027-13-01'), null);
+checar('bissexto de verdade passa', pg_data_iso('2028-02-29'), '2028-02-29');
+checar('bissexto falso nao passa', pg_data_iso('2027-02-29'), null);
+// Vazio e "nao encostei nesta validade", nunca "apague a validade".
+checar('vazio e null', pg_data_iso(''), null);
+checar('null continua null', pg_data_iso(null), null);
+checar('texto solto e null', pg_data_iso('amanha'), null);
+
+checar('data em portugues', pg_data_br('2027-02-14'), '14/02/2027');
+checar('sem data, travessao', pg_data_br(null), '—');
+checar('do jeito que eles querem de volta', pg_data_tp('2027-02-14'), '2027-02-14T00:00:00Z');
+checar('null nao vira data', pg_data_tp(null), null);
+
+// --------------------------------------------- data que gente digita
+$hoje = '2026-09-22';
+checar('daqui a um ano passa', pg_validade_plausivel('2027-09-22', $hoje), true);
+checar('ontem passa: cadastrar o que venceu e uso legitimo',
+    pg_validade_plausivel('2026-09-21', $hoje), true);
+checar('cinco anos de prateleira passa', pg_validade_plausivel('2031-09-01', $hoje), true);
+// O caso real: um item no inventario deles com validade em 5027.
+checar('o ano 5027 nao passa', pg_validade_plausivel('5027-02-18', $hoje), false);
+checar('onze anos nao passa', pg_validade_plausivel('2037-10-01', $hoje), false);
+checar('tres anos atras nao passa', pg_validade_plausivel('2023-01-01', $hoje), false);
+checar('sem data nao e plausivel', pg_validade_plausivel(null, $hoje), false);
+
+// ------------------------------------------- manter a antiga ou gravar
+// A regra: vale a que vence PRIMEIRO. Repor com lote novo nao pode empurrar
+// a data para a frente e esconder o pacote velho que ficou la atras.
+checar('sem nada cadastrado, grava',
+    pg_validade_decidir(null, '2027-06-30')['acao'], 'gravar');
+checar('a nova vence antes: grava',
+    pg_validade_decidir('2027-06-30', '2027-02-14')['acao'], 'gravar');
+checar('a do estoque vence antes: mantem',
+    pg_validade_decidir('2027-02-14', '2027-06-30')['acao'], 'manter');
+checar('mantendo, a data que fica e a antiga',
+    pg_validade_decidir('2027-02-14', '2027-06-30')['data'], '2027-02-14');
+checar('data igual nao e alteracao',
+    pg_validade_decidir('2027-02-14', '2027-02-14')['acao'], 'nada');
+checar('sem digitar nada, nada acontece',
+    pg_validade_decidir('2027-02-14', null)['acao'], 'nada');
+// O motivo vai para a tela: e ele que explica a escolha marcada.
+checar('o motivo diz qual vence antes',
+    str_contains(pg_validade_decidir('2027-02-14', '2027-06-30')['motivo'], '14/02/2027'), true);
+
+// ------------------------------------------------------ o uuid
+$u1 = pg_uuid();
+checar('uuid tem o formato', (bool) preg_match(
+    '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $u1), true);
+checar('dois uuids nao se repetem', $u1 === pg_uuid(), false);
+
+// ===================================================================
+// A OPERACAO — a parte que pode estragar a loja inteira
+// ===================================================================
+
+// Tres produtos no planograma. O 20 tem validade, o 30 tem validade, o 10
+// nao tem. Vamos mexer so no 10.
+$entradas = [
+    ['productId' => 10, 'inventoryItemId' => 101, 'quantityToSupply' => 5, 'capacity' => 12, 'currentQuantity' => 3],
+    ['productId' => 20, 'inventoryItemId' => 102, 'quantityToSupply' => 0, 'capacity' => 6,  'currentQuantity' => 7],
+    ['productId' => 30, 'inventoryItemId' => 103, 'quantityToSupply' => 2, 'capacity' => 8,  'currentQuantity' => 0],
+];
+$inventario = [
+    ['productId' => 10, 'quantity' => 4, 'productExpirationDate' => null],
+    ['productId' => 20, 'quantity' => 7, 'productExpirationDate' => '2027-02-14T00:00:00Z'],
+    ['productId' => 30, 'quantity' => 0, 'productExpirationDate' => '2028-06-30T00:00:00Z'],
+];
+
+$op = pg_operacao_montar($entradas, $inventario, 96823, 10, '2027-05-20',
+    'uuid-de-teste', '2026-09-22T11:15:13.000', '2026-09-22T11:19:03.000');
+$corpo = $op['corpo'];
+$itens = $corpo['supplyItems'];
+
+// A lista COMPLETA. Mandar parcial e deixar o servidor deles decidir sozinho
+// o que fazer com os que faltaram — e isso ninguem aqui sabe.
+checar('vai o planograma inteiro, nao so o alvo', count($itens), 3);
+checar('o cabecalho diz que planograma e', $corpo['planogramId'], 96823);
+checar('o tipo e o mesmo que o app deles manda', $corpo['type'], 'Inventory');
+checar('o supplyType tambem', $corpo['supplyType'], 'PickList');
+checar('operacao nao e cega', $corpo['isBlindOperation'], false);
+
+// O ALVO: e o unico confirmado, e e o unico com data nova.
+checar('o alvo leva a data nova', $itens[0]['productExpirationDate'], '2027-05-20T00:00:00Z');
+checar('o alvo e confirmado', $itens[0]['dateConfirmed'], '2026-09-22T11:19:03.000');
+// Confirmar carrega quantidade. Vai a do inventario lido agora: confirmar o
+// numero que o proprio TouchPay acabou de dizer nao move estoque nenhum.
+checar('confirma a quantidade que o inventario disse', $itens[0]['confirmedQuantity'], 4.0);
+checar('e ela bate com o previousQuantity', $itens[0]['previousQuantity'], 4.0);
+checar('nao pede para apagar', $itens[0]['removeExpirationDate'], false);
+
+// OS OUTROS: inertes, e com a validade que JA TINHAM. Este e o teste que
+// impede o pior erro possivel — montar a lista so com o planograma faria
+// todos viajarem com validade null e apagaria a validade da loja inteira.
+checar('quem nao foi tocado mantem a validade',
+    $itens[1]['productExpirationDate'], '2027-02-14T00:00:00Z');
+checar('e o outro tambem', $itens[2]['productExpirationDate'], '2028-06-30T00:00:00Z');
+checar('ninguem mais e confirmado', $itens[1]['dateConfirmed'], null);
+checar('nem tem quantidade confirmada', $itens[1]['confirmedQuantity'], null);
+checar('produto sem validade continua sem', $itens[0]['productExpirationDate'] === null, false);
+
+// O item de inventario e o que amarra tudo: sem ele nao ha onde gravar.
+checar('cada item leva seu inventoryItemId', $itens[1]['inventoryItemId'], 102);
+checar('capacidade vem do planograma', $itens[0]['capacity'], 12.0);
+checar('necessaria vem do planograma', $itens[0]['quantityToSupply'], 5.0);
+// Sem inventario para o produto, sobra o numero do planograma.
+$soPlano = pg_operacao_montar($entradas, [], 96823, 10, '2027-05-20', 'u', 'i', 'f');
+checar('sem inventario, a quantidade vem do planograma',
+    $soPlano['corpo']['supplyItems'][0]['previousQuantity'], 3.0);
+
+// ------------------------------------------ a porta antes de escrever
+checar('corpo bom passa', pg_operacao_conferir($corpo, $inventario, 10), null);
+
+// Lista vazia nunca sai daqui.
+checar('operacao sem itens nao sai',
+    str_contains((string) pg_operacao_conferir(['supplyItems' => []], $inventario, 10), 'nenhum item'), true);
+
+// Confirmar quem ninguem pediu: seria mexer no produto errado, o erro caro
+// desta tela desde o comeco. Um segundo item confirmado ja chega para parar,
+// e a queixa nomeia o intruso em vez de so contar quantos foram.
+$intruso = $corpo;
+$intruso['supplyItems'][1]['dateConfirmed'] = '2026-09-22T11:19:03.000';
+checar('confirmar um item a mais para a gravacao',
+    str_contains((string) pg_operacao_conferir($intruso, $inventario, 10), 'ninguem pediu'), true);
+checar('e a queixa diz qual foi',
+    str_contains((string) pg_operacao_conferir($intruso, $inventario, 10), '20'), true);
+
+// Nenhum confirmado: a operacao nao faria nada, e mandar assim e escrever na
+// loja inteira para nada.
+$nenhum = $corpo;
+$nenhum['supplyItems'][0]['dateConfirmed'] = null;
+checar('operacao sem ninguem marcado para a gravacao',
+    str_contains((string) pg_operacao_conferir($nenhum, $inventario, 10), 'em vez de um'), true);
+
+$trocado = $corpo;
+$trocado['supplyItems'][0]['dateConfirmed'] = null;
+$trocado['supplyItems'][2]['dateConfirmed'] = '2026-09-22T11:19:03.000';
+checar('confirmar o produto errado para a gravacao',
+    str_contains((string) pg_operacao_conferir($trocado, $inventario, 10), 'ninguem pediu'), true);
+
+// O PIOR CASO: um item que tinha validade ia sair sem ela. Se o servidor ler
+// null como "apague", isso apagaria a validade de quem nunca foi tocado.
+$perdida = $corpo;
+$perdida['supplyItems'][1]['productExpirationDate'] = null;
+checar('validade que sumiu no caminho para a gravacao',
+    str_contains((string) pg_operacao_conferir($perdida, $inventario, 10), 'ia embora'), true);
+
+// Item sem inventoryItemId nao tem onde gravar; mandar assim e torcer.
+$semItem = $corpo;
+$semItem['supplyItems'][2]['inventoryItemId'] = 0;
+checar('item sem inventario para a gravacao',
+    str_contains((string) pg_operacao_conferir($semItem, $inventario, 10), 'sem item de inventario'), true);
+
+// O alvo PODE ficar sem validade (e justamente o que esta sendo trocado),
+// entao a regra de cima nao pode pega-lo por engano.
+$alvoSemData = pg_operacao_montar($entradas, $inventario, 96823, 20, null, 'u', 'i', 'f');
+checar('trocar a validade do alvo nao dispara o alarme',
+    pg_operacao_conferir($alvoSemData['corpo'], $inventario, 20), null);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

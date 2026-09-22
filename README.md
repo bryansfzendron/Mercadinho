@@ -512,7 +512,103 @@ quando uma metade cai, dá para ver exatamente qual foi. As últimas dez aparece
 da tela.
 
 **Tabelas novas:** rode `/setup.php?token=...` e aplique o schema e as migrações
-(`loja_pdvs` ganhou `planograma_id` e `inventario_id`).
+(`loja_pdvs` ganhou `planograma_id` e `inventario_id`; `loja_itens` ganhou `validade`).
+
+## Validade
+
+A ficha do Repor tem um quinto campo, e ele funciona diferente dos outros quatro
+porque a pergunta é outra: não é *que número eu digito*, é **qual das duas datas
+vale**.
+
+O TouchPay guarda **uma** data por item de inventário — não uma por lote. Mas a
+gôndola tem mistura: o que já estava lá e o que está entrando agora. A data que vale
+é a que **vence primeiro**, porque é ela que manda na hora de tirar o produto da
+prateleira. Repor com um lote mais novo não pode empurrar a validade para a frente e
+esconder o pacote velho que ficou atrás.
+
+Por isso a tela mostra a validade que está no estoque **antes** de aceitar a nova:
+
+```
+No estoque hoje: 14/02/2027
+Repondo com:     [ 30/06/2027 ]
+
+A do estoque vence antes.
+ (•) Manter 14/02/2027        ( ) Gravar 30/06/2027
+```
+
+A recomendada vem marcada, nunca imposta — quem enxerga se o lote antigo ainda existe
+é quem está de pé no corredor. **"Manter" não escreve nada**: é uma decisão de não
+gravar, e o resumo diz "nada mudou" em vez de anunciar uma alteração que não vai
+acontecer.
+
+Campo em branco continua sendo "não encostei nisto", igual ao preço. Apagar validade
+não se faz por aqui, embora a API deles saiba (`removeExpirationDate`).
+
+### Gravar validade é fechar uma reposição inteira
+
+Não existe "altera a validade deste item". O que existe é
+`POST /api/inventory/operation`: o **planograma inteiro** numa tacada, com os itens
+tocados marcados. Foi assim que o app Android deles fez — a captura tinha 205 KB e
+**um** item com `dateConfirmed`.
+
+Mandar lista parcial seria deixar o servidor deles decidir sozinho o que fazer com os
+que faltaram, e isso ninguém aqui sabe. Então a lista vai completa, montada na hora
+do cruzamento **planograma × inventário**:
+
+| de onde vem | o que traz |
+|---|---|
+| `/api/Planograms/{id}` | `inventoryItemId`, `quantityToSupply`, `capacity` |
+| `/api/web/inventory/items` | `quantity`, **`productExpirationDate`** |
+
+O cruzamento não é preciosismo. O planograma **não carrega validade**: montando a
+operação só com ele, todo item viajaria com `productExpirationDate: null` — e se o
+servidor ler `null` como "apague", uma gravação de validade apagaria a validade da
+loja inteira. Cada item inerte volta com a data que já tinha.
+
+### Confirmar carrega quantidade
+
+O detalhe que quase passou batido: para a validade pegar, o item precisa ser
+**confirmado**, e a confirmação leva `confirmedQuantity` junto. Ou seja, gravar
+validade **encosta no campo de estoque**.
+
+Duas regras saem disso:
+
+1. A validade é sempre a **última** coisa a ser escrita, depois do
+   `PUT .../quantity/{n}`. Ao contrário, a confirmação levaria o número velho e
+   desfaria o ajuste de estoque que a pessoa acabou de fazer.
+2. `confirmedQuantity` vai **igual ao `previousQuantity` lido no mesmo instante**.
+   Uma contagem que confirma o número que o próprio TouchPay acabou de informar não
+   move estoque nenhum — seja qual for esse número.
+
+### A porta antes de escrever
+
+`pg_operacao_conferir()` roda no corpo montado e **para a gravação** se qualquer
+coisa estiver fora do lugar. Corpo torto aqui não erra um produto, erra todos:
+
+- lista vazia;
+- item sem `inventoryItemId` (não haveria onde gravar);
+- mais de um — ou nenhum — item confirmado;
+- **item que tinha validade saindo sem ela** (é o pior caso, e é o que o cruzamento
+  existe para evitar).
+
+### A data absurda
+
+No inventário deles há um item com validade em **5027**: alguém digitou 5 no lugar de
+2 e o sistema aceitou. É o mesmo erro do `R$ 9,50 → R$ 950,00` que o resumo de→para
+pega, só que mil anos adiante. A tela recusa data fora da janela de **−2 a +10 anos**,
+e a lista da Loja marca as que já estão lá como *suspeita* em vez de dizer "vence em
+3001 anos" — uma conta correta escondendo um erro de digitação.
+
+### Na lista da Loja
+
+A validade **sempre chegou** no callback do espelho: `n8n/touchpay-mercadinho.workflow.json`
+manda `validade: item.productExpirationDate` desde o começo, e o callback a descartava
+porque não havia coluna. Agora há (`loja_itens.validade`), e a lista mostra o que
+importa — *venceu 01/09/2026*, *vence em 7 dias* —, não a data crua, que obriga a
+fazer a conta de cabeça. Só aparece quando existe: a maioria dos itens não tem
+validade cadastrada, e uma coluna de travessões em trezentas linhas não informa nada.
+
+Quem grava pela tela do Repor não espera o próximo sync: o espelho é atualizado junto.
 
 ## Vendas (TouchPay)
 
@@ -1240,7 +1336,7 @@ tem — qualquer buraco vira execução com erro, que fica guardada.
 ```bash
 php testes/helpers.php      # número BR, data, EAN, chave do QR, formatação
 php testes/callback.php     # formatos do callback, cálculo do líquido e abrir a caixa
-php testes/loja.php         # normalização do callback do TouchPay e o prefixo OM
+php testes/loja.php         # callback do TouchPay, o prefixo OM e a validade na lista
 php testes/vendas.php       # callback das vendas, fuso da data e o unitário calculado
 php testes/custos.php       # taxa por forma de pagamento, resultado do período e CMV
 php testes/sync.php         # a conta da barra de progresso e o fluxo dado por perdido
@@ -1249,11 +1345,11 @@ php testes/nav.php          # o menu de baixo acende um item por rota
 php testes/config.php       # a configuração sobrevive a um $cfg no escopo global
 php testes/graficos.php     # série diária, altura/pico e as sete barras da semana
 php testes/mercado.php      # a chave do código de barras e o nome vindo da Open Food Facts
-php testes/planograma.php   # repor: qual item foi o bipado, o de/para e a leitura do JWT
+php testes/planograma.php   # repor: o item bipado, o de/para, o JWT e o corpo da operacao
 #   (transações e paginação entram em testes/vendas.php)
 node testes/mercado.js      # a conta do Mercado: centavos, total e o veredito do caixa
 node testes/ean-nome.js     # o nome do código de barras: chave, memória do aparelho e servidor
-node testes/planograma.js   # custo x taxa -> preco, e o resumo de/para antes de escrever
+node testes/planograma.js   # custo x taxa -> preco, a validade que vence antes, o resumo
 node n8n/teste-parser.js    # o parser da NFC-e contra HTML sintético
 node n8n/teste-touchpay.js  # o coletor do TouchPay contra uma API falsa
 node n8n/teste-vendas.js    # o coletor de vendas: lotes, devolução e total da linha

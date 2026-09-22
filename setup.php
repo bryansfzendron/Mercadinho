@@ -73,6 +73,9 @@ function migracoes(): array
             'planograma_id'  => 'INT UNSIGNED NULL AFTER unificado_para',
             'inventario_id'  => 'INT UNSIGNED NULL AFTER planograma_id',
         ],
+        'loja_itens' => [
+            'validade' => 'DATE NULL AFTER imagem',
+        ],
         'itens' => [
             'valor_total_liquido'    => 'DECIMAL(14,2) NOT NULL DEFAULT 0 AFTER desconto',
             'valor_unitario_liquido' => 'DECIMAL(14,4) NOT NULL DEFAULT 0 AFTER valor_total_liquido',

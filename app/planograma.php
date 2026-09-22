@@ -164,6 +164,277 @@ function pg_mudancas(array $antes, array $depois): array
 }
 
 // ---------------------------------------------------------------------
+// Validade
+// ---------------------------------------------------------------------
+
+/**
+ * Uma data, venha de onde vier, em AAAA-MM-DD. Funcao pura.
+ *
+ * Aceita o que o TouchPay manda ("2027-02-14T00:00:00Z"), o que o campo
+ * <input type="date"> manda ("2027-02-14") e o que um dedo digita
+ * ("14/02/2027"). Qualquer outra coisa e null — e null aqui quer dizer "nao
+ * encostei nesta validade", nunca "apague a validade".
+ *
+ * checkdate() no fim porque 2027-02-31 passa em qualquer regex e nao existe.
+ */
+function pg_data_iso($v): ?string
+{
+    $t = trim((string) ($v ?? ''));
+    if ($t === '') {
+        return null;
+    }
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $t, $m)) {
+        [$a, $mes, $d] = [$m[1], $m[2], $m[3]];
+    } elseif (preg_match('#^(\d{2})/(\d{2})/(\d{4})$#', $t, $m)) {
+        [$a, $mes, $d] = [$m[3], $m[2], $m[1]];
+    } else {
+        return null;
+    }
+    return checkdate((int) $mes, (int) $d, (int) $a) ? $a . '-' . $mes . '-' . $d : null;
+}
+
+/** "2027-02-14" -> "14/02/2027". Funcao pura; sem data, o travessao. */
+function pg_data_br(?string $iso): string
+{
+    return $iso === null ? '—' : substr($iso, 8, 2) . '/' . substr($iso, 5, 2) . '/' . substr($iso, 0, 4);
+}
+
+/** Do jeito que o TouchPay quer receber de volta. Funcao pura. */
+function pg_data_tp(?string $iso): ?string
+{
+    return $iso === null ? null : $iso . 'T00:00:00Z';
+}
+
+/**
+ * Esta data e digitavel por gente? Funcao pura.
+ *
+ * No inventario deles ha um item com validade em **5027** — alguem digitou 5
+ * no lugar de 2 e o sistema engoliu. E o mesmo erro do preco que vai de
+ * R$ 9,50 para R$ 950,00 porque a virgula nao entrou, e aqui ele tem a mesma
+ * cara: um numero perfeitamente valido, so que errado por mil anos.
+ *
+ * A janela e larga de proposito. Enlatado com cinco anos de prateleira
+ * existe; validade daqui a onze anos, nao. E para tras vale ate dois anos,
+ * porque cadastrar a validade de um produto que JA venceu e exatamente o que
+ * se faz quando se descobre que ele venceu.
+ */
+function pg_validade_plausivel(?string $iso, ?string $hoje = null): bool
+{
+    if ($iso === null) {
+        return false;
+    }
+    $ts  = strtotime($iso);
+    $ref = strtotime($hoje ?? date('Y-m-d'));
+    if ($ts === false || $ref === false) {
+        return false;
+    }
+    $dias = ($ts - $ref) / 86400;
+    return $dias >= -730 && $dias <= 3650;
+}
+
+/**
+ * O que fazer com a validade, dado o que ja esta la e o que veio da nota.
+ * Funcao pura.
+ *
+ * O campo do TouchPay e UM so por item, mas a gondola tem mistura: o que ja
+ * estava e o que esta entrando agora. A data que vale e a que vence PRIMEIRO,
+ * porque e ela que manda na hora de tirar o produto da prateleira. Entao
+ * repor com um lote mais novo nao pode empurrar a validade para a frente e
+ * esconder o pacote velho que continua la atras.
+ *
+ * Isto devolve a RECOMENDACAO, nao a decisao: quem escolhe e quem esta de pe
+ * no corredor e consegue ver se o lote antigo ainda existe. Se ele vendeu
+ * tudo e repos, a data nova e a certa — e so a pessoa sabe disso.
+ *
+ * @return array{acao:string, data:?string, recomendado:string, motivo:string}
+ */
+function pg_validade_decidir(?string $atual, ?string $nova): array
+{
+    if ($nova === null) {
+        return ['acao' => 'nada', 'data' => null, 'recomendado' => 'nada',
+                'motivo' => 'Nenhuma validade digitada.'];
+    }
+    if ($atual === null) {
+        return ['acao' => 'gravar', 'data' => $nova, 'recomendado' => 'gravar',
+                'motivo' => 'Nao havia validade cadastrada.'];
+    }
+    if ($atual === $nova) {
+        return ['acao' => 'nada', 'data' => $atual, 'recomendado' => 'nada',
+                'motivo' => 'A validade cadastrada ja e essa.'];
+    }
+    if ($nova < $atual) {
+        return ['acao' => 'gravar', 'data' => $nova, 'recomendado' => 'gravar',
+                'motivo' => 'A que voce esta repondo vence antes (' . pg_data_br($nova) . ').'];
+    }
+    return ['acao' => 'manter', 'data' => $atual, 'recomendado' => 'manter',
+            'motivo' => 'A do estoque vence antes (' . pg_data_br($atual) . ').'];
+}
+
+/** Um uuid v4 para a operacao. Eles aceitam o que o cliente gerar. */
+function pg_uuid(): string
+{
+    $b = random_bytes(16);
+    $b[6] = chr((ord($b[6]) & 0x0f) | 0x40);
+    $b[8] = chr((ord($b[8]) & 0x3f) | 0x80);
+    $h = bin2hex($b);
+    return substr($h, 0, 8) . '-' . substr($h, 8, 4) . '-' . substr($h, 12, 4)
+         . '-' . substr($h, 16, 4) . '-' . substr($h, 20, 12);
+}
+
+/**
+ * O corpo da operacao de inventario. Funcao pura.
+ *
+ * Nao existe "altera a validade deste item" na API deles: o que existe e
+ * FECHAR UMA REPOSICAO INTEIRA, com a lista completa de itens, marcando os
+ * que foram tocados. Foi assim que o app deles fez, e mandar lista parcial
+ * seria deixar o servidor decidir sozinho o que fazer com os que faltaram —
+ * e o que ele faz, ninguem aqui sabe.
+ *
+ * Por isso cada item inerte vai de volta com a validade que JA TEM. Se fosse
+ * montado so a partir do planograma (que nao carrega validade), todo item
+ * viajaria com `productExpirationDate: null` — e se o servidor ler null como
+ * "apague", uma gravacao de validade apagaria a validade da loja inteira. A
+ * lista nasce do cruzamento planograma x inventario justamente para que
+ * nenhum item precise adivinhar a propria data.
+ *
+ * @param array $entradas   linhas do planograma (traz inventoryItemId)
+ * @param array $inventario itens do inventario (traz validade e quantidade)
+ * @return array{corpo:array, alvo:?array}
+ */
+function pg_operacao_montar(array $entradas, array $inventario, int $planograma_id,
+                            int $produto_alvo, ?string $data_iso,
+                            string $uuid, string $inicio, string $fim): array
+{
+    // O inventario pelo produto, que e a chave que os dois lados tem em comum.
+    $porProduto = [];
+    foreach ($inventario as $i) {
+        $pid = (int) ($i['productId'] ?? 0);
+        if ($pid > 0) {
+            $porProduto[$pid] = $i;
+        }
+    }
+
+    $itens = [];
+    $alvo  = null;
+
+    foreach ($entradas as $e) {
+        $pid = (int) ($e['productId'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        $inv = $porProduto[$pid] ?? null;
+
+        // previousQuantity sai do inventario quando ele conhece o produto: e
+        // de la que o numero vem, e e com ele que a confirmacao tem de bater.
+        $quantidade = $inv !== null
+            ? (float) ($inv['quantity'] ?? 0)
+            : (float) ($e['currentQuantity'] ?? 0);
+
+        $item = [
+            'productId'             => $pid,
+            'selection'             => (int) ($e['selection'] ?? 0),
+            'inventoryItemId'       => (int) ($e['inventoryItemId'] ?? 0),
+            'previousQuantity'      => $quantidade,
+            'quantityToSupply'      => (float) ($e['quantityToSupply'] ?? 0),
+            'capacity'              => (float) ($e['capacity'] ?? 0),
+            'confirmedQuantity'     => null,
+            'suppliedQuantity'      => null,
+            'productExpirationDate' => pg_data_tp(pg_data_iso($inv['productExpirationDate'] ?? null)),
+            'dateConfirmed'         => null,
+            'actions'               => [],
+            'parentInventoryItemId' => null,
+            'removeExpirationDate'  => false,
+        ];
+
+        if ($pid === $produto_alvo) {
+            // Confirmar o item e o que faz a validade pegar — foi o que o app
+            // deles mandou. E confirmar carrega quantidade, entao ela vai
+            // igual ao previousQuantity que o proprio TouchPay acabou de
+            // dizer: uma contagem que confirma o numero que ja esta la nao
+            // move estoque nenhum, seja qual for esse numero.
+            $item['confirmedQuantity']     = $quantidade;
+            $item['dateConfirmed']         = $fim;
+            $item['productExpirationDate'] = pg_data_tp($data_iso);
+            $alvo = $item;
+        }
+
+        $itens[] = $item;
+    }
+
+    return [
+        'corpo' => [
+            'uuid'             => $uuid,
+            'type'             => 'Inventory',
+            'supplyType'       => 'PickList',
+            'planogramId'      => $planograma_id,
+            'inventoryId'      => null,
+            'pickListId'       => null,
+            'dateStarted'      => $inicio,
+            'dateCompleted'    => $fim,
+            'supplyItems'      => $itens,
+            'isBlindOperation' => false,
+            'comments'         => '',
+        ],
+        'alvo' => $alvo,
+    ];
+}
+
+/**
+ * O corpo esta em condicoes de sair daqui? Funcao pura.
+ *
+ * Esta operacao escreve na loja inteira de uma vez; um corpo torto nao erra
+ * um produto, erra todos. Entao antes de mandar, quatro perguntas — e
+ * qualquer "nao" para a gravacao em vez de tentar a sorte.
+ *
+ * A terceira e a que mais importa: se um item tinha validade e o corpo vai
+ * sair sem ela, alguma coisa se perdeu no cruzamento, e mandar assim
+ * apagaria a validade de quem nunca foi tocado.
+ *
+ * @return ?string a queixa, ou null quando esta tudo certo
+ */
+function pg_operacao_conferir(array $corpo, array $inventario, int $produto_alvo): ?string
+{
+    $itens = $corpo['supplyItems'] ?? [];
+    if (!$itens) {
+        return 'a operacao saiu sem nenhum item';
+    }
+
+    $tinhaValidade = [];
+    foreach ($inventario as $i) {
+        if (pg_data_iso($i['productExpirationDate'] ?? null) !== null) {
+            $tinhaValidade[(int) ($i['productId'] ?? 0)] = true;
+        }
+    }
+
+    $confirmados = 0;
+    foreach ($itens as $it) {
+        $pid = (int) ($it['productId'] ?? 0);
+
+        if ((int) ($it['inventoryItemId'] ?? 0) <= 0) {
+            return 'o produto ' . $pid . ' entrou na operacao sem item de inventario';
+        }
+        if ($it['dateConfirmed'] !== null) {
+            $confirmados++;
+            if ($pid !== $produto_alvo) {
+                return 'a operacao ia confirmar o produto ' . $pid . ', que ninguem pediu';
+            }
+        }
+        // Validade que existia nao pode sair pelo caminho — menos a do alvo,
+        // que e justamente a que esta sendo trocada.
+        if ($pid !== $produto_alvo
+            && isset($tinhaValidade[$pid])
+            && $it['productExpirationDate'] === null) {
+            return 'a validade do produto ' . $pid . ' ia embora sem ninguem pedir';
+        }
+    }
+
+    if ($confirmados !== 1) {
+        return 'a operacao marcou ' . $confirmados . ' itens em vez de um';
+    }
+    return null;
+}
+
+// ---------------------------------------------------------------------
 // O que fala com o banco e com o TouchPay
 // ---------------------------------------------------------------------
 
@@ -280,7 +551,12 @@ function planograma_procurar(int $pdv_id, string $codigo): array
     // 1. no planograma
     $achado = pg_casar(tp_planograma_buscar($planograma_id, $ean), $produto_id, $ean);
     if ($achado) {
-        return ['onde' => 'planograma', 'entrada' => pg_entrada_normalizar($achado)] + $vazio;
+        $entrada = pg_entrada_normalizar($achado);
+        // A validade nao vem no planograma, so no inventario — e e ela que
+        // deixa a pessoa decidir se mantem a do estoque ou grava a da nota.
+        // Vale a ida extra: sem ver a que esta la, a escolha vira chute.
+        $entrada['validade'] = planograma_validade_atual($pdv, $entrada['produto_id']);
+        return ['onde' => 'planograma', 'entrada' => $entrada] + $vazio;
     }
 
     // 2. no cadastro
@@ -291,6 +567,130 @@ function planograma_procurar(int $pdv_id, string $codigo): array
 
     // 3. lugar nenhum
     return $vazio;
+}
+
+/**
+ * A validade que o TouchPay tem para este produto AGORA.
+ *
+ * Le o inventario filtrado pelo produto: resposta pequena, uma ida so. O
+ * espelho local tambem tem a validade, mas o espelho pode ter meia hora — e
+ * a decisao de manter ou trocar a data se toma contra o que esta valendo,
+ * nao contra o que estava no ultimo sync.
+ */
+function planograma_validade_atual(array $pdv, int $produto_id): ?string
+{
+    $inventario_id = (int) ($pdv['inventario_id'] ?? 0);
+    if ($inventario_id <= 0 || $produto_id <= 0) {
+        return null;
+    }
+    foreach (tp_inventario_tudo($inventario_id, $produto_id) as $i) {
+        if ((int) ($i['productId'] ?? 0) === $produto_id) {
+            return pg_data_iso($i['productExpirationDate'] ?? null);
+        }
+    }
+    return null;
+}
+
+/**
+ * Grava a validade, se for o caso — e so depois do estoque.
+ *
+ * A ordem nao e detalhe. Gravar validade exige CONFIRMAR o item, e confirmar
+ * carrega quantidade junto; se isso rodasse antes do PUT do estoque, a
+ * confirmacao levaria o numero velho e desfaria o ajuste que a pessoa acabou
+ * de fazer. Rodando por ultimo, a leitura de agora ja inclui o estoque novo.
+ *
+ * Tres ideias mandam aqui, e todas as tres ja regem o resto desta tela:
+ * reler antes de gravar, parar em vez de desfazer o trabalho de outra pessoa,
+ * e registrar o de/para de quem mexeu.
+ */
+function pg_validade_etapa(array $u, array $pdv, int $planograma_id, array $antes,
+                           array $dados, array $r): array
+{
+    $nova    = pg_data_iso($dados['validade'] ?? null);
+    $escolha = (string) ($dados['validade_acao'] ?? 'auto');
+
+    // Campo em branco e "nao encostei nesta validade" — igual ao preco vazio,
+    // que nao vira zero. Apagar validade nao se faz por aqui.
+    if ($nova === null || $escolha === 'manter') {
+        return $r;
+    }
+    if (!pg_validade_plausivel($nova)) {
+        throw new TouchPayErro(
+            'Validade fora do razoavel (' . pg_data_br($nova) . '). Confira o ano.'
+        );
+    }
+
+    $inventario_id = (int) ($pdv['inventario_id'] ?? 0);
+    if ($inventario_id <= 0) {
+        throw new TouchPayErro(
+            'Este ponto de venda nao tem inventario conhecido. Abra a tela de novo para reconferir.'
+        );
+    }
+
+    $produto_id = (int) $antes['produto_id'];
+    $inicio     = date('Y-m-d\TH:i:s') . '.000';
+
+    // A lista COMPLETA, dos dois lados: o planograma tem o inventoryItemId, o
+    // inventario tem a validade de cada um. Mandar operacao montada so com o
+    // planograma faria todo item viajar sem validade.
+    $entradas   = tp_planograma_tudo($planograma_id);
+    $inventario = tp_inventario_tudo($inventario_id);
+
+    $atual = null;
+    foreach ($inventario as $i) {
+        if ((int) ($i['productId'] ?? 0) === $produto_id) {
+            $atual = pg_data_iso($i['productExpirationDate'] ?? null);
+            break;
+        }
+    }
+
+    // Alguem mexeu na validade depois que esta tela leu? Entao a escolha de
+    // manter ou trocar foi tomada contra um numero que ja nao existe.
+    if (array_key_exists('validade', $dados['visto'] ?? [])) {
+        $visto = pg_data_iso($dados['visto']['validade']);
+        if ($visto !== $atual) {
+            return ['ok' => false, 'conflito' => true, 'mudancas' => [], 'entrada' => $antes];
+        }
+    }
+
+    $decisao = pg_validade_decidir($atual, $nova);
+    $acao    = $escolha === 'gravar' ? 'gravar' : $decisao['acao'];
+    if ($acao !== 'gravar' || $atual === $nova) {
+        return $r;
+    }
+
+    $fim = date('Y-m-d\TH:i:s') . '.000';
+    $op  = pg_operacao_montar($entradas, $inventario, $planograma_id, $produto_id,
+                              $nova, pg_uuid(), $inicio, $fim);
+
+    // A ultima porta antes de escrever na loja inteira. Corpo torto aqui nao
+    // erra um produto, erra todos — entao na duvida nao manda.
+    $queixa = pg_operacao_conferir($op['corpo'], $inventario, $produto_id);
+    if ($queixa !== null || $op['alvo'] === null) {
+        pg_registrar($u, $pdv, $planograma_id, $produto_id, $antes['ean'], $antes['descricao'],
+            'validade', 'validade', $atual, $nova, $queixa ?? 'o produto nao estava no planograma lido');
+        throw new TouchPayErro(
+            'Nao gravei a validade: ' . ($queixa ?? 'o produto sumiu do planograma entre a leitura e a gravacao') . '.'
+        );
+    }
+
+    tp_operacao($op['corpo']);
+    pg_registrar($u, $pdv, $planograma_id, $produto_id, $antes['ean'], $antes['descricao'],
+        'validade', 'validade', $atual, $nova);
+
+    // O espelho local acompanha na hora: esperar o proximo sync faria a lista
+    // da Loja mostrar a validade velha logo depois de a pessoa te-la trocado.
+    try {
+        exec_sql(
+            'UPDATE loja_itens SET validade = ? WHERE pdv_id = ? AND externo_produto_id = ?',
+            [$nova, (int) $pdv['id'], $produto_id]
+        );
+    } catch (Throwable $e) {
+        error_log('espelho da validade: ' . $e->getMessage());
+    }
+
+    $r['mudancas'][] = ['campo' => 'validade', 'de' => $atual, 'para' => $nova];
+    return $r;
 }
 
 /**
@@ -356,15 +756,22 @@ function planograma_salvar(array $u, int $pdv_id, array $dados): array
         $antes = pg_entrada_normalizar($atual);
         // Preco, necessaria e critico ja entraram no POST; sobra o estoque.
         $mudancas = pg_mudancas($antes, ['estoque' => $querido['estoque']]);
-        return pg_aplicar($u, $pdv, $planograma_id, $pos_id, $antes, $querido, $mudancas, true);
+        $r = pg_aplicar($u, $pdv, $planograma_id, $pos_id, $antes, $querido, $mudancas, true);
+        // Produto que acabou de entrar nao tinha validade nenhuma, entao aqui
+        // nao ha o que manter: o que a pessoa digitou e o que vale.
+        return pg_validade_etapa($u, $pdv, $planograma_id, $antes, $dados, $r);
     }
 
     // ---- alterar: ja esta la ----
     $antes    = pg_entrada_normalizar($atual);
     $mudancas = pg_mudancas($antes, $querido);
 
+    // Mexer so na validade e um caso comum: bipa, ve que o preco e o estoque
+    // estao certos, e corrige a data da nota. Sair aqui sem passar pela
+    // validade transformaria isso em "nada mudou".
     if (!$mudancas) {
-        return ['ok' => true, 'mudancas' => [], 'entrada' => $antes];
+        return pg_validade_etapa($u, $pdv, $planograma_id, $antes, $dados,
+            ['ok' => true, 'mudancas' => [], 'entrada' => $antes]);
     }
 
     // Alguem mexeu depois que esta tela leu? So importa nos campos que ESTA
@@ -382,7 +789,8 @@ function planograma_salvar(array $u, int $pdv_id, array $dados): array
         }
     }
 
-    return pg_aplicar($u, $pdv, $planograma_id, $pos_id, $antes, $querido, $mudancas, false);
+    $r = pg_aplicar($u, $pdv, $planograma_id, $pos_id, $antes, $querido, $mudancas, false);
+    return pg_validade_etapa($u, $pdv, $planograma_id, $antes, $dados, $r);
 }
 
 /**

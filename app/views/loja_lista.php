@@ -134,12 +134,23 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
                         </span>
                         <span class="mono"><?= $l['ean'] ? e($l['ean']) : e($l['codigo'] ?: 'sem código') ?></span>
                     </div>
-                    <?php if ($l['categoria'] || $destino): ?>
+                    <?php
+                    // A validade so aparece quando existe: a maioria dos itens da
+                    // loja nao tem nenhuma cadastrada, e uma coluna de travessoes
+                    // em trezentas linhas nao informa nada.
+                    $val = validade_estado($l['validade'] ?? null);
+                    ?>
+                    <?php if ($l['categoria'] || $destino || $val['texto']): ?>
                         <div class="linha-baixo">
                             <span class="ajuda"><?= e($l['categoria'] ?: '') ?></span>
-                            <?php if ($destino): ?>
-                                <span class="selo selo-ok">no seu histórico</span>
-                            <?php endif; ?>
+                            <span class="selos-linha">
+                                <?php if ($val['texto']): ?>
+                                    <span class="selo selo-validade <?= e($val['classe']) ?>"><?= e($val['texto']) ?></span>
+                                <?php endif; ?>
+                                <?php if ($destino): ?>
+                                    <span class="selo selo-ok">no seu histórico</span>
+                                <?php endif; ?>
+                            </span>
                         </div>
                     <?php endif; ?>
                 <?php if ($destino): ?></a><?php else: ?></div><?php endif; ?>

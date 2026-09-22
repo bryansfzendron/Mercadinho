@@ -121,5 +121,46 @@ checar('e leva o numero do lote',
     [$GLOBALS['avancos'][0]['lote'], $GLOBALS['avancos'][0]['lotes']], [2, 3]);
 checar('e a mensagem do erro', $GLOBALS['avancos'][0]['erro'], 'sem PDV');
 
+// -------------------------------------------------- a validade no espelho
+// O coletor ja mandava `validade` desde o comeco e o callback a descartava,
+// porque nao havia coluna. Agora ha.
+checar('data do TouchPay vira DATE', loja_validade('2027-02-14T00:00:00Z'), '2027-02-14');
+checar('data pelada passa', loja_validade('2027-02-14'), '2027-02-14');
+// A maioria dos itens da loja nao tem validade nenhuma: null e o normal aqui.
+checar('sem validade e null', loja_validade(null), null);
+checar('vazio e null', loja_validade(''), null);
+checar('lixo e null', loja_validade('sem data'), null);
+checar('dia que nao existe e null', loja_validade('2027-02-31'), null);
+
+// ------------------------------------------------ como a lista mostra
+$hoje = '2026-09-22';
+checar('sem validade nao ocupa espaco na linha',
+    validade_estado(null, $hoje)['texto'], '');
+// Data crua nao diz nada de pe no corredor; o que importa e quanto falta.
+checar('vencido diz que venceu',
+    validade_estado('2026-09-01', $hoje)['classe'], 'vencido');
+checar('e mostra a data do vencimento',
+    validade_estado('2026-09-01', $hoje)['texto'], 'venceu 01/09/2026');
+checar('hoje tem nome proprio',
+    validade_estado('2026-09-22', $hoje)['texto'], 'vence hoje');
+checar('amanha conta no singular',
+    validade_estado('2026-09-23', $hoje)['texto'], 'vence em 1 dia');
+checar('a semana que vem conta os dias',
+    validade_estado('2026-09-29', $hoje)['texto'], 'vence em 7 dias');
+checar('trinta dias ainda e urgencia',
+    validade_estado('2026-10-22', $hoje)['classe'], 'vencendo');
+// Longe demais nao merece cor: pintar tudo faz o vermelho de quem vence
+// semana que vem se perder no meio de trezentas linhas pintadas.
+checar('daqui a um ano e so informacao',
+    validade_estado('2027-09-22', $hoje)['classe'], '');
+checar('e mostra a data',
+    validade_estado('2027-09-22', $hoje)['texto'], 'validade 22/09/2027');
+// O achado real no inventario deles: alguem digitou 5027 no lugar de 2027.
+// "vence em 3001 anos" seria uma conta correta escondendo um erro de digitacao.
+checar('o ano 5027 vira suspeita, nao urgencia',
+    validade_estado('5027-02-18', $hoje)['classe'], 'suspeita');
+checar('e a tela pergunta em vez de afirmar',
+    validade_estado('5027-02-18', $hoje)['texto'], 'validade 18/02/5027?');
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

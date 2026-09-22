@@ -319,6 +319,114 @@ function tp_entrada_incluir(array $dados): array
 }
 
 /**
+ * Quantos itens a resposta paginada diz ter, quando diz. Funcao pura.
+ *
+ * Vem em `entries.totalItems` (planograma) ou `totalItems` (inventario), e
+ * as vezes nao vem. Null quer dizer "o servidor nao contou", e ai quem pagina
+ * para pelo tamanho da pagina.
+ */
+function tp_total($r): ?int
+{
+    if (!is_array($r)) {
+        return null;
+    }
+    foreach ([['entries', 'totalItems'], ['totalItems']] as $caminho) {
+        $no = $r;
+        foreach ($caminho as $chave) {
+            $no = is_array($no) && isset($no[$chave]) ? $no[$chave] : null;
+        }
+        if (is_numeric($no)) {
+            return (int) $no;
+        }
+    }
+    return null;
+}
+
+/**
+ * Uma pagina de cada vez ate acabar.
+ *
+ * A pagina pedida e enorme de proposito — o coletor do n8n ja descobriu que
+ * eles entregam a loja inteira numa requisicao so. O laco fica mesmo assim,
+ * para o dia em que o servidor decidir limitar a pagina por conta propria:
+ * sem ele, esse dia chegaria como "metade do planograma sumiu".
+ *
+ * Quem manda na parada e o totalItems quando existe. Contar pelo tamanho da
+ * pagina pararia cedo demais justamente no caso que importa, que e o servidor
+ * devolver menos do que foi pedido.
+ */
+function tp_paginar(callable $url): array
+{
+    $itens = [];
+    $total = null;
+
+    for ($pagina = 1; $pagina <= 40; $pagina++) {
+        $r = tp_chamar('GET', $url($pagina, 10000));
+        $lista = pg_itens($r);
+        $total = tp_total($r) ?? $total;
+        if (!$lista) {
+            break;
+        }
+        foreach ($lista as $item) {
+            $itens[] = $item;
+        }
+        if ($total !== null ? count($itens) >= $total : count($lista) < 10000) {
+            break;
+        }
+    }
+
+    return $itens;
+}
+
+/**
+ * O planograma INTEIRO, nao so o que casa com um bipe.
+ *
+ * A operacao de inventario (tp_operacao) quer a lista completa de itens, e e
+ * daqui que sai o inventoryItemId de cada um.
+ */
+function tp_planograma_tudo(int $planograma_id): array
+{
+    return tp_paginar(static fn (int $p, int $n) =>
+        '/api/Planograms/' . $planograma_id
+        . '?page=' . $p . '&pageSize=' . $n
+        . '&sortOrder=quantityToSupply&descending=true&search=&showOnlyCritical=false');
+}
+
+/**
+ * O inventario INTEIRO de um ponto de venda.
+ *
+ * E o unico lugar onde a VALIDADE existe: o planograma nao a carrega. Mesma
+ * URL do coletor do n8n, inclusive o timezoneOffset de 180 — validade e dia
+ * cheio, e pedir com o fuso errado e como se pedisse o inventario de ontem.
+ */
+function tp_inventario_tudo(int $inventario_id, ?int $produto_id = null): array
+{
+    $hoje = date('Y-m-d');
+    return tp_paginar(static fn (int $p, int $n) =>
+        '/api/web/inventory/items?page=' . $p . '&pageSize=' . $n
+        . '&sortOrder=quantity&descending=false&search='
+        . '&inventoryIds=' . $inventario_id
+        . '&productId=' . ($produto_id > 0 ? $produto_id : '')
+        . '&inventoryTypes=pointOfSale&date=' . $hoje . 'T00%3A00%3A00.000Z'
+        . '&timezoneOffset=180&showTotals=false');
+}
+
+/**
+ * Fecha uma operacao de inventario — e o unico jeito de gravar validade.
+ *
+ * Nao existe endpoint de "altera a validade deste item": o que existe e
+ * fechar uma reposicao inteira, com a lista completa de itens, marcando os
+ * que foram tocados. Quem monta o corpo e pg_operacao_montar(), que confere
+ * a lista antes de deixar sair daqui.
+ *
+ * Responde 200 com CORPO VAZIO. Nao da para ler de volta o que ficou gravado:
+ * quem quiser certeza rele o item depois.
+ */
+function tp_operacao(array $corpo): array
+{
+    return tp_chamar('POST', '/api/inventory/operation', $corpo);
+}
+
+/**
  * DEFINE o estoque de um item — nao soma.
  *
  * A quantidade vai na URL e o corpo e vazio. Conferido: `.../quantity/3` faz

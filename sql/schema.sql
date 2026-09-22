@@ -169,6 +169,10 @@ CREATE TABLE IF NOT EXISTS loja_itens (
     capacidade         DECIMAL(14,3) NULL,
     unidade            VARCHAR(10)   NULL,
     imagem             VARCHAR(500)  NULL,
+    -- A validade que o TouchPay tem para ESTE item de inventario. E uma data
+    -- so por item, e nao uma por lote: quando a gondola tem mistura, a que
+    -- vale e a que vence primeiro.
+    validade           DATE          NULL,
     atualizado_em      DATETIME      NULL,
     PRIMARY KEY (id),
     KEY ix_loja_itens_ean (ean),
@@ -338,9 +342,9 @@ CREATE TABLE IF NOT EXISTS planograma_log (
     produto_externo_id INT UNSIGNED NULL,
     ean                VARCHAR(14)  NULL,
     descricao          VARCHAR(255) NULL,
-    -- incluir | alterar | estoque
+    -- incluir | alterar | estoque | validade
     acao               VARCHAR(20)  NOT NULL,
-    -- preco | necessaria | critico | estoque
+    -- preco | necessaria | critico | estoque | validade
     campo              VARCHAR(30)  NULL,
     de                 VARCHAR(40)  NULL,
     para               VARCHAR(40)  NULL,

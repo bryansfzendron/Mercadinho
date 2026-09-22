@@ -100,6 +100,89 @@
     }
 
     /**
+     * Uma data em AAAA-MM-DD, venha de onde vier. Funcao pura.
+     *
+     * O <input type="date"> ja manda assim, mas onde ele nao existe o campo
+     * vira texto e o dedo digita "14/02/2027". Vazio e null, e null quer
+     * dizer "nao encostei nesta validade" — nunca "apague a validade".
+     */
+    function dataIso(v) {
+        const t = String(v === null || v === undefined ? '' : v).trim();
+        if (t === '') return null;
+        let a, m, d;
+        let r = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+        if (r) { a = r[1]; m = r[2]; d = r[3]; }
+        else {
+            r = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t);
+            if (!r) return null;
+            a = r[3]; m = r[2]; d = r[1];
+        }
+        // 2027-02-31 passa na regex e nao existe: o Date devolve marco.
+        const dt = new Date(Number(a), Number(m) - 1, Number(d));
+        if (dt.getFullYear() !== Number(a) || dt.getMonth() !== Number(m) - 1
+            || dt.getDate() !== Number(d)) {
+            return null;
+        }
+        return a + '-' + m + '-' + d;
+    }
+
+    /** "2027-02-14" -> "14/02/2027". Funcao pura. */
+    function dataBr(iso) {
+        return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '—';
+    }
+
+    /**
+     * Data que gente digita? Funcao pura. Mesma janela do lado do PHP.
+     *
+     * Existe por causa de um item real no inventario deles com validade em
+     * 5027: alguem trocou o 2 por 5 e o sistema aceitou. E o mesmo erro do
+     * preco que vira R$ 950,00 sem a virgula, so que mil anos adiante.
+     */
+    function validadePlausivel(iso, hoje) {
+        if (!iso) return false;
+        const dias = (Date.parse(iso + 'T00:00:00')
+                    - Date.parse((hoje || new Date().toISOString().slice(0, 10)) + 'T00:00:00'))
+                    / 86400000;
+        return dias >= -730 && dias <= 3650;
+    }
+
+    /**
+     * Manter a validade do estoque ou gravar a que esta entrando? Funcao pura.
+     *
+     * O TouchPay guarda UMA data por item, mas a gondola tem mistura. A que
+     * vale e a que vence PRIMEIRO, porque e ela que manda na hora de tirar o
+     * produto da prateleira: repor com lote novo nao pode empurrar a data
+     * para a frente e esconder o pacote velho que ficou la atras.
+     *
+     * Devolve a recomendacao, nao a decisao — quem esta no corredor e quem
+     * enxerga se o lote antigo ainda existe.
+     */
+    function validadeDecidir(atual, nova) {
+        if (!nova) {
+            return { acao: 'nada', data: null, recomendado: 'nada', motivo: '' };
+        }
+        if (!atual) {
+            return { acao: 'gravar', data: nova, recomendado: 'gravar',
+                     motivo: 'Não havia validade cadastrada.' };
+        }
+        if (atual === nova) {
+            return { acao: 'nada', data: atual, recomendado: 'nada',
+                     motivo: 'A validade cadastrada já é essa.' };
+        }
+        if (nova < atual) {
+            return { acao: 'gravar', data: nova, recomendado: 'gravar',
+                     motivo: 'A que você está repondo vence antes.' };
+        }
+        return { acao: 'manter', data: atual, recomendado: 'manter',
+                 motivo: 'A do estoque vence antes.' };
+    }
+
+    /** "Validade 14/02/2027 → 30/06/2027". Funcao pura. */
+    function fraseValidade(de, para) {
+        return 'Validade ' + dataBr(de) + ' → ' + dataBr(para);
+    }
+
+    /**
      * O que mudou, campo a campo. Funcao pura.
      *
      * Campo vazio (null em `agora`) nao e alteracao: e campo que a pessoa nao
@@ -126,7 +209,9 @@
         return ROTULOS[m.campo] + ' ' + valorTexto(m.campo, m.de) + ' → ' + valorTexto(m.campo, m.para);
     }
 
-    const api = { numero, moeda, qtdTexto, valorTexto, precoSugerido, mudancas, frase, CAMPOS, ROTULOS, FOLGA };
+    const api = { numero, moeda, qtdTexto, valorTexto, precoSugerido, mudancas, frase,
+                  dataIso, dataBr, validadePlausivel, validadeDecidir, fraseValidade,
+                  CAMPOS, ROTULOS, FOLGA };
 
     // ---------------------------------------------------------------
     // A tela
@@ -270,6 +355,7 @@
                     'O estoque é <strong>definido</strong>, não somado: o TouchPay passa a ter '
                     + 'exatamente o número digitado.' +
                   '</p>' +
+                  blocoValidade(atual.validade || null) +
                   '<div id="pg-acao">' +
                     '<button type="button" class="botao" id="pg-salvar">' +
                       (novo ? 'Incluir no planograma' : 'Salvar') +
@@ -279,6 +365,7 @@
 
             const ctx = { d: d, novo: novo, ficha: ficha, atual: atual };
             ligarConta();
+            ligarValidade(atual.validade || null);
             doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
         }
 
@@ -352,6 +439,86 @@
             refazer();
         }
 
+        /**
+         * A validade. Um campo, e uma escolha que so aparece quando precisa.
+         *
+         * Mostrar a data que ja esta no estoque nao e enfeite: e o que torna
+         * a decisao possivel. Sem ela, quem repoe com um lote mais novo
+         * empurraria a validade para a frente sem saber que ha pacote velho
+         * atras — e o aviso de vencimento chegaria tarde demais.
+         */
+        function blocoValidade(atual) {
+            return '<div class="pg-validade">' +
+                     '<label>Validade do que estou repondo' +
+                       '<input type="date" data-data="validade" ' +
+                              'autocomplete="off" spellcheck="false">' +
+                     '</label>' +
+                     '<p class="ajuda" id="pg-val-atual">' +
+                       (atual
+                         ? 'No estoque hoje: <strong>' + esc(dataBr(atual)) + '</strong>'
+                         : 'Nenhuma validade cadastrada neste produto.') +
+                     '</p>' +
+                     '<div id="pg-val-escolha"></div>' +
+                   '</div>';
+        }
+
+        function ligarValidade(atual) {
+            const el = alvo.querySelector('[data-data="validade"]');
+            const cx = doc.getElementById('pg-val-escolha');
+            if (!el || !cx) return;
+
+            function refazer() {
+                const nova = dataIso(el.value);
+                if (!nova) { cx.innerHTML = ''; return; }
+
+                if (!validadePlausivel(nova)) {
+                    cx.innerHTML = '<p class="aviso aviso-erro">' + esc(dataBr(nova))
+                        + ' está fora do razoável. Confira o ano.</p>';
+                    return;
+                }
+
+                const dec = validadeDecidir(atual, nova);
+                if (dec.acao === 'nada') {
+                    cx.innerHTML = '<p class="ajuda">' + esc(dec.motivo) + '</p>';
+                    return;
+                }
+                if (!atual) {
+                    cx.innerHTML = '<p class="ajuda">' + esc(dec.motivo)
+                        + ' Vai gravar <strong>' + esc(dataBr(nova)) + '</strong>.</p>';
+                    return;
+                }
+
+                // As duas datas existem e brigam: a escolha e de quem esta
+                // olhando a gondola. A recomendada vem marcada, nunca imposta.
+                cx.innerHTML =
+                    '<p class="ajuda">' + esc(dec.motivo) + '</p>' +
+                    '<label class="pg-escolha">' +
+                      '<input type="radio" name="pg-val" value="manter"' +
+                        (dec.recomendado === 'manter' ? ' checked' : '') + '>' +
+                      '<span>Manter ' + esc(dataBr(atual)) + '</span>' +
+                    '</label>' +
+                    '<label class="pg-escolha">' +
+                      '<input type="radio" name="pg-val" value="gravar"' +
+                        (dec.recomendado === 'gravar' ? ' checked' : '') + '>' +
+                      '<span>Gravar ' + esc(dataBr(nova)) + '</span>' +
+                    '</label>';
+            }
+
+            el.addEventListener('input', refazer);
+            el.addEventListener('change', refazer);
+        }
+
+        /** O que a pessoa decidiu sobre a validade. */
+        function validadeLida(atual) {
+            const el = alvo.querySelector('[data-data="validade"]');
+            const nova = el ? dataIso(el.value) : null;
+            if (!nova) return { acao: 'nada', data: null };
+
+            const marcado = alvo.querySelector('input[name="pg-val"]:checked');
+            const acao = marcado ? marcado.value : validadeDecidir(atual, nova).recomendado;
+            return { acao: acao, data: nova };
+        }
+
         function lidos() {
             const saida = {};
             alvo.querySelectorAll('[data-campo]').forEach((el) => {
@@ -373,6 +540,13 @@
                 ? mudancas({ preco: null, estoque: 0, necessaria: 0, critico: 0 }, agora)
                 : mudancas(ctx.atual, agora);
 
+            const val = validadeLida(ctx.atual.validade || null);
+            // Validade so entra no resumo quando vai mesmo mudar: "manter" e
+            // uma decisao de nao escrever, e anunciar isso como alteracao
+            // faria o resumo mentir sobre o que esta prestes a sair daqui.
+            const trocaValidade = val.acao === 'gravar'
+                && val.data !== (ctx.atual.validade || null);
+
             const acao = doc.getElementById('pg-acao');
 
             if (ctx.novo && !(agora.preco > 0)) {
@@ -381,17 +555,22 @@
                 doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
                 return;
             }
-            if (!ctx.novo && !lista.length) {
+            if (!ctx.novo && !lista.length && !trocaValidade) {
                 acao.innerHTML = '<p class="ajuda">Nada mudou.</p>'
                     + '<button type="button" class="botao" id="pg-salvar">Salvar</button>';
                 doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
                 return;
             }
 
+            const linhas = lista.map((m) => esc(frase(m)));
+            if (trocaValidade) {
+                linhas.push(esc(fraseValidade(ctx.atual.validade || null, val.data)));
+            }
+
             acao.innerHTML =
                 '<div class="aviso aviso-info">' +
                   (ctx.novo ? '<strong>Vai entrar no planograma.</strong><br>' : '') +
-                  lista.map((m) => esc(frase(m))).join('<br>') +
+                  linhas.join('<br>') +
                 '</div>' +
                 '<div class="duas">' +
                   '<button type="button" class="botao" id="pg-confirmar">Confirmar</button>' +
@@ -403,10 +582,11 @@
                     + (ctx.novo ? 'Incluir no planograma' : 'Salvar') + '</button>';
                 doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
             });
-            doc.getElementById('pg-confirmar').addEventListener('click', () => enviar(ctx, agora, lista));
+            doc.getElementById('pg-confirmar').addEventListener('click',
+                () => enviar(ctx, agora, lista, val, linhas));
         }
 
-        async function enviar(ctx, agora, lista) {
+        async function enviar(ctx, agora, lista, val, linhas) {
             const acao = doc.getElementById('pg-acao');
             acao.innerHTML = '<p class="ajuda">Mandando para o TouchPay...</p>';
 
@@ -420,12 +600,17 @@
                 estoque:    agora.estoque,
                 necessaria: agora.necessaria,
                 critico:    agora.critico,
+                // A data e a decisao vao separadas: o servidor precisa saber
+                // que "manter" foi escolha, e nao campo que ficou em branco.
+                validade:       val ? val.data : null,
+                validade_acao:  val ? val.acao : 'nada',
                 // O que ESTA tela viu. O servidor compara com o valor de agora
                 // antes de gravar: se alguem mexeu nesse meio tempo, a
                 // gravacao para em vez de desfazer o trabalho do outro calada.
                 visto:      ctx.novo ? null : {
                     preco: ctx.atual.preco, estoque: ctx.atual.estoque,
                     necessaria: ctx.atual.necessaria, critico: ctx.atual.critico,
+                    validade: ctx.atual.validade || null,
                 },
             };
 
@@ -450,8 +635,8 @@
                     return;
                 }
 
-                aviso('ok', '<strong>Salvo.</strong> '
-                    + (lista.length ? lista.map((m) => esc(frase(m))).join('<br>') : 'Entrou no planograma.'));
+                const resumo = (linhas && linhas.length) ? linhas.join('<br>') : '';
+                aviso('ok', '<strong>Salvo.</strong> ' + (resumo || 'Entrou no planograma.'));
                 campo.value = '';
             } catch (e) {
                 // Sem resposta nao quer dizer que nao gravou: pode ter ido e a
