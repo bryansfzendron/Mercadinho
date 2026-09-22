@@ -252,5 +252,54 @@ $so_sexta = vendas_produtos_juntar($cru, '2026-09-18', '2026-09-18');
 checar('dia fora da janela nao entra na soma', $linha_de($so_sexta, '790')['quantidade'], 2.0);
 checar('janela vazia devolve lista vazia', vendas_produtos_juntar($cru, '2026-08-01', '2026-08-31'), []);
 
+// --------------------------- custo e contribuicao na lista da capa
+// A capa passou a mostrar o mesmo que a aba de vendas: quanto custou e o
+// que sobrou. A conta nao e refeita aqui — vendas_produtos_custear() traduz
+// a lista e entrega para vendas_agrupar(), que e onde a regra mora.
+$semana = vendas_produtos_juntar($cru, '2026-09-13', '2026-09-19');
+
+// O KIT KAT (produto 8) tem custo de nota: R$ 0,80 a unidade, 5 vendidas na
+// semana. O refrigerante do grupo 789 aparece com produto_id 0 num dia e 12
+// no outro, e o 12 nao tem nota — entao ele cai no percentual padrao.
+$custos = [8 => 0.80];
+$comCusto = vendas_produtos_custear($semana, $custos, 50.0, 10.0);
+
+$kit  = $linha_de($comCusto, '790');
+$refri = $linha_de($comCusto, '789');
+
+checar('custo de nota: 5 unidades a 0,80', $kit['custo'], 4.0);
+checar('e a linha se diz vinda de nota', $kit['com_nota'], true);
+// 9,95 de receita, 4,00 de custo, menos 10% do faturamento = 4,955. Conferir
+// na terceira casa de proposito: 4,955 em float cai logo ABAIXO do meio, e
+// arredondar para centavo aqui testaria o float, nao a conta.
+checar('contribuicao tira o custo e os percentuais',
+    round($kit['contribuicao'], 3), 4.955);
+checar('o fator e quantas vezes a venda cobre o custo',
+    round($kit['fator'], 2), 2.49);
+
+// Sem nota, o custo vira o percentual padrao: 50% de 15,00.
+checar('sem nota, o custo e o percentual padrao', $refri['custo'], 7.5);
+checar('e a linha avisa que e estimativa', $refri['com_nota'], false);
+
+// A ORDEM e a do faturamento, nao a da margem: a lista tem de continuar
+// acompanhando o grafico logo acima dela.
+checar('a ordem da capa nao se mexe',
+    array_column($comCusto, 'grupo'), array_column($semana, 'grupo'));
+
+// Os campos originais continuam la — a tela ainda desenha total e unitario.
+checar('o total sobrevive', $kit['total'], 9.95);
+checar('a descricao sobrevive', $kit['descricao'], 'KIT KAT');
+checar('o produto_id sobrevive, para o link', $kit['produto_id'], 8);
+
+// Custo zero nao tem fator: dividir por zero seria inventar um numero.
+$deGraca = vendas_produtos_custear(
+    [['grupo' => 'X', 'descricao' => 'Brinde', 'produto_id' => 3,
+      'quantidade' => 1, 'total' => 0.0, 'vendas' => 1]],
+    [3 => 0.0], 0.0, 10.0
+);
+checar('sem custo nao ha fator', $deGraca[0]['fator'], null);
+
+checar('lista vazia devolve lista vazia', vendas_produtos_custear([], $custos, 50.0, 10.0), []);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

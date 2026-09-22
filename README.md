@@ -1205,6 +1205,37 @@ não bate com o número logo acima dela.
 Escanear e bipar **não** ficam aqui: os dois botões já moram na tela de notas, e repetidos
 na capa só empurravam a lista do dia para baixo da dobra.
 
+### Quanto custou e o que sobrou
+
+Cada produto da lista mostra o mesmo que a aba de vendas: **o custo** e **o que sobrou
+depois dele e dos percentuais que acompanham o faturamento** (maquininha, condomínio,
+franquia e imposto), com o fator — quantas vezes a venda cobriu o custo.
+
+```
+Refrigerante 2L                           R$ 29,70
+3 un · R$ 9,90 cada            +R$ 12,90 · 2,20x
+custo R$ 13,50
+```
+
+A conta **não é refeita aqui**. `vendas_produtos_custear()` traduz a lista da capa para o
+formato de `vendas_agrupar()` e devolve enriquecida — mesma regra do custo (nota quando o
+produto tem, percentual padrão quando não tem) e mesma margem de contribuição. Escrever a
+regra duas vezes faria a capa e a tela de vendas discordarem sobre o mesmo produto no mesmo
+dia no dia em que uma das duas mudasse, e não há nada pior do que dois números certos que
+não batem.
+
+A lista volta **na ordem em que chegou**: quem manda na capa é o faturamento, e
+`vendas_agrupar()` ordena por margem. Trocar a ordem aqui faria a lista deixar de acompanhar
+o gráfico logo acima dela.
+
+Produto **sem custo conhecido** volta com os campos em `null` e a linha de baixo simplesmente
+não aparece — melhor faltar do que inventar custo. Quando o custo veio do percentual padrão
+em vez de nota fiscal, o selo *estimado* diz isso, igual à tela de vendas.
+
+O percentual variável sai do mix de pagamento da **janela inteira** que a capa carrega, e não
+de cada dia. A tela de vendas já trabalha assim dentro do período filtrado, e apurar o mix dia
+a dia custaria uma consulta por dia para mexer na contribuição na terceira casa.
+
 ### Dois PDVs que eram o mesmo
 
 Quando a máquina troca de dono, o TouchPay **cadastra o ponto de venda de novo**: id externo
@@ -1337,7 +1368,7 @@ tem — qualquer buraco vira execução com erro, que fica guardada.
 php testes/helpers.php      # número BR, data, EAN, chave do QR, formatação
 php testes/callback.php     # formatos do callback, cálculo do líquido e abrir a caixa
 php testes/loja.php         # callback do TouchPay, o prefixo OM e a validade na lista
-php testes/vendas.php       # callback das vendas, fuso da data e o unitário calculado
+php testes/vendas.php       # o periodo, a lista por produto e o custo na capa
 php testes/custos.php       # taxa por forma de pagamento, resultado do período e CMV
 php testes/sync.php         # a conta da barra de progresso e o fluxo dado por perdido
 php testes/breakdown.php    # o plano diário da meta: linha reta e meta recalculada

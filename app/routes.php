@@ -134,7 +134,32 @@ function rota_inicio(array $u): void
         'mes'    => vendas_produtos_juntar($cru, $painel['mes']['de'], $painel['mes']['ate']),
     ];
 
-    ver('inicio', compact('painel', 'vendidos'), 'Inicio');
+    // Custo e contribuicao de cada produto, com a MESMA conta da tela de
+    // vendas — e por isso vendas_produtos_custear() delega a vendas_agrupar()
+    // em vez de refazer a regra.
+    //
+    // O percentual variavel (maquininha, condominio, franquia e imposto) sai
+    // do mix de pagamento da janela inteira, nao de cada dia. A tela de
+    // vendas ja trabalha assim dentro do periodo filtrado, e apurar o mix
+    // dia a dia custaria uma consulta por dia para mover a contribuicao na
+    // terceira casa.
+    $janela = [
+        'de'  => min($painel['mes']['de'], $painel['semana']['de']),
+        'ate' => $painel['semana']['ate'],
+    ];
+    $params         = custos_parametros();
+    $por_pdv_forma  = vendas_por_pdv_forma($janela);
+    $params_por_pdv = custos_params_dos_pdvs(array_column($por_pdv_forma, 'pdv_id'));
+    $pct_variavel   = custos_pct_variavel_pdvs($por_pdv_forma, $params_por_pdv, custos_imposto_pct());
+    $custos         = vendas_custo_por_produto(array_column($cru, 'produto_id'));
+
+    foreach ($vendidos as $quando => $lista) {
+        $vendidos[$quando] = vendas_produtos_custear(
+            $lista, $custos, (float) $params['cmv_padrao_pct'], $pct_variavel
+        );
+    }
+
+    ver('inicio', compact('painel', 'vendidos', 'pct_variavel'), 'Inicio');
 }
 
 /**

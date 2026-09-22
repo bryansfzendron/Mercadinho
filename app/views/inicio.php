@@ -21,6 +21,10 @@
  * so, e trocar de dia nao espera rede.
  *
  * @var array $painel   de vendas_painel()
+ * Cada produto mostra o que sobrou depois da mercadoria e dos percentuais
+ * que acompanham o faturamento (maquininha, condominio, franquia, imposto),
+ * e quanto custou — a mesma conta e os mesmos numeros da aba de vendas.
+ *
  * @var array $vendidos 'Y-m-d' => produtos daquele dia, mais 'semana'
  */
 $h = $painel['hoje'];
@@ -43,13 +47,34 @@ $lista_vendidos = static function (array $produtos, string $vazio): string {
         // Unitario e conta, nao coluna: o item grava o total da linha.
         $unitario = $qtd > 0 ? (float) $p['total'] / $qtd : null;
 
+        // Custo e contribuicao vem prontos da rota, com a mesma conta da
+        // aba de vendas. Produto sem custo conhecido volta null, e a segunda
+        // linha simplesmente nao aparece: melhor faltar do que inventar.
+        $sobra = $p['contribuicao'] ?? null;
+
         $linha = '<div class="linha-topo">'
                . '<span class="forte">' . e($p['descricao']) . '</span>'
                . '<span class="valor">' . moeda($p['total']) . '</span>'
                . '</div><div class="linha-baixo">'
-               . '<span>' . e(qtd_fmt($p['quantidade'])) . ' un</span>'
-               . ($unitario !== null ? '<span>' . moeda($unitario) . ' cada</span>' : '')
+               . '<span>' . e(qtd_fmt($p['quantidade'])) . ' un'
+               . ($unitario !== null ? ' · ' . moeda($unitario) . ' cada' : '') . '</span>'
+               . ($sobra !== null
+                    ? '<span class="' . ($sobra >= 0 ? 'lucro-bom' : 'lucro-ruim') . '">'
+                      . ($sobra >= 0 ? '+' : '−') . moeda(abs($sobra))
+                      . (isset($p['fator']) && $p['fator'] !== null
+                            ? ' · ' . number_format((float) $p['fator'], 2, ',', '.') . 'x'
+                            : '')
+                      . '</span>'
+                    : '')
                . '</div>';
+
+        if (($p['custo'] ?? null) !== null) {
+            $linha .= '<div class="linha-baixo">'
+                    . '<span class="ajuda">custo ' . moeda($p['custo'])
+                    . (empty($p['com_nota']) ? ' <span class="estimado">estimado</span>' : '')
+                    . '</span>'
+                    . '</div>';
+        }
 
         $html .= '<li>' . ((int) $p['produto_id'] > 0
             ? '<a href="/produtos/' . (int) $p['produto_id'] . '">' . $linha . '</a>'

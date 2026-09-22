@@ -634,6 +634,65 @@ function vendas_produtos_juntar(array $linhas, string $de, string $ate, int $lim
     return vendas_produtos_ordenar(array_values($juntos), $limite);
 }
 
+/**
+ * Poe custo, contribuicao e fator numa lista de produtos vendidos.
+ * Funcao pura.
+ *
+ * A conta nao e feita aqui: a lista e traduzida para o formato de
+ * vendas_agrupar() e volta de la enriquecida. E de proposito. A regra do
+ * custo (nota quando o produto tem, percentual padrao quando nao tem) e a da
+ * contribuicao moram num lugar so; escritas de novo aqui, o dia em que uma
+ * das duas mudasse a capa e a tela de vendas passariam a discordar sobre o
+ * mesmo produto no mesmo dia — e nao ha nada pior do que dois numeros certos
+ * que nao batem.
+ *
+ * A lista volta na ORDEM EM QUE CHEGOU: quem manda na capa e o faturamento,
+ * e vendas_agrupar() ordena por margem. Trocar a ordem aqui faria a lista
+ * deixar de acompanhar o grafico logo acima dela.
+ *
+ * Produto que o agrupamento nao conhecer volta com os campos em null, e a
+ * tela simplesmente nao os mostra — melhor faltar do que inventar custo.
+ *
+ * @param array            $lista   produtos com grupo, total e quantidade
+ * @param array<int,float> $custos  produto_id => custo unitario da NFC-e
+ */
+function vendas_produtos_custear(array $lista, array $custos,
+                                 float $cmv_padrao_pct, float $pct_variavel): array
+{
+    if (!$lista) {
+        return [];
+    }
+
+    $linhas = [];
+    foreach ($lista as $p) {
+        $linhas[] = [
+            'grupo'      => (string) ($p['grupo'] ?? ''),
+            'descricao'  => (string) ($p['descricao'] ?? ''),
+            'produto_id' => (int) ($p['produto_id'] ?? 0),
+            'quantidade' => num_br($p['quantidade'] ?? 0),
+            // A capa chama de "total" o que o relatorio chama de "receita".
+            'receita'    => num_br($p['total'] ?? 0),
+            'vendas'     => (int) ($p['vendas'] ?? 0),
+        ];
+    }
+
+    $por_grupo = [];
+    foreach (vendas_agrupar($linhas, $custos, $cmv_padrao_pct, $pct_variavel)['linhas'] as $g) {
+        $por_grupo[(string) $g['grupo']] = $g;
+    }
+
+    foreach ($lista as &$p) {
+        $g = $por_grupo[(string) ($p['grupo'] ?? '')] ?? null;
+        $p['custo']        = $g !== null ? (float) $g['custo'] : null;
+        $p['contribuicao'] = $g !== null ? (float) $g['contribuicao'] : null;
+        $p['fator']        = $g !== null ? $g['fator'] : null;
+        $p['com_nota']     = $g !== null ? (bool) $g['com_nota'] : false;
+    }
+    unset($p);
+
+    return $lista;
+}
+
 // ---------------------------------------------------------------------
 // Relatorio
 // ---------------------------------------------------------------------
