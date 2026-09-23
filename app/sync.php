@@ -258,8 +258,11 @@ function sync_fontes(): array
         'loja' => [
             // Preco e estoque mudam devagar e a coleta e pesada (o inventario
             // inteiro de cada PDV): nao faz sentido no mesmo ritmo das vendas.
+            // Quinze minutos sao tres batidas do cron — o suficiente para uma
+            // etiqueta trocada no corredor aparecer no app sem fazer o dobro
+            // de consultas ao TouchPay que trinta faria.
             'nome'     => 'preços e estoque',
-            'minutos'  => max(1, (int) cfg('cron_loja_min', 30)),
+            'minutos'  => max(1, (int) cfg('cron_loja_min', 15)),
             'disparar' => static fn (): array => sync_coletar_loja(),
         ],
     ];

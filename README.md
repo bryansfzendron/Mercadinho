@@ -638,8 +638,8 @@ coleta vem do mais velho para o mais novo.
 
 ### O que o gesto não respeita
 
-**Intervalo mínimo**: quem arrastou a tela quer agora, não daqui a 30 minutos. O cron
-continua respeitando os seus (5 min para vendas, 30 para preço e estoque) — o gesto é
+**Intervalo mínimo**: quem arrastou a tela quer agora, não daqui a quinze minutos. O cron
+continua respeitando os seus (5 min para vendas, 15 para preço e estoque) — o gesto é
 manual e explícito.
 
 **A trava de "já está rodando"** também não vale aqui. Com a coleta acontecendo dentro da
@@ -1119,7 +1119,7 @@ Duas travas, ambas em `sync_motivo_para_pular()`:
 - **carga correndo não ganha companhia** — e uma que travou (sem notícia há mais de 10
   minutos) não segura a fila para sempre;
 - **intervalo mínimo por fonte**, contado do início da última carga: `cron_vendas_min`
-  (5 min) e `cron_loja_min` (30 min). Venda muda o tempo todo; preço e estoque não, e a
+  (5 min) e `cron_loja_min` (15 min). Venda muda o tempo todo; preço e estoque não, e a
   coleta do estoque é pesada — é o inventário inteiro de cada PDV. Assim o cron pode
   bater de 5 em 5 que o resto se ignora sozinho.
 

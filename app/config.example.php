@@ -73,7 +73,7 @@ return [
     // que o resto e ignorado: venda muda o tempo todo, preco e estoque nao, e
     // a coleta do estoque e pesada (o inventario inteiro de cada PDV).
     'cron_vendas_min' => 5,
-    'cron_loja_min'   => 30,
+    'cron_loja_min'   => 15,
 
     // ---------------------------------------------------------------
     // Token da pagina de instalacao/diagnostico (setup.php).
