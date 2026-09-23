@@ -686,7 +686,7 @@ function loja_resposta_api(?string $ean, ?int $produto_id): array
 function rota_loja_sincronizar(array $u): void
 {
     exigir_csrf();
-    $r = loja_disparar_sync();
+    $r = sync_coletar_loja();
     json_resposta($r, $r['ok'] ? 200 : 422);
 }
 
@@ -1059,14 +1059,14 @@ function rota_vendas_sincronizar(array $u): void
     $de  = data_iso($corpo['de'] ?? null);
     $ate = data_iso($corpo['ate'] ?? null);
     if ($de !== null && $ate !== null) {
-        $r = vendas_disparar_sync($de, $ate);
+        $r = sync_coletar_vendas($de, $ate);
         json_resposta($r, $r['ok'] ? 200 : 422);
     }
 
     $dias = (int) ($corpo['dias'] ?? 0);
     $r = $dias > 0
-        ? vendas_disparar_sync(date('Y-m-d', strtotime('-' . $dias . ' days')), date('Y-m-d'))
-        : vendas_disparar_sync();
+        ? sync_coletar_vendas(date('Y-m-d', strtotime('-' . $dias . ' days')), date('Y-m-d'))
+        : sync_coletar_vendas();
 
     json_resposta($r, $r['ok'] ? 200 : 422);
 }

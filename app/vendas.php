@@ -31,6 +31,203 @@ function vendas_janela(int $dias_primeira_carga = 365, int $sobreposicao = 3): a
     return [date('Y-m-d', strtotime($ultima . ' -' . $sobreposicao . ' days')), $ate];
 }
 
+// ---------------------------------------------------------------------
+// Coleta local — o que antes era o workflow do n8n
+// ---------------------------------------------------------------------
+
+/**
+ * Uma linha de item, a partir do item da transacao. Funcao pura.
+ *
+ * ATENCAO ao valor: `price` e `paymentAmount` do item sao o TOTAL da linha e
+ * nao o unitario — item com quantidade 4 veio com price 15,56 (3,89 cada).
+ * Somar paymentAmount das linhas bate com o total da transacao em 1000 de
+ * 1000 casos; multiplicar por quantidade erra em 213. Medido na conta real.
+ */
+function vendas_item_da_transacao(array $item): array
+{
+    $codigo = pg_codigo_limpo($item['productCode'] ?? '');
+
+    return [
+        'produto_id_externo' => $item['productId'] ?? null,
+        'ean'                => eh_codigo_barras($codigo) ? $codigo : '',
+        'codigo'             => $codigo,
+        'descricao'          => trim((string) ($item['productDescription'] ?? '')),
+        'categoria'          => trim((string) ($item['productCategoryName'] ?? '')),
+        'quantidade'         => $item['quantity'] ?? 1,
+        'valor_total'        => $item['paymentAmount'] ?? ($item['price'] ?? 0),
+    ];
+}
+
+/**
+ * Uma venda, a partir da transacao. Funcao pura.
+ *
+ * `subtractedItems` fica de fora de proposito: sao os produtos que o cliente
+ * pegou e devolveu a gondola. Nao entram em `items` nem no total pago, e
+ * soma-los faria a venda fechar por um valor que ninguem cobrou.
+ */
+function vendas_venda_da_transacao(array $t): array
+{
+    $itens = [];
+    foreach (($t['items'] ?? []) as $item) {
+        if (is_array($item)) {
+            $itens[] = vendas_item_da_transacao($item);
+        }
+    }
+
+    return [
+        'id'              => $t['id'] ?? null,
+        'uuid'            => $t['uuid'] ?? null,
+        'data'            => $t['date'] ?? null,
+        'pdv_id'          => $t['pointOfSaleId'] ?? null,
+        'pdv_nome'        => $t['pointOfSaleLocalName']
+                             ?? $t['pointOfSaleLocalCustomerName']
+                             ?? ('PDV ' . ($t['pointOfSaleId'] ?? '?')),
+        'resultado'       => $t['result'] ?? null,
+        'forma_pagamento' => $t['paymentMethod'] ?? null,
+        'bandeira'        => $t['cardBrand'] ?? null,
+        'valor_total'     => $t['totalPrice'] ?? 0,
+        'valor_pago'      => $t['paymentAmount'] ?? ($t['totalPrice'] ?? 0),
+        'codigo'          => $t['friendlyTransactionCode'] ?? null,
+        'itens'           => $itens,
+    ];
+}
+
+/** Quantas transacoes cabem num POST de gravacao. */
+const VENDAS_POR_LOTE = 500;
+
+/**
+ * Colhe as vendas da janela e grava, sem passar pelo n8n.
+ *
+ * Grava em lotes CONFORME COLHE, e nao tudo no fim. Sao duas razoes: a carga
+ * inicial de um ano sao ~12,5 mil transacoes e guardar todas na memoria antes
+ * de escrever seria carregar o ano inteiro de uma vez; e se a coleta morrer
+ * no meio, o que ja entrou fica — a proxima janela nasce do MAX(data_hora)
+ * gravado e retoma dali sozinha, porque a coleta vem do mais velho para o
+ * mais novo.
+ *
+ * Janela sem venda nenhuma ainda chama o callback uma vez, com lista vazia:
+ * e o que faz a tela dizer "nada novo" em vez de o sync morrer calado.
+ */
+function vendas_sincronizar_local(?string $desde = null, ?string $ate = null,
+                                 ?int $teto_segundos = null): array
+{
+    if (!tp_configurado()) {
+        return ['ok' => false, 'erro' => 'touchpay_email/touchpay_senha nao configurados'];
+    }
+
+    // No cron nao ha pressa: CLI nao tem teto de execucao e a carga de um ano
+    // pode levar o tempo que precisar. Na web ha — a hospedagem corta em 30s,
+    // e a tela deixa pedir uma janela de qualquer tamanho. Entao o caminho web
+    // trabalha ate perto do limite e para LIMPO, dizendo que continua.
+    //
+    // Parar no meio nao perde nada: o que ja entrou fica, e a janela seguinte
+    // nasce do MAX(data_hora) gravado. Isso so e verdade porque a coleta vem
+    // do mais velho para o mais novo.
+    $teto = $teto_segundos ?? (PHP_SAPI === 'cli' ? 0 : 20);
+    $comecou = microtime(true);
+    $parcial = false;
+
+    [$de, $ata] = vendas_janela();
+    $de  = $desde ?? $de;
+    $ata = $ate ?? $ata;
+
+    sync_iniciar('vendas');
+
+    $por_pagina = 1000;
+    $pagina     = 1;
+    $total      = null;
+    $colhidas   = 0;
+    $gravadas   = 0;
+    $itens      = 0;
+    $lote       = 0;
+    $lotes      = 1;
+    $pendentes  = [];
+
+    /** Manda o que estiver acumulado e zera o balde. */
+    $descarregar = static function (array &$pendentes, int &$lote, int $lotes,
+                                   int &$gravadas, int &$itens): void {
+        if (!$pendentes) {
+            return;
+        }
+        $lote++;
+        $r = vendas_processar_callback([
+            'status' => 'ok',
+            'fonte'  => 'touchpay',
+            'lote'   => $lote,
+            'lotes'  => max($lotes, $lote),
+            'vendas' => $pendentes,
+        ]);
+        $gravadas += (int) ($r['vendas'] ?? 0);
+        $itens    += (int) ($r['itens'] ?? 0);
+        $pendentes = [];
+    };
+
+    try {
+        // Teto de seguranca: 200 paginas cheias sao 200 mil transacoes, muito
+        // acima de qualquer janela que este app peca.
+        while ($pagina <= 200) {
+            $pag = tp_transacoes_pagina($de, $ata, $pagina, $por_pagina);
+            $lista = $pag['itens'];
+            $total = $pag['total'] ?? $total;
+
+            if ($total !== null) {
+                $lotes = max(1, (int) ceil($total / VENDAS_POR_LOTE));
+            }
+
+            foreach ($lista as $t) {
+                if (!is_array($t)) {
+                    continue;
+                }
+                $pendentes[] = vendas_venda_da_transacao($t);
+                $colhidas++;
+                if (count($pendentes) >= VENDAS_POR_LOTE) {
+                    $descarregar($pendentes, $lote, $lotes, $gravadas, $itens);
+                }
+            }
+
+            // Quem manda na parada e o totalItems. Contar pelo tamanho da
+            // pagina pararia cedo demais justamente no caso que importa: o
+            // servidor devolver menos do que o pageSize pedido.
+            if (!$lista) {
+                break;
+            }
+            if ($teto > 0 && (microtime(true) - $comecou) >= $teto) {
+                $parcial = true;
+                break;
+            }
+            if ($total !== null ? $colhidas >= $total : count($lista) < $por_pagina) {
+                break;
+            }
+            $pagina++;
+        }
+
+        $descarregar($pendentes, $lote, $lotes, $gravadas, $itens);
+
+        if ($lote === 0) {
+            // Nenhuma venda na janela: uma passada vazia fecha o estado.
+            vendas_processar_callback([
+                'status' => 'ok', 'fonte' => 'touchpay',
+                'lote' => 1, 'lotes' => 1, 'vendas' => [],
+            ]);
+        }
+    } catch (Throwable $e) {
+        sync_avancar('vendas', $lote, max($lotes, $lote), $itens, mb_substr($e->getMessage(), 0, 200));
+        return ['ok' => false, 'erro' => $e->getMessage(), 'desde' => $de, 'ate' => $ata];
+    }
+
+    return [
+        'ok'      => true,
+        'vendas'  => $gravadas,
+        'itens'   => $itens,
+        'desde'   => $de,
+        'ate'     => $ata,
+        // Parou no teto de tempo: o que veio esta gravado e o resto sai na
+        // proxima passada. Quem chama decide se avisa a pessoa ou se deixa o
+        // cron terminar sozinho.
+        'parcial' => $parcial,
+    ];
+}
+
 /** Dispara a coleta no n8n. Fire-and-forget, igual aos outros fluxos. */
 function vendas_disparar_sync(?string $desde = null, ?string $ate = null): array
 {

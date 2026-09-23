@@ -157,20 +157,54 @@ function sync_motivo_para_pular(?array $estado, int $minutos, ?string $agora = n
  *
  * @return array<string,array{nome:string,minutos:int,disparar:callable}>
  */
+/**
+ * Quem colhe: o PHP daqui ou o n8n.
+ *
+ * Preco, estoque e vendas passaram a ser colhidos aqui — sao duas ou tres
+ * requisicoes a uma API JSON, nao a raspagem pesada que justificou o n8n no
+ * comeco. A nota fiscal continua la, e continua sendo a razao de o n8n
+ * existir: ali sao tres viagens a SEFAZ e 1,7 MB de HTML por cupom.
+ *
+ * A chave existe para a volta ser barata. Enquanto os workflows estiverem
+ * apenas DESLIGADOS no n8n, um `sync_modo` = 'n8n' no config devolve o
+ * comportamento antigo sem mexer em codigo. Desligar e reversivel; apagar
+ * nao.
+ */
+function sync_modo(): string
+{
+    return (string) cfg('sync_modo', 'local') === 'n8n' ? 'n8n' : 'local';
+}
+
+/** Preco e estoque, pelo caminho que estiver valendo. */
+function sync_coletar_loja(array $pos_ids = []): array
+{
+    return sync_modo() === 'n8n'
+        ? loja_disparar_sync($pos_ids)
+        : loja_sincronizar_local($pos_ids);
+}
+
+/** Vendas, pelo caminho que estiver valendo. */
+function sync_coletar_vendas(?string $de = null, ?string $ate = null): array
+{
+    return sync_modo() === 'n8n'
+        ? vendas_disparar_sync($de, $ate)
+        : vendas_sincronizar_local($de, $ate);
+}
+
 function sync_fontes(): array
 {
     return [
         'vendas' => [
             'nome'     => 'vendas',
             'minutos'  => max(1, (int) cfg('cron_vendas_min', 5)),
-            'disparar' => static fn (): array => vendas_disparar_sync(),
+            'disparar' => static fn (): array => sync_coletar_vendas(),
         ],
         'loja' => [
             // Preco e estoque mudam devagar e a coleta e pesada (o inventario
             // inteiro de cada PDV): nao faz sentido no mesmo ritmo das vendas.
             'nome'     => 'preços e estoque',
             'minutos'  => max(1, (int) cfg('cron_loja_min', 30)),
-            'disparar' => static fn (): array => loja_disparar_sync(),
+            'disparar' => static fn (): array => sync_coletar_loja(),
         ],
     ];
 }

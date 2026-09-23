@@ -12,6 +12,9 @@ require APP . '/helpers.php';
 
 // loja.php chama cfg()/db() apenas dentro das funcoes que falam com o banco;
 // carregar o arquivo so define funcoes.
+require APP . '/mercado.php';
+require APP . '/touchpay.php';
+require APP . '/planograma.php';
 require APP . '/loja.php';
 
 // O caminho de erro do callback marca o progresso da importacao, que fala com
@@ -161,6 +164,94 @@ checar('o ano 5027 vira suspeita, nao urgencia',
     validade_estado('5027-02-18', $hoje)['classe'], 'suspeita');
 checar('e a tela pergunta em vez de afirmar',
     validade_estado('5027-02-18', $hoje)['texto'], 'validade 18/02/5027?');
+
+// ============================================================
+// COLETA LOCAL — o que antes era o workflow do n8n
+// ============================================================
+
+checar('EAN-8 e codigo de barras', eh_codigo_barras('78912345'), true);
+checar('EAN-13 tambem', eh_codigo_barras('7891234567895'), true);
+checar('GTIN-14 tambem', eh_codigo_barras('78912345678901'), true);
+// Codigo interno de balanca tem outro tamanho: deixar passar casaria produto
+// errado com o catalogo.
+checar('codigo curto nao e EAN', eh_codigo_barras('1234'), false);
+checar('codigo de 9 digitos nao e EAN', eh_codigo_barras('123456789'), false);
+checar('texto nao e EAN', eh_codigo_barras('BANANA'), false);
+checar('vazio nao e EAN', eh_codigo_barras(''), false);
+
+// ------------------------------------------- precos do planograma
+$entradas = [
+    ['productId' => 10, 'productCode' => 'OM7891234567895', 'price' => 9.5,
+     'minimumQuantity' => 2, 'capacity' => 12, 'productImageUrl' => 'http://x/1.png'],
+    ['productId' => 20, 'productCode' => '555', 'price' => 3.0,
+     'minimumQuantity' => 1, 'capacity' => 6, 'productImageUrl' => null],
+];
+$precos = loja_precos_do_planograma($entradas);
+
+checar('indexa por productId', $precos['por_id'][10]['preco'], 9.5);
+// O planograma nao traz EAN: o codigo sem "OM" e a segunda via de casamento.
+checar('e tambem pelo codigo sem OM', $precos['por_codigo']['7891234567895']['preco'], 9.5);
+checar('minimo vem junto', $precos['por_id'][10]['minimo'], 2);
+checar('capacidade vem junto', $precos['por_id'][10]['capacidade'], 12);
+checar('planograma vazio nao quebra', loja_precos_do_planograma([])['por_id'], []);
+
+// ------------------------------------------- a linha do espelho
+$item = [
+    'productId' => 10, 'productCode' => 'OM7891234567895',
+    'productBarCode' => '7891234567895', 'productDescription' => ' Refrigerante 2L ',
+    'productCategoryName' => 'Bebidas', 'quantity' => 4, 'reservedQuantity' => 1,
+    'averageCost' => 4.2, 'productConversionUnitName' => 'UN',
+    'productExpirationDate' => '2027-02-14T00:00:00Z',
+];
+$linha = loja_linha_do_inventario($item, $precos['por_id'][10]);
+
+checar('o OM sai do codigo', $linha['codigo'], '7891234567895');
+checar('o EAN vem do productBarCode', $linha['ean'], '7891234567895');
+checar('a descricao vem aparada', $linha['descricao'], 'Refrigerante 2L');
+checar('o preco vem do planograma', $linha['preco'], 9.5);
+checar('o estoque vem do inventario', $linha['estoque'], 4);
+checar('o reservado tambem', $linha['reservado'], 1);
+checar('a validade atravessa inteira', $linha['validade'], '2027-02-14T00:00:00Z');
+
+// Sem productBarCode, o proprio codigo serve — mas so se tiver cara de EAN.
+$semBarra = $item;
+unset($semBarra['productBarCode']);
+checar('sem barcode, o codigo limpo vira EAN',
+    loja_linha_do_inventario($semBarra, null)['ean'], '7891234567895');
+
+$interno = ['productId' => 30, 'productCode' => '778', 'quantity' => 2];
+checar('codigo interno nao vira EAN', loja_linha_do_inventario($interno, null)['ean'], '');
+// Sem planograma nao ha preco de venda: null e mais honesto do que zero, que
+// diria que o produto sai de graca.
+checar('sem planograma, preco null', loja_linha_do_inventario($interno, null)['preco'], null);
+checar('sem planograma, minimo null', loja_linha_do_inventario($interno, null)['minimo'], null);
+
+// ------------------------------------------- o payload do PDV
+$pdv = ['id' => 7, 'localName' => 'Italia', 'posType' => 'kiosk',
+        'inventoryId' => 42, 'currentPlanogramId' => 96823];
+$inventario = [
+    $item,
+    ['productId' => 20, 'productCode' => '555', 'quantity' => 3],
+    ['productId' => 99, 'productCode' => '999', 'quantity' => 1],
+];
+$payload = loja_montar_payload($pdv, $entradas, $inventario, 1, 2);
+
+checar('o payload tem um item por linha do inventario', count($payload['itens']), 3);
+checar('o PDV vai identificado', $payload['pos']['id'], 7);
+checar('com o inventario', $payload['pos']['inventario_id'], 42);
+checar('e com o planograma', $payload['pos']['planograma_id'], 96823);
+checar('lote e lotes viram a barra de progresso', [$payload['lote'], $payload['lotes']], [1, 2]);
+// Diagnostico: o produto 99 nao esta no planograma, entao ficou sem preco.
+checar('conta quem ficou sem preco', $payload['sem_preco'], 1);
+checar('conta quem ficou sem EAN', $payload['sem_ean'], 2);
+// O casamento por codigo funciona mesmo sem o productId bater.
+checar('o produto 20 achou preco pelo codigo', $payload['itens'][1]['preco'], 3.0);
+// PDV sem planograma: todo mundo sem preco, e o espelho ainda se monta.
+$semPlano = loja_montar_payload(['id' => 8, 'localName' => 'Nova'], [], $inventario, 1, 1);
+checar('sem planograma o espelho ainda vem', count($semPlano['itens']), 3);
+checar('e todos sem preco', $semPlano['sem_preco'], 3);
+checar('planograma_id nulo quando nao ha', $semPlano['pos']['planograma_id'], null);
+checar('o nome cai no fallback', loja_montar_payload(['id' => 9], [], [], 1, 1)['pos']['nome'], 'PDV 9');
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

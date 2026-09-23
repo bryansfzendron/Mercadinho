@@ -49,6 +49,12 @@ return [
     // Login do painel do TouchPay. Fica SO aqui: este arquivo nao vai para o
     // git, e o n8n recebe as credenciais no corpo do disparo em vez de
     // guarda-las dentro do workflow.
+    // 'local' (padrao): o PHP colhe preco, estoque e vendas direto do
+    // TouchPay. 'n8n': volta a disparar os webhooks antigos — util so
+    // enquanto os workflows continuarem existindo, desligados, la.
+    // A NOTA FISCAL nao entra nesta chave: ela e sempre pelo n8n.
+    'sync_modo' => 'local',
+
     'touchpay_email' => '',
     'touchpay_senha' => '',
 

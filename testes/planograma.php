@@ -353,5 +353,17 @@ checar('o instante tem cara de ISO 8601 em Z', (bool) preg_match(
 checar('o instante e UTC, nao a hora daqui',
     substr(tp_instante(), 0, 13), substr(gmdate('Y-m-d\TH'), 0, 13));
 
+// ------------------------------------------ a URL das transacoes
+$u = tp_transacoes_url('2026-09-01', '2026-09-23', 2, 1000);
+
+checar('a janela vai na URL', str_contains($u, 'minDate=2026-09-01&maxDate=2026-09-23'), true);
+checar('a pagina tambem', str_contains($u, 'page=2&pageSize=1000'), true);
+// Do mais velho para o mais novo: e o que faz uma carga interrompida
+// continuar de onde parou, porque a proxima janela nasce do MAX(data_hora)
+// ja gravado. Do mais novo para o mais velho, o buraco ficaria no meio.
+checar('vem do mais velho para o mais novo', str_contains($u, 'sortOrder=date&descending=false'), true);
+checar('o fuso de Brasilia acompanha', str_contains($u, 'timezoneOffset=180'), true);
+checar('nao filtra por CPF', str_contains($u, 'onlyWithCpf=false'), true);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

@@ -12,6 +12,9 @@ require APP . '/helpers.php';
 
 // vendas.php so define funcoes; cfg()/db() so aparecem dentro das que falam
 // com o banco ou com a rede.
+require APP . '/mercado.php';
+require APP . '/touchpay.php';
+require APP . '/planograma.php';
 require APP . '/vendas.php';
 
 date_default_timezone_set('America/Sao_Paulo');
@@ -300,6 +303,73 @@ $deGraca = vendas_produtos_custear(
 checar('sem custo nao ha fator', $deGraca[0]['fator'], null);
 
 checar('lista vazia devolve lista vazia', vendas_produtos_custear([], $custos, 50.0, 10.0), []);
+
+// ============================================================
+// COLETA LOCAL — o que antes era o workflow do n8n
+// ============================================================
+
+// A armadilha que custou caro descobrir: price e paymentAmount do ITEM sao o
+// TOTAL da linha, nao o unitario. Item com quantidade 4 veio com price 15,56
+// (3,89 cada). Somar paymentAmount bate com o total da transacao em 1000 de
+// 1000 casos; multiplicar por quantidade erra em 213.
+$item = [
+    'productId' => 8, 'productCode' => 'OM7891234567895',
+    'productDescription' => ' KIT KAT ', 'productCategoryName' => 'Doces',
+    'quantity' => 4, 'price' => 15.56, 'paymentAmount' => 15.56,
+];
+$li = vendas_item_da_transacao($item);
+
+checar('valor_total e o total da linha, nao o unitario', $li['valor_total'], 15.56);
+checar('o OM sai do codigo', $li['codigo'], '7891234567895');
+checar('e vira EAN quando tem cara de EAN', $li['ean'], '7891234567895');
+checar('a descricao vem aparada', $li['descricao'], 'KIT KAT');
+checar('a quantidade atravessa', $li['quantidade'], 4);
+
+// Sem paymentAmount, vale o price — ainda como total da linha.
+$semPagamento = $item;
+unset($semPagamento['paymentAmount']);
+checar('sem paymentAmount, cai no price',
+    vendas_item_da_transacao($semPagamento)['valor_total'], 15.56);
+// Codigo interno nao vira EAN: casaria produto errado com o catalogo.
+checar('codigo interno nao vira EAN',
+    vendas_item_da_transacao(['productCode' => '778', 'quantity' => 1])['ean'], '');
+// Item sem quantidade e um item: uma unidade.
+checar('sem quantidade, vale um',
+    vendas_item_da_transacao(['productCode' => '778'])['quantidade'], 1);
+
+// --------------------------------------------------- a transacao
+$t = [
+    'id' => 555, 'uuid' => 'abc-123', 'date' => '2026-09-22T11:15:00',
+    'pointOfSaleId' => 7, 'pointOfSaleLocalName' => 'Italia',
+    'result' => 'approved', 'paymentMethod' => 'credit', 'cardBrand' => 'visa',
+    'totalPrice' => 19.55, 'paymentAmount' => 19.55,
+    'friendlyTransactionCode' => 'A1B2',
+    'items' => [$item, ['productCode' => '555', 'quantity' => 1, 'paymentAmount' => 3.99]],
+    // Produtos que o cliente pegou e devolveu a gondola: nao entram em items
+    // nem no total pago, e soma-los faria a venda fechar por valor que
+    // ninguem cobrou.
+    'subtractedItems' => [['productCode' => '999', 'quantity' => 1, 'paymentAmount' => 5.0]],
+];
+$v = vendas_venda_da_transacao($t);
+
+checar('a venda leva o id', $v['id'], 555);
+checar('e o pdv', $v['pdv_id'], 7);
+checar('com o nome do pdv', $v['pdv_nome'], 'Italia');
+checar('a forma de pagamento atravessa', $v['forma_pagamento'], 'credit');
+checar('o valor pago tambem', $v['valor_pago'], 19.55);
+checar('dois itens, e so os dois', count($v['itens']), 2);
+// A soma das linhas tem de fechar com o total da transacao.
+checar('as linhas somam o total pago',
+    round(array_sum(array_column($v['itens'], 'valor_total')), 2), 19.55);
+
+// Sem paymentAmount na transacao, vale o totalPrice.
+$semPago = $t;
+unset($semPago['paymentAmount']);
+checar('sem paymentAmount, cai no totalPrice', vendas_venda_da_transacao($semPago)['valor_pago'], 19.55);
+// Nome do PDV ausente cai no fallback, senao a venda ficaria orfa.
+checar('sem nome, o PDV vira "PDV n"',
+    vendas_venda_da_transacao(['pointOfSaleId' => 3])['pdv_nome'], 'PDV 3');
+checar('transacao sem itens nao quebra', vendas_venda_da_transacao(['id' => 1])['itens'], []);
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

@@ -126,6 +126,23 @@ function so_digitos(?string $s): string
 }
 
 /**
+ * O texto E, ele proprio, um codigo de barras? Funcao pura.
+ *
+ * Oito digitos (EAN-8) ou de doze a quatorze (UPC-A, EAN-13, GTIN-14).
+ * Codigo interno de balanca tem outro tamanho e nao vale como EAN — deixar
+ * passar casaria produto errado com o catalogo.
+ *
+ * Diferente de ean_normalizado(), que LIMPA um campo de EAN vindo da nota
+ * (tira pontuacao, entende "SEM GTIN"). Aqui a pergunta e outra: o que veio
+ * ja e um codigo de barras ou e so um codigo interno da loja? Por isso a
+ * regra e estrita, e e a mesma do coletor do TouchPay.
+ */
+function eh_codigo_barras(string $valor): bool
+{
+    return (bool) preg_match('/^\d{8}$|^\d{12,14}$/', $valor);
+}
+
+/**
  * Devolve o EAN normalizado, ou null quando o emitente nao informou GTIN.
  * No NFC-e isso vem como "SEM GTIN" com muita frequencia.
  */

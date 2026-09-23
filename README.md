@@ -372,7 +372,7 @@ pelo valor do item removido, pela mesma razão da correção.
 
 Além de "quanto eu paguei", a tela de bipar mostra **por quanto a loja vende** e
 **quanto tem em estoque agora**. Esses dados vêm do painel TouchPay (AMLabs) por um
-segundo workflow n8n, `n8n/touchpay-mercadinho.workflow.json`.
+segundo workflow n8n, `n8n/touchpay-mercadinho.workflow.json` — **até a migração**; hoje quem colhe é `loja_sincronizar_local()`, e o workflow fica só como caminho de volta.
 
 O que foi descoberto sobre essa API, tudo conferido contra a conta real:
 
@@ -448,9 +448,9 @@ vezes digitando `1,9`.
 
 ### Isto não passa pelo n8n
 
-O espelho passa porque é raspagem pesada: dispara, esquece, o callback chega quando
-chegar. Repor é o contrário — bipa, vê, corrige, salva, com o carrinho parado no
-corredor. Callback assíncrono aqui seria pedir para a pessoa recarregar a página para
+Nenhum dos fluxos do TouchPay passa mais — preço, estoque e vendas também são colhidos
+aqui desde a migração (veja *Sair do n8n*). Mas a razão de **repor** nunca ter passado é
+outra e continua valendo: bipa, vê, corrige, salva, com o carrinho parado no corredor. Callback assíncrono aqui seria pedir para a pessoa recarregar a página para
 descobrir se o preço pegou. Então `app/touchpay.php` fala cURL direto com o painel,
 igual ao `off_buscar()` do Mercado. O JWT vale ~1h, mora em `touchpay_sessao` (uma
 linha) e não na sessão do PHP: um login por hora para o app inteiro, em vez de um por
@@ -610,10 +610,86 @@ validade cadastrada, e uma coluna de travessões em trezentas linhas não inform
 
 Quem grava pela tela do Repor não espera o próximo sync: o espelho é atualizado junto.
 
+## Sair do n8n
+
+Preço, estoque e vendas **não passam mais pelo n8n**. O PHP colhe direto do TouchPay, e
+o cron da Hostinger — que já existia e já agendava tudo — passou a fazer o trabalho em
+vez de só disparar webhook.
+
+O n8n continua, com **um** workflow: a **nota fiscal**. Esse fica, e é ele que justifica
+o n8n existir — três viagens à SEFAZ e ~1,7 MB de HTML por cupom, com `__VIEWSTATE` de
+ASP.NET que muda sem aviso. Ali o isolamento vale o incômodo: quando a SEFAZ quebra,
+quebra só a importação de nota, e não as telas que o cliente usa.
+
+### Por que dava para sair
+
+O espelho nasceu passando pelo n8n porque *parecia* raspagem pesada. Não é: são **duas
+requisições por ponto de venda**, e o TouchPay entrega o inventário inteiro (1211 itens
+no PDV maior) numa só, em ~400 ms. Vendas é uma requisição por mil transações. Isso é
+chamada a API JSON, não raspagem — e o app já falava cURL direto com o mesmo painel
+desde que a tela de repor existe.
+
+O que se ganha não é velocidade, é **uma versão só do código**. O JSON do workflow é
+gerado pelos `montar-*.js` e tinha ficado atrasado em relação ao JS que o gera: a fonte
+já pedia o inventário no instante de agora, o JSON ainda pedia a meia-noite. Foi dessa
+defasagem que nasceu o bug da data do inventário, que chegou a entrar no PHP por eu ter
+lido o arquivo errado.
+
+### O contrato não mudou
+
+A coleta local monta **o mesmo payload** que o n8n postava, e quem grava continua sendo
+`loja_processar_callback()` e `vendas_processar_callback()`. A parte testada não mudou de
+forma — as rotas `/api/loja/callback` e `/api/vendas/callback` seguem de pé, porque é
+por elas que o modo antigo volta.
+
+| antes | agora |
+|---|---|
+| cron dispara webhook → n8n colhe → POST callback | cron colhe e grava na mesma execução |
+| `loja_disparar_sync()` | `loja_sincronizar_local()` |
+| `vendas_disparar_sync()` | `vendas_sincronizar_local()` |
+
+### A chave de volta
+
+`sync_modo` no `config.php`: `'local'` (padrão) ou `'n8n'`. Enquanto os workflows
+estiverem apenas **desligados** lá — e não apagados —, trocar essa linha devolve o
+comportamento antigo sem mexer em código. Desligar é reversível; apagar não. A nota
+fiscal **não** entra nessa chave: ela é sempre pelo n8n.
+
+`sync_coletar_loja()` e `sync_coletar_vendas()` são os dois pontos onde a chave é lida, e
+tanto o cron quanto os botões das telas passam por eles — senão o botão continuaria
+disparando webhook enquanto o cron já colhia local.
+
+### Vendas grava conforme colhe
+
+A carga inicial são 365 dias, ~12,5 mil transações, 13 requisições. Guardar tudo na
+memória para gravar no fim seria carregar o ano inteiro de uma vez, e uma queda no meio
+perderia tudo. Então grava em lotes de 500 **enquanto** coleta.
+
+Isso funciona porque a coleta vem **do mais velho para o mais novo**
+(`sortOrder=date&descending=false`): a janela seguinte nasce do `MAX(data_hora)` já
+gravado, então uma coleta interrompida retoma sozinha na execução seguinte do cron. Do
+mais novo para o mais velho, o buraco ficaria no meio e ninguém perceberia.
+
+### O teto de tempo do caminho web
+
+No cron não há pressa: CLI não tem teto de execução. Na web há — a hospedagem corta em
+30s, e a tela deixa pedir uma janela de vendas de qualquer tamanho. Então o caminho web
+trabalha até ~20s e **para limpo**, devolvendo `parcial: true`.
+
+Parar no meio não perde nada, e isso só é verdade por causa da ordem da coleta: o que já
+entrou fica, e a janela seguinte nasce do `MAX(data_hora)` gravado. O cron termina o
+resto sozinho.
+
+### Um PDV que cai não leva os outros
+
+O espelho é por ponto de venda, e cada um é trocado na sua própria transação. Container
+fora do ar vira uma linha de erro no estado do sync e o laço segue: meia loja atualizada
+é melhor do que nenhuma.
+
 ## Vendas (TouchPay)
 
 O espelho acima diz por quanto a loja vende hoje. As **vendas que aconteceram** vêm de
-outro endpoint e de um terceiro workflow, `n8n/touchpay-vendas.workflow.json`, porque a
+outro endpoint (hoje lido por `vendas_sincronizar_local()`; antes, um terceiro workflow) porque a
 cadência é outra: preço e estoque são uma foto do agora, venda é histórico.
 
 - `GET /api/Transactions` devolve tudo numa chamada só — **cada transação já traz os

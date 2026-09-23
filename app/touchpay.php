@@ -436,6 +436,40 @@ function tp_inventario_tudo(int $inventario_id, ?int $produto_id = null): array
 }
 
 /**
+ * A URL das transacoes. Funcao pura, separada para poder ser testada.
+ *
+ * `sortOrder=date&descending=false` — do mais velho para o mais novo, e nao
+ * e detalhe: e o que faz uma carga interrompida continuar de onde parou. Como
+ * a janela seguinte nasce do MAX(data_hora) ja gravado, uma coleta que morra
+ * na metade retoma sozinha; se viesse do mais novo para o mais velho, o
+ * buraco ficaria no meio e ninguem perceberia.
+ *
+ * Os campos vazios vao todos explicitos, do jeito que o painel deles manda.
+ */
+function tp_transacoes_url(string $de, string $ate, int $pagina, int $por_pagina): string
+{
+    return '/api/Transactions?customerId=&localId=&pointOfSaleId=&paymentMethod='
+        . '&minAmount=&maxAmount=&cardHolder=&cpf=&minTime=&maxTime=&productId='
+        . '&onlyWithCpf=false&timezoneOffset=180&sortOrder=date&descending=false'
+        . '&minDate=' . rawurlencode($de) . '&maxDate=' . rawurlencode($ate)
+        . '&page=' . $pagina . '&pageSize=' . $por_pagina;
+}
+
+/**
+ * Uma pagina de transacoes, com o total que o servidor diz ter.
+ *
+ * Mil por pagina: medido contra a conta real, mil transacoes voltam em ~600ms
+ * e um ano inteiro (12,5 mil) sai em 13 requisicoes.
+ *
+ * @return array{itens:array, total:?int}
+ */
+function tp_transacoes_pagina(string $de, string $ate, int $pagina, int $por_pagina = 1000): array
+{
+    $r = tp_chamar('GET', tp_transacoes_url($de, $ate, $pagina, $por_pagina));
+    return ['itens' => pg_itens($r), 'total' => tp_total($r)];
+}
+
+/**
  * Fecha uma operacao de inventario — e o unico jeito de gravar validade.
  *
  * Nao existe endpoint de "altera a validade deste item": o que existe e

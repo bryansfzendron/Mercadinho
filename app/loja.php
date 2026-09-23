@@ -77,6 +77,228 @@ function validade_estado(?string $data, ?string $hoje = null): array
     return ['texto' => 'validade ' . $br, 'classe' => '', 'dias' => $dias];
 }
 
+// ---------------------------------------------------------------------
+// Coleta local — o que antes era o workflow do n8n
+// ---------------------------------------------------------------------
+//
+// O espelho nasceu passando pelo n8n porque parecia raspagem pesada. Depois
+// ficou claro que nao e: sao duas requisicoes por ponto de venda, e o
+// TouchPay entrega o inventario inteiro (1211 itens no PDV maior) numa so.
+// Fazendo aqui, some a viagem de ida e volta, some o webhook, some a
+// credencial viajando no corpo, e o codigo passa a ter UMA versao — o JSON
+// do workflow ja tinha ficado atrasado em relacao ao JS que o gera, e foi
+// dessa defasagem que nasceu o bug da data do inventario.
+//
+// O contrato do callback fica igual. Estas funcoes montam o MESMO payload
+// que o n8n postava, e quem grava continua sendo loja_processar_callback():
+// a parte testada nao muda de forma.
+
+/**
+ * Os precos do planograma, indexados de duas formas. Funcao pura.
+ *
+ * Por productId e a via boa. Por codigo sem o "OM" e a segunda via: o
+ * planograma nao traz EAN, entao quando o id nao casa o codigo limpo salva.
+ *
+ * @return array{por_id:array<int,array>, por_codigo:array<string,array>}
+ */
+function loja_precos_do_planograma(array $entradas): array
+{
+    $por_id = [];
+    $por_codigo = [];
+
+    foreach ($entradas as $linha) {
+        $dados = [
+            'preco'      => $linha['price'] ?? null,
+            'minimo'     => $linha['minimumQuantity'] ?? null,
+            'capacidade' => $linha['capacity'] ?? null,
+            'imagem'     => $linha['productImageUrl'] ?? null,
+        ];
+        $id = (int) ($linha['productId'] ?? 0);
+        if ($id > 0) {
+            $por_id[$id] = $dados;
+        }
+        $codigo = pg_codigo_limpo($linha['productCode'] ?? '');
+        if ($codigo !== '') {
+            $por_codigo[$codigo] = $dados;
+        }
+    }
+
+    return ['por_id' => $por_id, 'por_codigo' => $por_codigo];
+}
+
+/**
+ * Uma linha do espelho, a partir do item de inventario. Funcao pura.
+ *
+ * O EAN bom e o productBarCode; faltando ele, o proprio codigo sem "OM"
+ * costuma SER o codigo de barras — mas so quando tem cara de um, senao o
+ * codigo interno da balanca entraria no lugar do EAN e casaria produto
+ * errado com o catalogo.
+ *
+ * Sem planograma nao ha preco de venda, e `preco` fica null: gravar zero
+ * diria que o produto sai de graca.
+ */
+function loja_linha_do_inventario(array $item, ?array $dados): array
+{
+    $codigo = pg_codigo_limpo($item['productCode'] ?? '');
+    $bruto  = trim((string) ($item['productBarCode'] ?? ''));
+    $ean    = $bruto !== '' ? $bruto : (eh_codigo_barras($codigo) ? $codigo : '');
+
+    return [
+        'produto_id_externo' => $item['productId'] ?? null,
+        'ean'                => $ean,
+        'codigo'             => $codigo,
+        'descricao'          => trim((string) ($item['productDescription'] ?? '')),
+        'categoria'          => trim((string) ($item['productCategoryName'] ?? '')),
+        'preco'              => $dados !== null ? ($dados['preco'] ?? null) : null,
+        'estoque'            => $item['quantity'] ?? 0,
+        'reservado'          => $item['reservedQuantity'] ?? 0,
+        'custo_medio'        => $item['averageCost'] ?? 0,
+        'unidade'            => $item['productConversionUnitName'] ?? null,
+        'minimo'             => $dados !== null ? ($dados['minimo'] ?? null) : null,
+        'capacidade'         => $dados !== null ? ($dados['capacidade'] ?? null) : null,
+        'imagem'             => $dados !== null ? ($dados['imagem'] ?? null) : null,
+        'validade'           => $item['productExpirationDate'] ?? null,
+    ];
+}
+
+/**
+ * O payload de um ponto de venda — o mesmo que o n8n postava. Funcao pura.
+ *
+ * `lote`/`lotes` continuam existindo porque a tela desenha a barra de
+ * progresso com eles: aqui um lote e um PDV, igual a antes.
+ */
+function loja_montar_payload(array $pdv, array $entradas, array $inventario,
+                             int $lote, int $lotes): array
+{
+    $precos = loja_precos_do_planograma($entradas);
+
+    $linhas = [];
+    $sem_preco = 0;
+    $sem_ean = 0;
+
+    foreach ($inventario as $item) {
+        $id     = (int) ($item['productId'] ?? 0);
+        $codigo = pg_codigo_limpo($item['productCode'] ?? '');
+
+        $dados = $precos['por_id'][$id] ?? $precos['por_codigo'][$codigo] ?? null;
+        if ($dados === null) {
+            $sem_preco++;
+        }
+
+        $linha = loja_linha_do_inventario($item, $dados);
+        if ($linha['ean'] === '') {
+            $sem_ean++;
+        }
+        $linhas[] = $linha;
+    }
+
+    return [
+        'status' => 'ok',
+        'fonte'  => 'touchpay',
+        'lote'   => $lote,
+        'lotes'  => $lotes,
+        'pos'    => [
+            'id'            => (int) ($pdv['id'] ?? 0),
+            'nome'          => $pdv['localName'] ?? $pdv['localCustomerName'] ?? ('PDV ' . ($pdv['id'] ?? '?')),
+            'tipo'          => $pdv['posType'] ?? null,
+            'inventario_id' => (int) ($pdv['inventoryId'] ?? $pdv['id'] ?? 0),
+            'planograma_id' => ((int) ($pdv['currentPlanogramId'] ?? 0)) ?: null,
+        ],
+        'consultado_em' => gmdate('Y-m-d\TH:i:s') . '.000Z',
+        'sem_preco'     => $sem_preco,
+        'sem_ean'       => $sem_ean,
+        'itens'         => $linhas,
+    ];
+}
+
+/**
+ * Colhe preco e estoque de cada PDV e grava, sem passar pelo n8n.
+ *
+ * Roda do comeco ao fim na mesma execucao — nada de disparar e esperar
+ * callback. Quem chama e o cron (CLI, sem teto de tempo) ou o botao da tela,
+ * e a barra de progresso continua sendo alimentada por sync_avancar() de
+ * dentro de loja_processar_callback(), um PDV por vez.
+ *
+ * Um PDV que falhe nao derruba os outros: o espelho de cada ponto de venda e
+ * independente, e meia loja atualizada e melhor do que nenhuma.
+ */
+function loja_sincronizar_local(array $pos_ids = []): array
+{
+    if (!tp_configurado()) {
+        return ['ok' => false, 'erro' => 'touchpay_email/touchpay_senha nao configurados'];
+    }
+
+    sync_iniciar('loja');
+
+    try {
+        $pdvs = tp_pdvs();
+    } catch (TouchPayErro $e) {
+        sync_avancar('loja', 0, 0, 0, $e->getMessage());
+        return ['ok' => false, 'erro' => $e->getMessage()];
+    }
+
+    $filtro = array_values(array_filter(array_map('intval', $pos_ids)));
+    if ($filtro) {
+        $pdvs = array_values(array_filter(
+            $pdvs,
+            static fn (array $p): bool => in_array((int) ($p['id'] ?? 0), $filtro, true)
+        ));
+    }
+    if (!$pdvs) {
+        $erro = 'O TouchPay nao devolveu nenhum ponto de venda.';
+        sync_avancar('loja', 0, 0, 0, $erro);
+        return ['ok' => false, 'erro' => $erro];
+    }
+
+    $lotes  = count($pdvs);
+    $itens  = 0;
+    $falhas = [];
+
+    // Mesmo cuidado do fluxo de vendas: no cron nao ha teto, na web ha 30s.
+    // Cada PDV e uma transacao fechada em si, entao parar entre um e outro
+    // deixa o espelho consistente — o PDV que faltou sai na proxima passada.
+    $teto = PHP_SAPI === 'cli' ? 0 : 20;
+    $comecou = microtime(true);
+
+    foreach ($pdvs as $i => $pdv) {
+        $lote = $i + 1;
+        if ($teto > 0 && $i > 0 && (microtime(true) - $comecou) >= $teto) {
+            $falhas[] = 'parei no tempo: faltaram ' . ($lotes - $i) . ' ponto(s) de venda';
+            break;
+        }
+        try {
+            $plano = (int) ($pdv['currentPlanogramId'] ?? 0);
+            $entradas = $plano > 0 ? tp_planograma_tudo($plano) : [];
+            $inventario = tp_inventario_tudo((int) ($pdv['inventoryId'] ?? $pdv['id'] ?? 0));
+
+            $r = loja_processar_callback(loja_montar_payload($pdv, $entradas, $inventario, $lote, $lotes));
+            if (!($r['ok'] ?? false)) {
+                $falhas[] = ($pdv['localName'] ?? $pdv['id']) . ': ' . ($r['mensagem'] ?? 'sem detalhe');
+                continue;
+            }
+            $itens += (int) ($r['itens'] ?? 0);
+        } catch (Throwable $e) {
+            // O PDV que caiu vira uma linha de erro no estado do sync, e o
+            // laco segue: espelho e por ponto de venda, e um container fora
+            // do ar nao pode levar os outros junto.
+            $falhas[] = ($pdv['localName'] ?? $pdv['id']) . ': ' . $e->getMessage();
+            sync_avancar('loja', $lote, $lotes, $itens, mb_substr($e->getMessage(), 0, 200));
+        }
+    }
+
+    if ($falhas && $itens === 0) {
+        return ['ok' => false, 'erro' => implode(' · ', $falhas)];
+    }
+    return [
+        'ok'     => true,
+        'itens'  => $itens,
+        'pdvs'   => $lotes,
+        'erro'   => $falhas ? implode(' · ', $falhas) : null,
+        'desde'  => null,
+        'ate'    => null,
+    ];
+}
+
 /** Dispara a sincronizacao no n8n. Fire-and-forget, como o fluxo da nota. */
 function loja_disparar_sync(array $pos_ids = []): array
 {
