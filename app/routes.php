@@ -716,13 +716,19 @@ function rota_margens(array $u): void
 function rota_api_sincronizar(array $u): void
 {
     exigir_csrf();
+    $corpo = corpo_json();
 
-    $r = sync_disparar_pendentes();
-    json_resposta([
-        'ok'       => true,
-        'disparou' => sync_disparou_alguma($r),
-        'fontes'   => $r,
-    ]);
+    // A janela so vem da tela de Vendas, que manda a que esta filtrada: e
+    // assim que "reconferir este periodo" virou o mesmo gesto das outras
+    // telas, em vez de um botao proprio.
+    $r = sync_puxar(
+        data_iso($corpo['de'] ?? null),
+        data_iso($corpo['ate'] ?? null)
+    );
+
+    // `disparou` continua no corpo porque o gesto le esse campo para decidir
+    // se vale a pena esperar antes de recarregar.
+    json_resposta($r + ['disparou' => true]);
 }
 
 /**

@@ -222,7 +222,7 @@ function loja_montar_payload(array $pdv, array $entradas, array $inventario,
  * Um PDV que falhe nao derruba os outros: o espelho de cada ponto de venda e
  * independente, e meia loja atualizada e melhor do que nenhuma.
  */
-function loja_sincronizar_local(array $pos_ids = []): array
+function loja_sincronizar_local(array $pos_ids = [], ?int $teto_segundos = null): array
 {
     if (!tp_configurado()) {
         return ['ok' => false, 'erro' => 'touchpay_email/touchpay_senha nao configurados'];
@@ -257,13 +257,14 @@ function loja_sincronizar_local(array $pos_ids = []): array
     // Mesmo cuidado do fluxo de vendas: no cron nao ha teto, na web ha 30s.
     // Cada PDV e uma transacao fechada em si, entao parar entre um e outro
     // deixa o espelho consistente — o PDV que faltou sai na proxima passada.
-    $teto = PHP_SAPI === 'cli' ? 0 : 20;
+    $teto = $teto_segundos ?? (PHP_SAPI === 'cli' ? 0 : 20);
     $comecou = microtime(true);
+    $parcial = false;
 
     foreach ($pdvs as $i => $pdv) {
         $lote = $i + 1;
         if ($teto > 0 && $i > 0 && (microtime(true) - $comecou) >= $teto) {
-            $falhas[] = 'parei no tempo: faltaram ' . ($lotes - $i) . ' ponto(s) de venda';
+            $parcial = true;
             break;
         }
         try {
@@ -290,12 +291,14 @@ function loja_sincronizar_local(array $pos_ids = []): array
         return ['ok' => false, 'erro' => implode(' · ', $falhas)];
     }
     return [
-        'ok'     => true,
-        'itens'  => $itens,
-        'pdvs'   => $lotes,
-        'erro'   => $falhas ? implode(' · ', $falhas) : null,
-        'desde'  => null,
-        'ate'    => null,
+        'ok'      => true,
+        'itens'   => $itens,
+        'pdvs'    => $lotes,
+        'erro'    => $falhas ? implode(' · ', $falhas) : null,
+        'desde'   => null,
+        'ate'     => null,
+        // Faltou ponto de venda: quem chamou volta e termina.
+        'parcial' => $parcial,
     ];
 }
 

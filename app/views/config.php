@@ -29,14 +29,14 @@
         <?php else: ?>
             <p class="ajuda">Nenhum ponto de venda sincronizado ainda.</p>
         <?php endif; ?>
-        <button type="button" id="btn-sync-loja" class="botao">Atualizar preços e estoque</button>
         <div class="progresso" id="prog-loja" hidden>
             <div class="progresso-barra"><span></span></div>
             <p class="ajuda progresso-texto"></p>
         </div>
         <p class="ajuda" id="sync-estado">
-            Rebusca o planograma e o inventário de cada PDV. É o que alimenta o preço de
-            venda que aparece ao bipar.
+            <strong>Arraste qualquer tela para baixo</strong> para atualizar. Rebusca o
+            planograma e o inventário de cada PDV — é o que alimenta o preço de venda que
+            aparece ao bipar.
         </p>
     </div>
 
@@ -51,9 +51,6 @@
         <?php else: ?>
             <p class="ajuda">Nenhuma venda importada ainda. A primeira carga puxa 12 meses.</p>
         <?php endif; ?>
-        <button type="button" id="btn-sync-vendas" class="botao">
-            <?= (int) $vendas['vendas'] === 0 ? 'Importar 12 meses de vendas' : 'Buscar vendas novas' ?>
-        </button>
         <div class="progresso" id="prog-vendas" hidden>
             <div class="progresso-barra"><span></span></div>
             <p class="ajuda progresso-texto"></p>
@@ -101,17 +98,18 @@
 
     <script>
     (function () {
-        const CSRF = <?= json_encode(csrf_token()) ?>;
         const INICIAL = <?= json_encode($sync) ?>;
 
         /*
-         * Os dois botões pedem ao n8n e voltam na hora: quem grava é o
-         * callback. A barra vem de perguntar o placar de tempos em tempos —
-         * o fluxo diz "lote 7 de 25", então o número é real, não animação.
+         * Só o placar. Quem colhe é o gesto de arrastar para baixo, de
+         * qualquer tela, e quem grava é o próprio PHP desde que os fluxos
+         * saíram do n8n. A barra vem de perguntar o estado de tempos em
+         * tempos — a coleta diz "lote 7 de 25", então o número é real e não
+         * animação.
          */
         const fontes = {
-            loja:   { botao: 'btn-sync-loja',   prog: 'prog-loja',   url: '/api/loja/sincronizar',   nome: 'pontos de venda' },
-            vendas: { botao: 'btn-sync-vendas', prog: 'prog-vendas', url: '/api/vendas/sincronizar', nome: 'lotes' },
+            loja:   { prog: 'prog-loja',   nome: 'pontos de venda' },
+            vendas: { prog: 'prog-vendas', nome: 'lotes' },
         };
         let relogio = null;
 
@@ -169,41 +167,11 @@
             olhar();
         }
 
-        for (const [fonte, cfg] of Object.entries(fontes)) {
+        // So desenha o placar. Atualizar e um gesto so, em qualquer tela:
+        // arrastar para baixo. Esta tela mostra o andamento porque e onde se
+        // vem olhar quando alguma coisa parece velha.
+        for (const fonte of Object.keys(fontes)) {
             desenhar(fonte, INICIAL[fonte]);
-            document.getElementById(cfg.botao).addEventListener('click', async () => {
-                const caixa = document.getElementById(cfg.prog);
-                const barra = caixa.querySelector('.progresso-barra');
-                const texto = caixa.querySelector('.progresso-texto');
-                const botao = document.getElementById(cfg.botao);
-
-                caixa.hidden = false;
-                caixa.classList.remove('erro', 'pronto');
-                barra.classList.add('indeterminada');
-                barra.querySelector('span').style.width = '100%';
-                texto.textContent = 'Pedindo os dados ao TouchPay...';
-                botao.disabled = true;
-
-                try {
-                    const r = await fetch(cfg.url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
-                    });
-                    const d = await Resposta.ler(r);
-                    if (!d.ok) {
-                        caixa.classList.add('erro');
-                        texto.textContent = 'Não deu: ' + (d.erro || 'erro desconhecido');
-                        botao.disabled = false;
-                        return;
-                    }
-                } catch (e) {
-                    caixa.classList.add('erro');
-                    texto.textContent = Resposta.frase(e);
-                    botao.disabled = false;
-                    return;
-                }
-                acompanhar();
-            });
         }
 
         // Recarregou no meio de uma importacao: continua acompanhando.

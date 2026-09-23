@@ -22,8 +22,8 @@ $ordens = [
 
 <?php if (!$pdvs): ?>
     <p class="vazio">
-        Nenhum ponto de venda sincronizado ainda.
-        <a href="/">Atualizar preços e estoque</a>
+        Nenhum ponto de venda sincronizado ainda.<br>
+        Arraste a tela para baixo para buscar preços e estoque.
     </p>
 <?php else: ?>
 

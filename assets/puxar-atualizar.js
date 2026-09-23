@@ -203,19 +203,57 @@
         return meta ? meta.getAttribute('content') : '';
     }
 
-    /** Pede as duas coletas. Devolve se alguma foi mesmo disparada. */
+    /**
+     * A janela que esta tela quer reconferir, quando tem uma.
+     *
+     * So a tela de Vendas define — com o periodo que esta filtrado. E o que
+     * transformou "reconferir este periodo" no mesmo gesto das outras telas:
+     * filtra o mes, arrasta para baixo, e aquele mes e rebuscado. Nas demais
+     * telas nao ha janela, e o puxao atualiza o de sempre.
+     */
+    function janelaDaTela() {
+        const j = global.SYNC_JANELA;
+        return (j && j.de && j.ate) ? { de: j.de, ate: j.ate } : {};
+    }
+
+    /** Quantas voltas o puxao da antes de desistir e recarregar assim mesmo. */
+    const MAX_VOLTAS = 12;
+
+    /**
+     * Pede a coleta ate ela acabar. Devolve se houve trabalho.
+     *
+     * A coleta acontece DENTRO da requisicao, e a hospedagem corta em 30s —
+     * uma carga inicial de vendas tem ~12,5 mil transacoes e nunca caberia
+     * numa so. Entao o servidor trabalha alguns segundos, grava o que colheu
+     * e responde `parcial: true`; aqui a gente volta e pede o resto.
+     *
+     * Cada volta e uma requisicao curta, e o que ja entrou fica gravado
+     * mesmo que o gesto seja interrompido no meio.
+     */
     async function pedirColeta() {
         const token = csrf();
         // Sem token e tela sem sessao: nao ha o que sincronizar.
         if (!token) {
             return false;
         }
-        const r = await fetch('/api/sincronizar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
-        });
-        const d = await Resposta.ler(r);
-        return !!(d && d.disparou);
+
+        const corpo = JSON.stringify(janelaDaTela());
+        let trabalhou = false;
+
+        for (let volta = 0; volta < MAX_VOLTAS; volta++) {
+            const r = await fetch('/api/sincronizar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
+                body: corpo,
+            });
+            const d = await Resposta.ler(r);
+            trabalhou = true;
+            if (!d || !d.parcial) {
+                break;
+            }
+        }
+
+        return trabalhou;
     }
 
     /** Segura ate as duas fontes pararem de rodar, ou ate estourar o prazo. */

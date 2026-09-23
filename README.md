@@ -398,7 +398,8 @@ histórico de compras e o preço de venda aparecem juntos ao bipar.
 
 As credenciais do TouchPay ficam **só no `config.php`** (`touchpay_email`,
 `touchpay_senha`), que não vai para o git — o PHP as manda no corpo do disparo em vez de
-elas viverem dentro do workflow. O botão *Atualizar preços e estoque* fica na tela inicial.
+elas viverem dentro do workflow. Atualizar é um gesto só, em qualquer tela: **arrastar
+para baixo** (veja *Um gesto só para atualizar*).
 
 ## Repor a gôndola (escrever no TouchPay)
 
@@ -609,6 +610,52 @@ fazer a conta de cabeça. Só aparece quando existe: a maioria dos itens não te
 validade cadastrada, e uma coluna de travessões em trezentas linhas não informa nada.
 
 Quem grava pela tela do Repor não espera o próximo sync: o espelho é atualizado junto.
+
+## Um gesto só para atualizar
+
+Havia quatro jeitos de mandar o app buscar dados: um botão na capa, dois em Configurações,
+um em Vendas, e o arrastar para baixo. Quatro caminhos para a mesma coisa, cada um com a
+sua mensagem de erro e o seu jeito de falhar.
+
+Agora é **um**: arrastar a tela para baixo. Vale em qualquer tela e atualiza tudo que
+precisa — preço, estoque e vendas.
+
+**Inclusive reconferir um período.** A tela de Vendas é a única que define
+`window.SYNC_JANELA`, com o período que está filtrado; o gesto lê isso e manda junto.
+Filtra o mês, arrasta para baixo, e aquele mês é rebuscado e regravado. Era um botão
+próprio, e virou o mesmo gesto das outras telas.
+
+### Em pedaços, e por isso nunca estoura
+
+A coleta acontece **dentro da requisição** desde que saiu do n8n, e a hospedagem corta em
+30s. A carga inicial de vendas tem ~12,5 mil transações e nunca caberia numa só.
+
+Então `sync_puxar()` trabalha por **orçamento de tempo** — alguns segundos por fonte —,
+grava o que colheu e responde `parcial: true`. O gesto volta e pede o resto, até acabar.
+Cada volta é uma requisição curta, e o que já entrou fica gravado mesmo que o gesto seja
+interrompido no meio. Isso só é seguro porque vendas grava em lotes conforme colhe e a
+coleta vem do mais velho para o mais novo.
+
+### O que o gesto não respeita
+
+**Intervalo mínimo**: quem arrastou a tela quer agora, não daqui a 30 minutos. O cron
+continua respeitando os seus (5 min para vendas, 30 para preço e estoque) — o gesto é
+manual e explícito.
+
+**A trava de "já está rodando"** também não vale aqui. Com a coleta acontecendo dentro da
+requisição, esse estado só sobra quando uma requisição anterior morreu no meio; travar
+ali deixaria o app sem jeito de se atualizar. Colher duas vezes não estraga nada: o
+espelho é trocado por PDV e regravar venda não duplica.
+
+### Configurações mostra, não manda
+
+Os dois botões saíram; as barras de progresso ficaram. É onde se vem olhar quando algo
+parece velho, e o número continua real — a coleta diz "lote 7 de 25".
+
+As rotas `/api/loja/sincronizar` e `/api/vendas/sincronizar` continuam de pé, sem tela
+que as chame. São a saída de emergência por `curl` e o caminho de uma janela arbitrária
+fora do celular — **o gesto é de toque, e no computador não existe**. Lá o cron de 5 em 5
+minutos é quem atualiza.
 
 ## Sair do n8n
 

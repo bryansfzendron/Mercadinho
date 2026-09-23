@@ -108,6 +108,6 @@ $flashes = flash_pegar();
 <script src="/assets/movimento.js?v=1" defer></script>
 <?php // inicio.js so faz algo onde existe o cartao de vendas; nas outras telas sai fora. ?>
 <script src="/assets/inicio.js?v=3" defer></script>
-<script src="/assets/puxar-atualizar.js?v=4" defer></script>
+<script src="/assets/puxar-atualizar.js?v=5" defer></script>
 </body>
 </html>

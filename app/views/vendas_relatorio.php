@@ -59,42 +59,17 @@
     </div>
 </form>
 
-<div class="acoes">
-    <button type="button" id="btn-reconferir" class="botao botao-alt">
-        Reconferir este período no TouchPay
-    </button>
-    <p class="ajuda" id="reconferir-estado">
-        Rebusca a janela filtrada e regrava. Serve quando o número não bate com o painel do
-        TouchPay: o sync automático só volta 3 dias, então buraco no meio do mês só sai daqui.
-    </p>
-</div>
+<p class="ajuda">
+    <strong>Arraste a tela para baixo</strong> para rebuscar este período no TouchPay e
+    regravar. Serve quando o número não bate com o painel deles: o sync automático só volta
+    3 dias, então buraco no meio do mês só sai daqui. Regravar não duplica.
+</p>
 
 <script>
-(function () {
-    const btn = document.getElementById('btn-reconferir');
-    const estado = document.getElementById('reconferir-estado');
-    const CSRF = <?= json_encode(csrf_token()) ?>;
-    const JANELA = <?= json_encode(['de' => $f['de'], 'ate' => $f['ate']]) ?>;
-
-    btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        estado.textContent = 'Rebuscando ' + JANELA.de + ' a ' + JANELA.ate + '...';
-        try {
-            const r = await fetch('/api/vendas/sincronizar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
-                body: JSON.stringify(JANELA),
-            });
-            const d = await Resposta.ler(r);
-            estado.textContent = d.ok
-                ? 'Pedido. Recarregue em alguns segundos; regravar não duplica.'
-                : ('Não deu: ' + (d.erro || 'erro desconhecido'));
-        } catch (e) {
-            estado.textContent = Resposta.frase(e);
-        }
-        btn.disabled = false;
-    });
-})();
+// A unica tela que pede uma janela especifica. O gesto de arrastar le isto e
+// manda junto — foi assim que "reconferir este periodo" deixou de ser um
+// botao proprio e virou o mesmo gesto que atualiza todo o resto do app.
+window.SYNC_JANELA = <?= json_encode(['de' => $f['de'], 'ate' => $f['ate']]) ?>;
 </script>
 
 <?php $res = $r['resultado']; ?>

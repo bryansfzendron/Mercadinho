@@ -175,20 +175,76 @@ function sync_modo(): string
     return (string) cfg('sync_modo', 'local') === 'n8n' ? 'n8n' : 'local';
 }
 
+/**
+ * O puxao: atualiza TUDO que precisa, em pedacos.
+ *
+ * E o unico gesto de atualizar do app. Arrastar para baixo chama isto, e
+ * isto cuida de preco, estoque e vendas — inclusive de reconferir uma janela
+ * especifica, quando a tela diz qual (a de Vendas manda a que esta filtrada).
+ *
+ * Trabalha por ORCAMENTO DE TEMPO e volta dizendo se sobrou. Quem chamou
+ * chama de novo enquanto sobrar. E o que mantem cada requisicao curta: a
+ * hospedagem corta em 30s e a carga inicial de vendas sao ~12,5 mil
+ * transacoes, que nunca caberiam numa requisicao so.
+ *
+ * Nao respeita intervalo minimo, de proposito: quem arrastou a tela quer
+ * agora, nao daqui a 30 minutos. E nao trava em "ja esta rodando" porque,
+ * com a coleta acontecendo dentro da requisicao, esse estado so sobra quando
+ * uma requisicao anterior morreu no meio — travar ali deixaria o app sem
+ * jeito de se atualizar. Colher duas vezes nao estraga nada: o espelho e
+ * trocado por PDV e regravar venda nao duplica.
+ *
+ * @param int $orcamento segundos de trabalho por fonte nesta passada
+ */
+function sync_puxar(?string $de = null, ?string $ate = null, int $orcamento = 9): array
+{
+    $fontes  = [];
+    $parcial = false;
+    $erros   = [];
+
+    foreach (['loja', 'vendas'] as $fonte) {
+        $r = $fonte === 'loja'
+            ? sync_coletar_loja([], $orcamento)
+            : sync_coletar_vendas($de, $ate, $orcamento);
+
+        $fontes[$fonte] = [
+            'ok'      => (bool) ($r['ok'] ?? false),
+            'erro'    => $r['erro'] ?? null,
+            'parcial' => (bool) ($r['parcial'] ?? false),
+        ];
+        if (!empty($r['parcial'])) {
+            $parcial = true;
+        }
+        if (!($r['ok'] ?? false) && !empty($r['erro'])) {
+            $erros[] = $fonte . ': ' . $r['erro'];
+        }
+    }
+
+    return [
+        // `ok` fala do gesto, nao das fontes: uma fonte que falhou nao pode
+        // fazer a tela parecer quebrada quando a outra atualizou.
+        'ok'      => true,
+        'parcial' => $parcial,
+        'erro'    => $erros ? implode(' · ', $erros) : null,
+        'fontes'  => $fontes,
+    ];
+}
+
 /** Preco e estoque, pelo caminho que estiver valendo. */
-function sync_coletar_loja(array $pos_ids = []): array
+function sync_coletar_loja(array $pos_ids = [], ?int $teto_segundos = null): array
 {
     return sync_modo() === 'n8n'
         ? loja_disparar_sync($pos_ids)
-        : loja_sincronizar_local($pos_ids);
+        : loja_sincronizar_local($pos_ids, $teto_segundos);
 }
 
 /** Vendas, pelo caminho que estiver valendo. */
-function sync_coletar_vendas(?string $de = null, ?string $ate = null): array
+function sync_coletar_vendas(?string $de = null, ?string $ate = null,
+                            ?int $teto_segundos = null): array
 {
     return sync_modo() === 'n8n'
         ? vendas_disparar_sync($de, $ate)
-        : vendas_sincronizar_local($de, $ate);
+        : vendas_sincronizar_local($de, $ate, $teto_segundos);
 }
 
 function sync_fontes(): array
