@@ -293,24 +293,62 @@
 
 <?php elseif ($aba === 'metas'): ?>
 
+    <?php
+    // Mesmo seletor da aba Taxas, e de proposito: e o mesmo gesto de "estou
+    // editando este container". Mas a semantica do campo vazio e OUTRA, e a
+    // ajuda abaixo diz isso com todas as letras — taxa em branco herda o
+    // padrao, meta em branco deixa o PDV sem meta.
+    $editando_pdv = $pdv_taxas > 0;
+    $valor_meta = static function (string $chave) use ($editando_pdv, $metas_pdv, $p): string {
+        $v = $editando_pdv ? $metas_pdv[$chave] : (float) $p[$chave];
+        return $v === null ? '' : number_format((float) $v, 2, ',', '');
+    };
+    ?>
+
+    <?php if ($ativos): ?>
+        <div class="chips">
+            <a class="chip <?= $editando_pdv ? '' : 'ativo' ?>" href="/config/metas">Empresa</a>
+            <?php foreach ($ativos as $id => $nome): ?>
+                <a class="chip <?= $pdv_taxas === (int) $id ? 'ativo' : '' ?>"
+                   href="/config/metas?pdv=<?= (int) $id ?>"><?= e($nome) ?></a>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
     <div class="cartao">
-        <h2 class="sem-topo">Metas do mês</h2>
+        <h2 class="sem-topo">
+            <?= $editando_pdv ? e($ativos[$pdv_taxas]) : 'Meta da empresa' ?>
+        </h2>
         <form method="post" action="/config/metas">
             <?= csrf_campo() ?>
+            <?php if ($editando_pdv): ?>
+                <input type="hidden" name="pdv_id" value="<?= (int) $pdv_taxas ?>">
+            <?php endif; ?>
             <div class="filtros">
                 <label>Faturamento (R$/mês)
                     <input type="text" inputmode="decimal" name="meta_faturamento"
-                           value="<?= e(number_format($p['meta_faturamento'], 2, ',', '')) ?>">
+                           value="<?= e($valor_meta('meta_faturamento')) ?>"
+                           placeholder="<?= $editando_pdv ? 'sem meta' : '0,00' ?>">
                 </label>
                 <label>Lucro (R$/mês)
                     <input type="text" inputmode="decimal" name="meta_lucro"
-                           value="<?= e(number_format($p['meta_lucro'], 2, ',', '')) ?>">
+                           value="<?= e($valor_meta('meta_lucro')) ?>"
+                           placeholder="<?= $editando_pdv ? 'sem meta' : '0,00' ?>">
                 </label>
             </div>
             <p class="ajuda">
-                Zero desliga a meta e deixa só a projeção. O lucro sai do mesmo cálculo da aba
-                Vendas: já com mercadoria, maquininha, condomínio, franquia e os fixos do mês.
-                O progresso aparece em <a href="/metas">Loja → Metas</a>.
+                <?php if ($editando_pdv): ?>
+                    Meta deste ponto de venda. Em branco ele fica <strong>sem meta</strong> —
+                    não herda a da empresa, ao contrário das taxas: herdar faria este
+                    container ter de bater sozinho o alvo do conjunto.
+                <?php else: ?>
+                    Vale para o total, com todos os pontos de venda somados. Zero desliga a
+                    meta e deixa só a projeção. Para medir um container isolado, escolha-o
+                    acima.
+                <?php endif; ?>
+                O lucro sai do mesmo cálculo da aba Vendas: já com mercadoria, maquininha,
+                condomínio, franquia e os fixos do mês. O progresso aparece em
+                <a href="/metas">Loja → Metas</a>.
             </p>
             <button type="submit" class="botao">Salvar metas</button>
         </form>

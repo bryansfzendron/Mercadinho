@@ -124,5 +124,50 @@ $b = metas_breakdown_diario(3000.0, 15000.0, '2026-09-01', '2026-09-30');
 quase('meta estourada nao vira falta negativa', $b['resumo']['falta'], 0.0);
 quase('nem meta do dia negativa', $b['diario'][29]['meta_dia'], 0.0);
 
+// ------------------------------------------- qual meta vale no filtro
+// As metas ficam na mesma tabela das taxas e usam o mesmo mecanismo por PDV,
+// mas o campo vazio quer dizer outra coisa: taxa em branco HERDA o padrao,
+// meta em branco deixa o PDV SEM meta. Herdar faria cada container ter de
+// bater sozinho o alvo da empresa.
+$empresa  = ['meta_faturamento' => 30000.0, 'meta_lucro' => 6000.0];
+$semNada  = ['meta_faturamento' => null,    'meta_lucro' => null];
+$soFat    = ['meta_faturamento' => 12000.0, 'meta_lucro' => null];
+
+// Sem PDV escolhido: a meta da empresa, com todos somados.
+checar('todos os PDVs usam a meta da empresa',
+    metas_alvos(0, $empresa, $semNada)['faturamento'], 30000.0);
+checar('e o lucro tambem', metas_alvos(0, $empresa, $semNada)['lucro'], 6000.0);
+checar('a meta da empresa nao e "propria" de ninguem',
+    metas_alvos(0, $empresa, $semNada)['propria'], false);
+
+// Com PDV escolhido: a meta dele, nunca a da empresa.
+checar('o PDV usa a meta dele',
+    metas_alvos(7, $empresa, ['meta_faturamento' => 12000.0, 'meta_lucro' => 2500.0])['faturamento'],
+    12000.0);
+// O erro que isto existe para impedir: o container medido contra o alvo do
+// conjunto. Com 30 mil de meta da empresa, dois containers apareceriam os
+// dois em 50% num mes em que a empresa bateu exatamente o alvo.
+checar('PDV sem meta NAO herda a da empresa',
+    metas_alvos(7, $empresa, $semNada)['faturamento'], 0.0);
+checar('nem no lucro', metas_alvos(7, $empresa, $semNada)['lucro'], 0.0);
+checar('e a tela sabe que ele nao tem meta',
+    metas_alvos(7, $empresa, $semNada)['propria'], false);
+
+// Meta pela metade: faturamento definido, lucro nao. O que tem vale; o que
+// falta fica sem alvo, e nao com o alvo da empresa.
+checar('meta so de faturamento vale', metas_alvos(7, $empresa, $soFat)['faturamento'], 12000.0);
+checar('e o lucro fica sem alvo', metas_alvos(7, $empresa, $soFat)['lucro'], 0.0);
+checar('mas o PDV conta como tendo meta', metas_alvos(7, $empresa, $soFat)['propria'], true);
+
+// Zero digitado e uma decisao ("desliguei a meta deste PDV"), diferente de
+// nunca ter definido — para a barra da tela as duas dao no mesmo, mas a
+// mensagem que aparece nao e a mesma.
+$zerado = ['meta_faturamento' => 0.0, 'meta_lucro' => 0.0];
+checar('zero e meta desligada, nao ausencia', metas_alvos(7, $empresa, $zerado)['propria'], true);
+checar('e o alvo dela e zero', metas_alvos(7, $empresa, $zerado)['faturamento'], 0.0);
+
+// Empresa sem meta nenhuma nao quebra a tela.
+checar('empresa sem meta devolve zero', metas_alvos(0, [], $semNada)['faturamento'], 0.0);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

@@ -1038,6 +1038,36 @@ Essa última parte é da Apple, não do app: em web app instalado a permissão d
 persiste entre aberturas. O piso é uma pergunta por abertura — eram as três causas acima que
 transformavam isso em "toda hora".
 
+## Meta por ponto de venda
+
+As metas moram na mesma tabela dos parâmetros de custo e usam o **mesmo mecanismo por PDV**
+das taxas (`custos_pdv`, uma linha por chave). Mas o **campo vazio quer dizer outra coisa**,
+e essa é a única diferença que importa:
+
+| | taxa em branco | meta em branco |
+|---|---|---|
+| significado | herda o padrão | o PDV fica **sem meta** |
+| por quê | percentual vale igual em qualquer container | valor absoluto não se divide sozinho |
+
+Herdar a meta faria cada ponto de venda ter de bater **sozinho** o alvo da empresa inteira.
+Num mês em que a empresa bate exatamente o alvo com dois containers, os dois apareceriam em
+50% — e nenhum dos dois estaria mal.
+
+Então: **sem PDV escolhido** vale a meta da empresa, com todos somados; **com um escolhido**
+vale a dele, e só a dele. PDV sem meta própria mostra o realizado e a projeção, sem alvo nem
+barra, e a tela diz por quê em vez de inventar um número.
+
+A tela de Metas já filtrava por PDV antes disso — mas comparava o faturamento do container
+com a meta do conjunto, que é medir contra um alvo que nunca foi dele.
+
+`metas_alvos()` é onde a decisão mora, e é função pura justamente por ser a parte que erra
+caro. `metas_do_pdv()` lê os *overrides* (null = não definido), e `metas_salvar_pdv()` grava
+pelo mesmo caminho das taxas — `custos_salvar_pdv()` passou a receber o conjunto de chaves
+por fora, em vez de tê-lo cravado.
+
+Em Configurações, a aba Metas ganhou os mesmos chips da aba Taxas: **Empresa** e um por
+container.
+
 ## O plano diário da meta
 
 A aba Metas mostra, dia a dia, duas colunas que respondem perguntas diferentes:

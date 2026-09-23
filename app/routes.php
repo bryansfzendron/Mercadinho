@@ -941,14 +941,21 @@ function rota_metas(array $u): void
     $r = vendas_relatorio($f);
     [$dia, $no_mes] = metas_dias($ate);
 
-    $fat = meta_progresso($r['resultado']['receita'], (float) $p['meta_faturamento'], $dia, $no_mes)
+    // A meta acompanha o filtro. Sem PDV escolhido vale a da empresa; com um
+    // escolhido vale a dele, e so a dele — comparar o faturamento de um
+    // container com a meta do conjunto era medir contra um alvo que nunca foi
+    // dele.
+    $alvos = metas_alvos($pdv_id, $p, metas_do_pdv($pdv_id));
+    $meta_propria = $alvos['propria'];
+
+    $fat = meta_progresso($r['resultado']['receita'], $alvos['faturamento'], $dia, $no_mes)
          + ['dia' => $dia, 'no_mes' => $no_mes];
-    $luc = meta_progresso($r['resultado']['lucro'], (float) $p['meta_lucro'], $dia, $no_mes)
+    $luc = meta_progresso($r['resultado']['lucro'], $alvos['lucro'], $dia, $no_mes)
          + ['dia' => $dia, 'no_mes' => $no_mes];
 
     // Breakdown diario para faturamento e lucro
-    $breakdown_fat = metas_breakdown_diario((float) $p['meta_faturamento'], $r['resultado']['receita'], $de, $ate, $pdv_id ?: null);
-    $breakdown_luc = metas_breakdown_diario((float) $p['meta_lucro'], $r['resultado']['lucro'], $de, $ate, $pdv_id ?: null);
+    $breakdown_fat = metas_breakdown_diario($alvos['faturamento'], $r['resultado']['receita'], $de, $ate, $pdv_id ?: null);
+    $breakdown_luc = metas_breakdown_diario($alvos['lucro'], $r['resultado']['lucro'], $de, $ate, $pdv_id ?: null);
 
     $meses = [1 => 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
               'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -964,7 +971,7 @@ function rota_metas(array $u): void
 
     $pdvs = vendas_pdvs();
 
-    ver('metas', compact('fat', 'luc', 'p', 'mes', 'mes_ref', 'meses_disponiveis', 'breakdown_fat', 'breakdown_luc', 'pdv_id', 'pdvs', 'de', 'ate'), 'Metas');
+    ver('metas', compact('fat', 'luc', 'p', 'mes', 'mes_ref', 'meses_disponiveis', 'breakdown_fat', 'breakdown_luc', 'pdv_id', 'pdvs', 'de', 'ate', 'alvos', 'meta_propria'), 'Metas');
 }
 
 /**
@@ -996,6 +1003,13 @@ function rota_config(array $u, string $metodo): void
                 loja_pdv_ativo((int) $pdv['id'], in_array((int) $pdv['id'], $ligados, true));
             }
             flash('ok', 'Pontos de venda atualizados.');
+        } elseif ($aba === 'metas' && (int) ($_POST['pdv_id'] ?? 0) > 0) {
+            // Meta de um container so. Campo em branco apaga: o PDV passa a
+            // nao ter meta, e nao a herdar a da empresa.
+            $id = (int) $_POST['pdv_id'];
+            $n = metas_salvar_pdv($id, $_POST);
+            flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Salvo.' : 'Nada para salvar.');
+            redirecionar('/config/metas?pdv=' . $id);
         } elseif ($aba === 'taxas' && (int) ($_POST['pdv_id'] ?? 0) > 0) {
             // Custo de um container so. Campo em branco apaga a excecao e
             // devolve aquele custo ao padrao.
@@ -1022,6 +1036,9 @@ function rota_config(array $u, string $metodo): void
     $pdv_taxas = (int) ($_GET['pdv'] ?? 0);
     $pdv_taxas = isset($ativos[$pdv_taxas]) ? $pdv_taxas : 0;
     $overrides = $pdv_taxas > 0 ? custos_overrides_pdv($pdv_taxas) : [];
+    // A aba Metas usa o mesmo seletor e a mesma chave de URL: e o mesmo
+    // gesto de "estou editando este container".
+    $metas_pdv = metas_do_pdv($pdv_taxas);
     // Imposto nao e por PDV (e por CNPJ) e nao e editavel (e calculado), entao
     // so aparece como informacao na aba padrao, nao na de cada container.
     $imposto = null;
@@ -1047,7 +1064,7 @@ function rota_config(array $u, string $metodo): void
     $sync   = ['loja' => sync_estado('loja'), 'vendas' => sync_estado('vendas')];
     $cron   = cron_formatar(q1('SELECT * FROM sync_estado WHERE fonte = ?', ['cron']));
 
-    ver('config', compact('aba', 'p', 'pdvs', 'unificados', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'imposto'), 'Configuracoes');
+    ver('config', compact('aba', 'p', 'pdvs', 'unificados', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'metas_pdv', 'imposto'), 'Configuracoes');
 }
 
 /**

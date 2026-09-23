@@ -20,6 +20,81 @@ function metas_padrao(): array
 }
 
 /**
+ * As metas daquele ponto de venda. Null quer dizer "este PDV nao tem meta".
+ *
+ * Aqui esta a unica diferenca importante em relacao as taxas, que usam a
+ * mesma tabela e o mesmo mecanismo: taxa em branco HERDA o padrao, porque um
+ * percentual vale igual em qualquer container. Meta em branco NAO herda —
+ * herdar faria cada ponto de venda ter de bater sozinho a meta da empresa
+ * inteira, e dois containers apareceriam os dois em 50% num mes em que a
+ * empresa bateu exatamente o alvo.
+ *
+ * Entao: com meta propria, o PDV e medido contra ela; sem, a tela diz que
+ * ele nao tem meta em vez de inventar uma.
+ *
+ * @return array{meta_faturamento:?float, meta_lucro:?float}
+ */
+function metas_do_pdv(int $pdv_id): array
+{
+    $proprias = ['meta_faturamento' => null, 'meta_lucro' => null];
+    if ($pdv_id <= 0) {
+        return $proprias;
+    }
+    foreach (custos_overrides_pdv($pdv_id) as $chave => $valor) {
+        if (array_key_exists($chave, $proprias)) {
+            $proprias[$chave] = (float) $valor;
+        }
+    }
+    return $proprias;
+}
+
+/**
+ * Qual meta vale para o filtro atual. Funcao pura.
+ *
+ * Sem PDV escolhido vale a da empresa, que e o total com todos os pontos de
+ * venda somados. Com um escolhido vale a dele, e SO a dele: comparar o
+ * faturamento de um container com a meta do conjunto e medir contra um alvo
+ * que nunca foi dele — num mes em que a empresa bate exatamente o alvo, dois
+ * containers apareceriam os dois em 50%, e nenhum dos dois estaria mal.
+ *
+ * PDV sem meta propria devolve zero, que o resto da tela ja entende como "sem
+ * meta": mostra o realizado e a projecao, sem alvo nem barra. `propria` diz a
+ * diferenca entre "nao tem meta" e "tem meta zero", que para a tela sao a
+ * mesma coisa mas para a mensagem nao.
+ *
+ * @param array $globais  metas da empresa (custos_parametros())
+ * @param array $proprias metas daquele PDV (metas_do_pdv()), com null onde nao ha
+ * @return array{faturamento:float, lucro:float, propria:bool}
+ */
+function metas_alvos(int $pdv_id, array $globais, array $proprias): array
+{
+    if ($pdv_id <= 0) {
+        return [
+            'faturamento' => (float) ($globais['meta_faturamento'] ?? 0),
+            'lucro'       => (float) ($globais['meta_lucro'] ?? 0),
+            'propria'     => false,
+        ];
+    }
+
+    return [
+        'faturamento' => (float) ($proprias['meta_faturamento'] ?? 0),
+        'lucro'       => (float) ($proprias['meta_lucro'] ?? 0),
+        'propria'     => ($proprias['meta_faturamento'] ?? null) !== null
+                      || ($proprias['meta_lucro'] ?? null) !== null,
+    ];
+}
+
+/**
+ * Grava a meta de um ponto de venda. Campo vazio apaga e o PDV fica sem meta.
+ *
+ * Mesmo mecanismo das taxas — so muda o conjunto de chaves.
+ */
+function metas_salvar_pdv(int $pdv_id, array $novos): int
+{
+    return custos_salvar_pdv($pdv_id, $novos, metas_padrao());
+}
+
+/**
  * Progresso de uma meta no mes corrente.
  *
  * @param float $realizado o que ja entrou

@@ -434,12 +434,15 @@ function custos_overrides_pdv(int $pdv_id): array
  * padrao — e assim que se desfaz uma diferenca sem precisar saber o valor
  * global de cor.
  */
-function custos_salvar_pdv(int $pdv_id, array $novos): int
+function custos_salvar_pdv(int $pdv_id, array $novos, ?array $conhecidos = null): int
 {
     if ($pdv_id <= 0) {
         return 0;
     }
-    $conhecidos = custos_padrao();
+    // As metas moram na mesma tabela e usam o mesmo mecanismo, mas nao sao
+    // custo: por isso o conjunto de chaves entra por fora em vez de estar
+    // cravado aqui. Ver metas_salvar_pdv().
+    $conhecidos = $conhecidos ?? custos_padrao();
     $agora = date('Y-m-d H:i:s');
     $n = 0;
 

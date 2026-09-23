@@ -4,6 +4,8 @@
  * @var string $mes_ref @var array $meses_disponiveis
  * @var array  $breakdown_fat @var array $breakdown_luc
  * @var int    $pdv_id @var array $pdvs @var string $de @var string $ate
+ * @var array  $alvos a meta que vale para o filtro atual
+ * @var bool   $meta_propria o PDV escolhido tem meta propria
  */
 ?>
 <h1>Loja</h1>
@@ -32,6 +34,16 @@
 </form>
 
 <p class="meta"><?= e($mes) ?> · dia <?= (int) $fat['dia'] ?> de <?= (int) $fat['no_mes'] ?></p>
+
+<?php if ($pdv_id > 0 && !$meta_propria): ?>
+    <div class="aviso aviso-info">
+        <strong>Este ponto de venda não tem meta própria.</strong>
+        Os números abaixo são o realizado e a projeção dele, sem alvo —
+        meta em branco não herda a da empresa, senão cada container teria
+        de bater sozinho o alvo do conjunto.
+        <a href="/config/metas?pdv=<?= (int) $pdv_id ?>">Definir a meta deste PDV</a>.
+    </div>
+<?php endif; ?>
 
 <?php
 // Os dois cartoes sao o mesmo bloco com dados diferentes. Era uma funcao
@@ -85,10 +97,10 @@ foreach ([['Faturamento do mês', $fat], ['Lucro do mês', $luc]] as [$titulo_ca
 
 <?php
 // A tabela era o mesmo bloco copiado duas vezes; copiado erra num lado so.
-$b = $breakdown_fat; $titulo = 'Faturamento'; $alvo = (float) $p['meta_faturamento'];
+$b = $breakdown_fat; $titulo = 'Faturamento'; $alvo = (float) $alvos['faturamento'];
 include __DIR__ . '/_breakdown.php';
 
-$b = $breakdown_luc; $titulo = 'Lucro'; $alvo = (float) $p['meta_lucro'];
+$b = $breakdown_luc; $titulo = 'Lucro'; $alvo = (float) $alvos['lucro'];
 include __DIR__ . '/_breakdown.php';
 ?>
 
