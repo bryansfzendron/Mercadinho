@@ -316,5 +316,42 @@ $alvoSemData = pg_operacao_montar($entradas, $inventario, 96823, 20, null, 'u', 
 checar('trocar a validade do alvo nao dispara o alarme',
     pg_operacao_conferir($alvoSemData['corpo'], $inventario, 20), null);
 
+// ============================================================
+// A URL DO INVENTARIO — o instante, nunca a meia-noite
+// ============================================================
+// A quantidade lida aqui vira confirmedQuantity na operacao que grava
+// validade. Pedindo a meia-noite, o numero e o do comeco do dia: confirmar
+// a contagem da manha depois de um dia de vendas mandaria o estoque de volta
+// para o numero da manha. Foi assim que este arquivo nasceu errado.
+$tarde = '2026-09-23T17:40:12.000Z';
+$url = tp_inventario_url(42, null, 1, 10000, $tarde);
+
+checar('a hora vai na URL, codificada',
+    str_contains($url, 'date=2026-09-23T17%3A40%3A12.000Z'), true);
+// A regressao que este teste existe para impedir:
+checar('nunca a meia-noite', str_contains($url, 'T00%3A00%3A00'), false);
+checar('o inventario pedido vai na URL', str_contains($url, 'inventoryIds=42'), true);
+checar('o fuso de Brasilia acompanha', str_contains($url, 'timezoneOffset=180'), true);
+checar('so ponto de venda', str_contains($url, 'inventoryTypes=pointOfSale'), true);
+
+// Sem produto o filtro fica vazio (traz o inventario inteiro); com produto,
+// preenchido — e o que torna a leitura de um bipe barata.
+checar('sem produto, filtro vazio',
+    str_contains(tp_inventario_url(42, null, 1, 50, $tarde), 'productId=&'), true);
+checar('com produto, filtro preenchido',
+    str_contains(tp_inventario_url(42, 7397, 1, 50, $tarde), 'productId=7397&'), true);
+checar('produto zero e o mesmo que nenhum',
+    str_contains(tp_inventario_url(42, 0, 1, 50, $tarde), 'productId=&'), true);
+
+checar('a pagina vai na URL', str_contains(tp_inventario_url(42, null, 3, 50, $tarde), 'page=3&'), true);
+
+// O instante e UTC e tem o formato que eles aceitam.
+checar('o instante tem cara de ISO 8601 em Z', (bool) preg_match(
+    '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/', tp_instante()), true);
+// gmdate e nao date: mandar a hora local marcada como Z seria pedir o estoque
+// de tres horas no futuro.
+checar('o instante e UTC, nao a hora daqui',
+    substr(tp_instante(), 0, 13), substr(gmdate('Y-m-d\TH'), 0, 13));
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

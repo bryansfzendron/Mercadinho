@@ -398,16 +398,41 @@ function tp_planograma_tudo(int $planograma_id): array
  * URL do coletor do n8n, inclusive o timezoneOffset de 180 — validade e dia
  * cheio, e pedir com o fuso errado e como se pedisse o inventario de ontem.
  */
-function tp_inventario_tudo(int $inventario_id, ?int $produto_id = null): array
+/**
+ * A URL do inventario. Funcao pura, separada so para poder ser testada.
+ *
+ * O `date` vai com o INSTANTE de agora, nao com a meia-noite do dia. Eles
+ * respondem a foto do estoque naquele momento: pedindo meia-noite, o numero
+ * e o do comeco do dia e nao anda conforme o pessoal compra. E depois das
+ * 21h de Brasilia a meia-noite UTC de "hoje" ja e de um dia que ainda nao
+ * comecou aqui — pedir esse dia devolve um estoque que nao existe.
+ *
+ * Isto importa alem da leitura: a quantidade daqui vira `confirmedQuantity`
+ * na operacao que grava validade. Confirmar a contagem da manha depois de um
+ * dia de vendas mandaria o estoque de volta para o numero da manha.
+ */
+function tp_inventario_url(int $inventario_id, ?int $produto_id, int $pagina,
+                           int $por_pagina, string $instante): string
 {
-    $hoje = date('Y-m-d');
-    return tp_paginar(static fn (int $p, int $n) =>
-        '/api/web/inventory/items?page=' . $p . '&pageSize=' . $n
+    return '/api/web/inventory/items?page=' . $pagina . '&pageSize=' . $por_pagina
         . '&sortOrder=quantity&descending=false&search='
         . '&inventoryIds=' . $inventario_id
         . '&productId=' . ($produto_id > 0 ? $produto_id : '')
-        . '&inventoryTypes=pointOfSale&date=' . $hoje . 'T00%3A00%3A00.000Z'
-        . '&timezoneOffset=180&showTotals=false');
+        . '&inventoryTypes=pointOfSale&date=' . rawurlencode($instante)
+        . '&timezoneOffset=180&showTotals=false';
+}
+
+/** O instante de agora do jeito que eles querem: ISO 8601 UTC com milesimos. */
+function tp_instante(): string
+{
+    return gmdate('Y-m-d\TH:i:s') . '.000Z';
+}
+
+function tp_inventario_tudo(int $inventario_id, ?int $produto_id = null): array
+{
+    $instante = tp_instante();
+    return tp_paginar(static fn (int $p, int $n) =>
+        tp_inventario_url($inventario_id, $produto_id, $p, $n, $instante));
 }
 
 /**
