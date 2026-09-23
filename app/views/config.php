@@ -151,7 +151,7 @@
         async function olhar() {
             try {
                 const r = await fetch('/api/sync/estado');
-                const d = await r.json();
+                const d = await Resposta.ler(r);
                 let algumRodando = false;
                 for (const fonte of Object.keys(fontes)) {
                     desenhar(fonte, d[fonte]);
@@ -189,7 +189,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
                     });
-                    const d = await r.json();
+                    const d = await Resposta.ler(r);
                     if (!d.ok) {
                         caixa.classList.add('erro');
                         texto.textContent = 'Não deu: ' + (d.erro || 'erro desconhecido');
@@ -198,7 +198,7 @@
                     }
                 } catch (e) {
                     caixa.classList.add('erro');
-                    texto.textContent = 'Falha de rede: ' + e.message;
+                    texto.textContent = Resposta.frase(e);
                     botao.disabled = false;
                     return;
                 }

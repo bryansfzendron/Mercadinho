@@ -100,6 +100,7 @@ $flashes = flash_pegar();
 </nav>
 <?php endif; ?>
 
+<script src="/assets/resposta.js?v=1" defer></script>
 <script src="/assets/sem-teclado.js?v=2" defer></script>
 <?php // movimento.js vem antes do puxar-atualizar.js de proposito: o puxao usa
       // a mola dele pra recolher o indicador. Com defer, a ordem de execucao e
@@ -107,6 +108,6 @@ $flashes = flash_pegar();
 <script src="/assets/movimento.js?v=1" defer></script>
 <?php // inicio.js so faz algo onde existe o cartao de vendas; nas outras telas sai fora. ?>
 <script src="/assets/inicio.js?v=3" defer></script>
-<script src="/assets/puxar-atualizar.js?v=3" defer></script>
+<script src="/assets/puxar-atualizar.js?v=4" defer></script>
 </body>
 </html>

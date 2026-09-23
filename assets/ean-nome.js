@@ -104,7 +104,7 @@
                 { signal: corta.signal }
             );
             clearTimeout(relogio);
-            const d = await r.json();
+            const d = await Resposta.ler(r);
             if (d && d.nome) {
                 lembrar(codigo, d.nome);
             }

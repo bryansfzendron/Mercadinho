@@ -214,7 +214,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token },
         });
-        const d = await r.json();
+        const d = await Resposta.ler(r);
         return !!(d && d.disparou);
     }
 
@@ -223,7 +223,7 @@
         while (Date.now() < prazo) {
             await new Promise((ok) => setTimeout(ok, INTERVALO_PLACAR));
             const r = await fetch('/api/sync/estado');
-            const d = await r.json();
+            const d = await Resposta.ler(r);
             const rodando = (d.loja && d.loja.rodando) || (d.vendas && d.vendas.rodando);
             if (!rodando) {
                 return;

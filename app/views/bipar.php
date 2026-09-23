@@ -393,7 +393,7 @@
         alvo.innerHTML = '<p class="ajuda">Buscando ' + ean + '...</p>';
         try {
             const r = await fetch('/api/produto?ean=' + encodeURIComponent(ean));
-            const d = await r.json();
+            const d = await Resposta.ler(r);
             dica.textContent = leitor ? 'Aponte para o próximo produto' : '';
 
             if (!d.encontrado) {

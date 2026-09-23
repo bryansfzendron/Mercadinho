@@ -183,7 +183,7 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
                 body: JSON.stringify({ qrcode: qrcode })
             });
-            const d = await r.json();
+            const d = await Resposta.ler(r);
 
             if (!r.ok && !d.nota_id) {
                 msg(d.erro || 'Não deu para registrar a nota.', 'erro');
@@ -205,7 +205,7 @@
             }
             acompanhar(d.nota_id);
         } catch (e) {
-            msg('Falha de rede: ' + e.message, 'erro');
+            msg(Resposta.frase(e), 'erro');
             liberado();
         }
     }
@@ -218,7 +218,7 @@
             tentativas++;
             try {
                 const r = await fetch('/api/notas/' + notaId + '/status');
-                const d = await r.json();
+                const d = await Resposta.ler(r);
 
                 if (d.status === 'ok') {
                     clearInterval(timer);

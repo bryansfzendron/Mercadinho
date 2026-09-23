@@ -73,7 +73,7 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
 </form>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/ean-nome.js?v=1"></script>
+<script src="/assets/ean-nome.js?v=2"></script>
 <script>
 (function () {
     const itens   = document.getElementById('itens');

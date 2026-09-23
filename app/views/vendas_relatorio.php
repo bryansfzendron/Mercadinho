@@ -85,12 +85,12 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
                 body: JSON.stringify(JANELA),
             });
-            const d = await r.json();
+            const d = await Resposta.ler(r);
             estado.textContent = d.ok
                 ? 'Pedido. Recarregue em alguns segundos; regravar não duplica.'
                 : ('Não deu: ' + (d.erro || 'erro desconhecido'));
         } catch (e) {
-            estado.textContent = 'Falha de rede: ' + e.message;
+            estado.textContent = Resposta.frase(e);
         }
         btn.disabled = false;
     });

@@ -313,7 +313,7 @@
             try {
                 const r = await fetch('/api/planograma/buscar?pdv=' + pdv
                     + '&codigo=' + encodeURIComponent(codigo));
-                const d = await r.json();
+                const d = await Resposta.ler(r);
                 if (!r.ok || d.erro) {
                     aviso('erro', esc(d.erro || 'Não consegui falar com o TouchPay.'));
                     return;
@@ -682,7 +682,7 @@
                     },
                     body: JSON.stringify(corpo),
                 });
-                const d = await r.json();
+                const d = await Resposta.ler(r);
 
                 if (r.status === 409 && d.conflito) {
                     aviso('erro', '<strong>Alguém mexeu neste produto enquanto a tela estava aberta.</strong> '
