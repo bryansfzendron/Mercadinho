@@ -183,23 +183,91 @@ function produto_por_ean(string $ean_bruto): ?array
     return q1('SELECT * FROM produtos WHERE ean = ?', [$ean]);
 }
 
-/** Historico de precos pagos de um produto, do mais recente para o mais antigo. */
+/**
+ * Historico de precos pagos de um produto, do mais recente para o mais antigo.
+ *
+ * Inclui as caixas abertas em que ele e a CAIXA: o item gravado fala da lata,
+ * e historico_linha() devolve a linha na lingua da caixa — 1 CX a R$ 24,00 e
+ * nao 12 UN a R$ 2,00. Assim bipar a caixa mostra o preco da caixa, e todo o
+ * resto (estatisticas, custo do estoque) funciona sem saber que ela foi aberta.
+ */
 function produto_historico(int $produto_id, int $usuario_id): array
 {
-    return q(
+    // A ordem importa: os "?" do SELECT e do JOIN vem antes dos do WHERE.
+    $linhas = q(
         'SELECT i.quantidade, i.unidade, i.valor_unitario, i.valor_total, i.desconto,
                 i.valor_unitario_liquido, i.valor_total_liquido,
-                i.descricao_original,
+                i.descricao_original, i.por_caixa, i.caixa_unidade,
+                (i.caixa_produto_id <=> ?) AS como_caixa,
+                po.id AS outro_id, po.descricao AS outro_descricao, po.ean AS outro_ean,
                 n.id AS nota_id, n.emissao, n.origem,
                 est.nome AS loja, est.municipio, est.uf
            FROM itens i
            JOIN notas n ON n.id = i.nota_id
       LEFT JOIN estabelecimentos est ON est.id = n.estabelecimento_id
-          WHERE i.produto_id = ? AND n.usuario_id = ? AND n.status = ?
+      LEFT JOIN produtos po ON po.id = CASE WHEN i.caixa_produto_id <=> ?
+                                            THEN i.produto_id ELSE i.caixa_produto_id END
+          WHERE (i.produto_id = ? OR i.caixa_produto_id = ?)
+            AND n.usuario_id = ? AND n.status = ?
        ORDER BY n.emissao DESC, n.id DESC
           LIMIT 200',
-        [$produto_id, $usuario_id, 'ok']
+        [$produto_id, $produto_id, $produto_id, $produto_id, $usuario_id, 'ok']
     );
+    return array_map('historico_linha', $linhas);
+}
+
+/**
+ * Uma linha do historico vista do produto que pediu. Funcao pura.
+ *
+ * Caixa aberta guarda o item na unidade (12 UN a R$ 2,00) e a caixa ao lado
+ * (por_caixa = 12, caixa_unidade = CX). Quem olha pela caixa (como_caixa) ve
+ * a linha convertida: quantidade em caixas e unitario de caixa. Os totais nao
+ * mudam — e a mesma compra.
+ *
+ * Toda linha de caixa aberta ganha os dois precos, `preco_caixa` e
+ * `preco_unidade`, para a tela mostrar o outro lado sem refazer a conta.
+ */
+function historico_linha(array $h): array
+{
+    $f = (float) ($h['por_caixa'] ?? 0);
+    $h['como_caixa'] = (bool) ($h['como_caixa'] ?? false) && $f > 0;
+    if ($f <= 0) {
+        $h['preco_caixa'] = $h['preco_unidade'] = null;
+        return $h;
+    }
+
+    $un = (float) $h['valor_unitario_liquido'];
+    $h['preco_unidade'] = round($un, 4);
+    $h['preco_caixa']   = round($un * $f, 4);
+
+    if ($h['como_caixa']) {
+        $h['quantidade']             = round((float) $h['quantidade'] / $f, 4);
+        $h['unidade']                = $h['caixa_unidade'] ?: 'CX';
+        $h['valor_unitario']         = round((float) $h['valor_unitario'] * $f, 4);
+        $h['valor_unitario_liquido'] = $h['preco_caixa'];
+    }
+    return $h;
+}
+
+/**
+ * Nome para a unidade que nasce ao abrir uma caixa. A descricao da nota e da
+ * caixa ("REFRI CX C/12") e serviria mal para a lata; o nome que a loja ja da
+ * para aquele codigo e melhor, e o que voce mesmo digitou no Mercado tambem.
+ */
+function produto_nome_unidade(string $ean, string $fallback): string
+{
+    $nome = qv(
+        'SELECT li.descricao
+           FROM loja_itens li
+           JOIN loja_pdvs p ON p.id = li.pdv_id
+          WHERE li.ean = ? AND p.ativo = 1 AND p.unificado_para IS NULL
+          LIMIT 1',
+        [$ean]
+    );
+    if (!$nome) {
+        $nome = qv('SELECT nome FROM ean_nomes WHERE ean = ?', [$ean]);
+    }
+    return $nome ? (string) $nome : $fallback;
 }
 
 /**

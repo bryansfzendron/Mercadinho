@@ -331,8 +331,27 @@ Na tela da nota cada item abre um **Corrigir item**:
 
 - **Código de barras** — troca o produto vinculado ao item. Digitado ou bipado pela
   câmera (o mesmo `Scanner` de `/bipar`).
-- **Quantidade, unidade, total pago e desconto** — o campo **Un. por caixa** + o botão
-  **Abrir caixa** multiplicam só a quantidade.
+- **Quantidade, unidade, total pago e desconto** — como a nota trouxe.
+- **Veio caixa? Vende por unidade** — **Unidades por caixa** e **Código da unidade**
+  (com o seu próprio **Bipar**). Preenchidos, o item é gravado na unidade e a caixa
+  continua lembrada ao lado; vazios, o item volta a ser só a caixa.
+
+A caixa **não perde o código dela**. O formulário fala sempre a língua da nota
+(`2 CX`, código da caixa) e o servidor é quem abre: o item gravado aponta para a lata
+(`24 UN a R$ 2,00`) — é o que custo, margem e estoque leem — e a caixa fica em
+`itens.caixa_produto_id`, com `por_caixa` e `caixa_unidade`. Daí:
+
+- a linha da nota mostra os dois preços: `2 CX × R$ 24,00 · 24 UN × R$ 2,00`;
+- **bipar a caixa** acha a compra em preço de caixa (`historico_linha()` converte a
+  linha), e bipar a lata acha em preço de unidade — cada uma com o preço da outra ao lado;
+- a tela do produto liga um ao outro ("caixa com 12 … a unidade sai a R$ 2,00").
+
+Sem **Código da unidade**, caixa e unidade ficam no mesmo cadastro: é o "abrir caixa"
+de antes, para quando a lata não tem GTIN próprio. A unidade que nasce aqui ganha o
+nome que a loja (TouchPay) já dá para aquele código, e não a descrição da caixa.
+
+As três colunas são migração: depois do `git pull`, rode `/setup.php?token=…` e aplique
+as migrações **antes** de abrir uma nota — sem elas a nota e o produto dão erro de coluna.
 
 A âncora é o **total pago**, não o unitário: mexer na quantidade nunca muda o que saiu do
 caixa, o unitário é recalculado a partir dela. É o que `item_valores()` garante, e é por
@@ -346,8 +365,8 @@ Sobre o produto:
 - Produto atual **com outro GTIN** → nasce um cadastro novo. Caixa e lata são produtos
   diferentes, com preços diferentes.
 
-O alias `loja + código interno` é reapontado junto: a próxima nota daquela loja com o
-mesmo `cProd` já cai no produto certo, sem repetir a correção.
+O alias `loja + código interno` é reapontado junto — para a **caixa**, que é o que a
+loja vende: a próxima nota daquela loja com o mesmo `cProd` já cai no produto certo.
 
 O cabeçalho da nota anda pela **diferença** do item mexido, e não pela soma dos itens —
 uma nota pode ter frete ou desconto próprio, que não está em item nenhum.

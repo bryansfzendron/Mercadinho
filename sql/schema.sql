@@ -107,12 +107,22 @@ CREATE TABLE IF NOT EXISTS itens (
     -- a pergunta do app e "quanto paguei", nao "quanto estava marcado".
     valor_total_liquido    DECIMAL(14,2) NOT NULL DEFAULT 0,
     valor_unitario_liquido DECIMAL(14,4) NOT NULL DEFAULT 0,
+    -- Caixa aberta em unidades. O item em si (produto_id, quantidade, valores)
+    -- fala da unidade que vai para a prateleira; estas colunas lembram a caixa
+    -- que a nota trouxe, para ela continuar bipavel com o preco dela.
+    -- caixa_produto_id fica NULL quando caixa e unidade sao o mesmo cadastro.
+    caixa_produto_id   INT UNSIGNED  NULL,
+    por_caixa          DECIMAL(14,4) NULL,
+    caixa_unidade      VARCHAR(10)   NULL,
     PRIMARY KEY (id),
     KEY ix_itens_nota (nota_id),
     KEY ix_itens_produto (produto_id),
+    KEY ix_itens_caixa (caixa_produto_id),
     CONSTRAINT fk_itens_nota FOREIGN KEY (nota_id)
         REFERENCES notas (id) ON DELETE CASCADE,
     CONSTRAINT fk_itens_produto FOREIGN KEY (produto_id)
+        REFERENCES produtos (id) ON DELETE SET NULL,
+    CONSTRAINT fk_itens_caixa FOREIGN KEY (caixa_produto_id)
         REFERENCES produtos (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

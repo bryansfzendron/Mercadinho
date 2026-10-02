@@ -12,6 +12,16 @@ foreach ($loja as $l) {
 $venda  = $precos ? max($precos) : null;
 $pago   = (float) $stats['ultimo'];
 $margem = $venda !== null && $pago > 0 ? $venda - $pago : null;
+
+// O outro lado da caixa aberta mais recente: a unidade, para quem bipou a
+// caixa, ou a caixa, para quem bipou a unidade. Com os dois precos da compra.
+$par = null;
+foreach ($historico as $h) {
+    if ($h['preco_caixa'] !== null && $h['outro_id'] !== null) {
+        $par = $h;
+        break;
+    }
+}
 ?>
 <a class="voltar" href="/produtos">‹ Produtos</a>
 
@@ -26,6 +36,20 @@ $margem = $venda !== null && $pago > 0 ? $venda - $pago : null;
         <div class="numero"><strong><?= moeda($stats['media']) ?></strong><span>média</span></div>
     </div>
     <p class="ajuda">Valores por <?= e($produto['unidade'] ?: 'unidade') ?>, já com os descontos da nota abatidos.</p>
+
+    <?php if ($par): ?>
+        <p class="ajuda">
+            <?php if ($par['como_caixa']): ?>
+                Caixa com <?= qtd_fmt($par['por_caixa']) ?>: a unidade sai a
+                <strong><?= moeda($par['preco_unidade']) ?></strong> —
+                <a href="/produtos/<?= (int) $par['outro_id'] ?>"><?= e($par['outro_descricao']) ?></a>.
+            <?php else: ?>
+                Também comprado em caixa com <?= qtd_fmt($par['por_caixa']) ?>, a
+                <strong><?= moeda($par['preco_caixa']) ?></strong> a caixa —
+                <a href="/produtos/<?= (int) $par['outro_id'] ?>"><?= e($par['outro_descricao']) ?></a>.
+            <?php endif; ?>
+        </p>
+    <?php endif; ?>
 
     <?php if ($margem !== null): $sinal = $margem >= 0 ? '+' : '−';
         // O fator sozinho engana: 1,13x parece lucro e nao e, depois do que
@@ -127,6 +151,15 @@ $margem = $venda !== null && $pago > 0 ? $venda - $pago : null;
                         <span class="selo selo-manual">manual</span>
                     <?php endif; ?>
                 </div>
+                <?php if ($h['preco_caixa'] !== null): ?>
+                    <div class="linha-baixo"><span class="ajuda">
+                        <?php if ($h['como_caixa']): ?>
+                            <?= qtd_fmt($h['por_caixa']) ?> un. por caixa · <?= moeda($h['preco_unidade']) ?> a unidade
+                        <?php else: ?>
+                            veio em caixa com <?= qtd_fmt($h['por_caixa']) ?> · <?= moeda($h['preco_caixa']) ?> a caixa
+                        <?php endif; ?>
+                    </span></div>
+                <?php endif; ?>
                 <?php if ($h['descricao_original'] !== $produto['descricao']): ?>
                     <div class="linha-baixo"><span class="ajuda"><?= e($h['descricao_original']) ?></span></div>
                 <?php endif; ?>

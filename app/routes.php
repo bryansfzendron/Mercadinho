@@ -664,6 +664,11 @@ function rota_api_produto(array $u): void
             'unitario' => (float) $h['valor_unitario'],
             'qtd'      => (float) $h['quantidade'],
             'unidade'  => $h['unidade'],
+            // Caixa aberta: o preco do outro lado, ja escrito.
+            'outro'    => $h['preco_caixa'] === null ? null
+                        : ($h['como_caixa']
+                            ? moeda($h['preco_unidade']) . ' a unidade'
+                            : 'caixa com ' . qtd_fmt($h['por_caixa']) . ': ' . moeda($h['preco_caixa'])),
         ], array_slice($hist, 0, 5)),
     ]);
 }

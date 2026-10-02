@@ -345,9 +345,10 @@ function nota_carregar(int $nota_id, int $usuario_id): ?array
         return null;
     }
     $nota['itens'] = q(
-        'SELECT i.*, p.ean AS produto_ean
+        'SELECT i.*, p.ean AS produto_ean, pc.ean AS caixa_ean
            FROM itens i
-      LEFT JOIN produtos p ON p.id = i.produto_id
+      LEFT JOIN produtos p  ON p.id  = i.produto_id
+      LEFT JOIN produtos pc ON pc.id = i.caixa_produto_id
           WHERE i.nota_id = ?
        ORDER BY i.item_num ASC, i.id ASC',
         [$nota_id]
@@ -395,16 +396,23 @@ function item_valores(float $quantidade, float $bruto, float $desconto): array
  * com o codigo de barras da lata, e o historico de preco passa a falar na
  * unidade que voce realmente vende.
  *
- * @param array $in descricao, ean, quantidade, unidade, valor_total, desconto
+ * A caixa nao some: o formulario fala SEMPRE na lingua da nota (1 CX, codigo
+ * da caixa) e a unidade vem a parte (ean_unidade + por_caixa). O item gravado
+ * aponta para a unidade — e o que custo, margem e estoque leem —, e a caixa
+ * fica em caixa_produto_id, de onde o bipe da caixa tira o preco dela.
+ *
+ * @param array $in descricao, ean, quantidade, unidade, valor_total, desconto,
+ *                  ean_unidade, por_caixa
  * @return array{ok:bool, msg:string}
  */
 function nota_item_editar(int $nota_id, int $item_id, int $usuario_id, array $in): array
 {
     $item = q1(
-        'SELECT i.*, n.estabelecimento_id, p.ean AS produto_ean
+        'SELECT i.*, n.estabelecimento_id, p.ean AS produto_ean, pc.ean AS caixa_ean
            FROM itens i
            JOIN notas n ON n.id = i.nota_id
-      LEFT JOIN produtos p ON p.id = i.produto_id
+      LEFT JOIN produtos p  ON p.id  = i.produto_id
+      LEFT JOIN produtos pc ON pc.id = i.caixa_produto_id
           WHERE i.id = ? AND i.nota_id = ? AND n.usuario_id = ?',
         [$item_id, $nota_id, $usuario_id]
     );
@@ -439,22 +447,58 @@ function nota_item_editar(int $nota_id, int $item_id, int $usuario_id, array $in
         return ['ok' => false, 'msg' => 'Codigo de barras invalido: use 8, 12, 13 ou 14 digitos.'];
     }
 
-    $v        = item_valores($quantidade, $bruto, $desconto);
+    // Caixa aberta: quantas unidades vem em cada uma. Vazio (ou zero) fecha a
+    // caixa de novo e o item volta a ser so o que a nota disse.
+    $por_caixa = round(num_br($in['por_caixa'] ?? ''), 4);
+    if ($por_caixa > 0 && $por_caixa < 2) {
+        return ['ok' => false, 'msg' => 'Quantas unidades vem na caixa? Informe 2 ou mais.'];
+    }
+    $aberta = $por_caixa >= 2;
+
+    // Sem codigo da unidade, caixa e unidade sao o mesmo cadastro: e o "abrir
+    // caixa" de antes, para o produto que nao tem GTIN proprio na lata.
+    $ean_un_digitado = trim((string) ($in['ean_unidade'] ?? ''));
+    $ean_un = ean_normalizado($ean_un_digitado);
+    if ($aberta && $ean_un_digitado !== '' && $ean_un === null) {
+        return ['ok' => false, 'msg' => 'Codigo de barras da unidade invalido: use 8, 12, 13 ou 14 digitos.'];
+    }
+
     $unidade  = mb_substr(trim((string) ($in['unidade'] ?? '')), 0, 10) ?: null;
+    // O total pago e a ancora nos dois casos: aberta, so a quantidade muda, e
+    // o unitario cai na proporcao certa sozinho.
+    $v        = item_valores($aberta ? $quantidade * $por_caixa : $quantidade, $bruto, $desconto);
     $estab_id = $item['estabelecimento_id'] !== null ? (int) $item['estabelecimento_id'] : null;
+
+    // Quem e "a caixa" hoje: com cadastro proprio, mora em caixa_produto_id;
+    // senao e o produto do item (fechada, ou aberta sem codigo de unidade).
+    $tem_caixa   = $item['caixa_produto_id'] !== null;
+    $produto_era = $item['produto_id'] !== null ? (int) $item['produto_id'] : null;
+    $caixa_atual = $tem_caixa ? (int) $item['caixa_produto_id'] : $produto_era;
+    $ean_caixa   = $tem_caixa ? $item['caixa_ean'] : $item['produto_ean'];
+    $un_atual    = $tem_caixa ? $produto_era : null;
 
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $produto_id = $item['produto_id'] !== null ? (int) $item['produto_id'] : null;
-        $trocou     = $ean !== null && $ean !== $item['produto_ean'];
-
+        $caixa_id = $caixa_atual;
+        $trocou   = $ean !== null && $ean !== $ean_caixa;
         if ($trocou) {
-            $produto_id = produto_do_ean($ean, $produto_id, $descricao, $unidade);
+            $caixa_id = produto_do_ean($ean, $caixa_atual, $descricao, $unidade);
             // O codigo interno da loja passa a apontar para o produto certo:
             // a proxima nota dessa loja ja cai no lugar, sem repetir a correcao.
-            produto_alias_gravar($produto_id, $estab_id, (string) ($item['cod_interno'] ?? ''), $descricao);
+            // E aponta para a CAIXA: a loja vende a caixa, e uma proxima nota
+            // casada direto na lata gravaria 1 lata a preco de caixa.
+            produto_alias_gravar($caixa_id, $estab_id, (string) ($item['cod_interno'] ?? ''), $descricao);
         }
+
+        $produto_id = $caixa_id;
+        if ($aberta && $ean_un !== null && $ean_un !== $ean) {
+            // A caixa nunca entra como "produto atual" aqui: sem GTIN, ela
+            // adotaria o codigo da lata e as duas virariam um cadastro so.
+            $produto_id = produto_do_ean($ean_un, $un_atual, produto_nome_unidade($ean_un, $descricao), 'UN');
+        }
+        $trocou_un        = $aberta && $produto_id !== $caixa_id && $produto_id !== $un_atual;
+        $caixa_produto_id = $aberta && $produto_id !== $caixa_id ? $caixa_id : null;
 
         exec_sql(
             'UPDATE itens
@@ -466,18 +510,24 @@ function nota_item_editar(int $nota_id, int $item_id, int $usuario_id, array $in
                     valor_total            = ?,
                     desconto               = ?,
                     valor_total_liquido    = ?,
-                    valor_unitario_liquido = ?
+                    valor_unitario_liquido = ?,
+                    caixa_produto_id       = ?,
+                    por_caixa              = ?,
+                    caixa_unidade          = ?
               WHERE id = ?',
             [
                 $produto_id,
                 $descricao,
                 $v['quantidade'],
-                $unidade,
+                $aberta ? 'UN' : $unidade,
                 $v['valor_unitario'],
                 $v['valor_total'],
                 $v['desconto'],
                 $v['valor_total_liquido'],
                 $v['valor_unitario_liquido'],
+                $caixa_produto_id,
+                $aberta ? $por_caixa : null,
+                $aberta ? ($unidade ?: 'CX') : null,
                 $item_id,
             ]
         );
@@ -506,10 +556,19 @@ function nota_item_editar(int $nota_id, int $item_id, int $usuario_id, array $in
         return ['ok' => false, 'msg' => 'Falha ao salvar o item: ' . $e->getMessage()];
     }
 
-    $msg = 'Item corrigido: ' . qtd_fmt($v['quantidade']) . ' ' . ($unidade ?: 'un')
-         . ' a ' . moeda($v['valor_unitario_liquido']) . ' cada.';
+    if ($aberta) {
+        $msg = 'Item corrigido: ' . qtd_fmt($quantidade) . ' ' . ($unidade ?: 'CX') . ' a '
+             . moeda($v['valor_total_liquido'] / $quantidade) . ' cada, '
+             . qtd_fmt($v['quantidade']) . ' UN a ' . moeda($v['valor_unitario_liquido']) . ' cada.';
+    } else {
+        $msg = 'Item corrigido: ' . qtd_fmt($v['quantidade']) . ' ' . ($unidade ?: 'un')
+             . ' a ' . moeda($v['valor_unitario_liquido']) . ' cada.';
+    }
     if ($trocou) {
         $msg .= ' Codigo de barras ' . $ean . ' vinculado.';
+    }
+    if ($trocou_un) {
+        $msg .= ' Unidade ' . $ean_un . ' vinculada.';
     }
     return ['ok' => true, 'msg' => $msg];
 }

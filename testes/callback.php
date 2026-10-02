@@ -7,6 +7,8 @@ require APP . '/helpers.php';
 // notas.php so define funcoes e uma const no topo, entao carrega sem banco.
 // O teste chama apenas callback_normalizar(), que nao consulta o MySQL.
 require APP . '/notas.php';
+// So pelo historico_linha(), que e pura.
+require APP . '/produtos.php';
 
 $ok = 0; $falhou = 0;
 function checar(string $nome, $obtido, $esperado): void
@@ -179,6 +181,36 @@ checar('quantidade residual: unitario', $zero['valor_unitario'], 5.0);
 // Peso fracionado continua funcionando: 1,235 kg por R$ 8,63.
 $peso = item_valores(1.235, 8.63, 1.00);
 checar('granel: unitario liquido', $peso['valor_unitario_liquido'], 6.1781);
+
+// ---- i) caixa aberta: a mesma compra vista da caixa e da unidade ----
+// O item gravado fala da lata: 24 UN (2 caixas de 12), R$ 45,60 pagos.
+$gravado = [
+    'quantidade' => '24.0000', 'unidade' => 'UN',
+    'valor_unitario' => '2.0000', 'valor_unitario_liquido' => '1.9000',
+    'valor_total' => '48.00', 'valor_total_liquido' => '45.60',
+    'por_caixa' => '12.0000', 'caixa_unidade' => 'CX',
+];
+
+$pela_un = historico_linha($gravado + ['como_caixa' => 0]);
+checar('vista da unidade: quantidade intocada', $pela_un['quantidade'], '24.0000');
+checar('vista da unidade: unitario intocado', $pela_un['valor_unitario_liquido'], '1.9000');
+checar('vista da unidade: preco da caixa ao lado', $pela_un['preco_caixa'], 22.8);
+checar('vista da unidade: nao e caixa', $pela_un['como_caixa'], false);
+
+$pela_cx = historico_linha($gravado + ['como_caixa' => 1]);
+checar('vista da caixa: quantidade em caixas', $pela_cx['quantidade'], 2.0);
+checar('vista da caixa: unidade da nota', $pela_cx['unidade'], 'CX');
+checar('vista da caixa: unitario de caixa', $pela_cx['valor_unitario'], 24.0);
+checar('vista da caixa: liquido de caixa', $pela_cx['valor_unitario_liquido'], 22.8);
+checar('vista da caixa: preco da unidade ao lado', $pela_cx['preco_unidade'], 1.9);
+checar('vista da caixa: total e o mesmo', $pela_cx['valor_total_liquido'], '45.60');
+
+// Item que nunca foi caixa passa como veio, sem os precos do outro lado.
+$simples = historico_linha(['quantidade' => '3', 'valor_unitario_liquido' => '5',
+                            'por_caixa' => null, 'como_caixa' => null]);
+checar('sem caixa: sem preco de caixa', $simples['preco_caixa'], null);
+checar('sem caixa: nao e caixa', $simples['como_caixa'], false);
+checar('sem caixa: quantidade intocada', $simples['quantidade'], '3');
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

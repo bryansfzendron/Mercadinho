@@ -20,11 +20,40 @@ $chave_busca = static function (array $i): string {
     $partes = [
         normalizar_texto($i['descricao_original']),
         (string) ($i['produto_ean'] ?? ''),
+        (string) ($i['caixa_ean'] ?? ''),
         (string) ($i['ean_original'] ?? ''),
         normalizar_texto($i['cod_interno'] ?? ''),
         (string) ($i['item_num'] ?? ''),
     ];
     return trim(preg_replace('/\s+/', ' ', implode(' ', array_filter($partes))));
+};
+
+/**
+ * O item visto como a nota o trouxe. Caixa aberta grava a unidade (12 UN e o
+ * codigo da lata); o editor e a linha falam da caixa (1 CX e o codigo dela),
+ * com a unidade a parte. Sem caixa aberta, e o proprio item.
+ *
+ * @return array{aberta:bool, por:float, qtd:float, unidade:string, ean:string,
+ *               ean_un:string, preco_caixa:float}
+ */
+$como_nota = static function (array $i): array {
+    $por = (float) ($i['por_caixa'] ?? 0);
+    if ($por <= 0) {
+        return ['aberta' => false, 'por' => 0.0, 'qtd' => (float) $i['quantidade'],
+                'unidade' => $i['unidade'] ?: 'UN', 'ean' => (string) ($i['produto_ean'] ?? ''),
+                'ean_un' => '', 'preco_caixa' => 0.0];
+    }
+    $proprio = $i['caixa_produto_id'] !== null;
+    return [
+        'aberta'      => true,
+        'por'         => $por,
+        'qtd'         => (float) $i['quantidade'] / $por,
+        'unidade'     => $i['caixa_unidade'] ?: 'CX',
+        // Caixa e unidade num cadastro so: o codigo e um, e fica la em cima.
+        'ean'         => (string) ($proprio ? ($i['caixa_ean'] ?? '') : ($i['produto_ean'] ?? '')),
+        'ean_un'      => (string) ($proprio ? ($i['produto_ean'] ?? '') : ''),
+        'preco_caixa' => (float) $i['valor_unitario_liquido'] * $por,
+    ];
 };
 
 // Filtro so aparece quando ha rolagem para valer: numa nota de feira com tres
@@ -71,9 +100,9 @@ $vale_filtrar = count($nota['itens']) >= 8;
 <h2><?= count($nota['itens']) ?> itens</h2>
 <?php if ($nota['itens']): ?>
     <p class="ajuda">
-        Comprou a caixa e vende a unidade? Abra <strong>Corrigir item</strong>: troque o
-        código de barras pelo do que vai na prateleira e diga quantas unidades vieram —
-        o valor pago fica igual e o preço por unidade se ajusta sozinho.
+        Comprou a caixa e vende a unidade? Abra <strong>Corrigir item</strong>, bipe o
+        código da unidade e diga quantas vêm na caixa. A caixa continua com o código e o
+        preço dela, e a unidade ganha o seu — o valor pago fica igual.
     </p>
 <?php endif; ?>
 
@@ -86,7 +115,7 @@ $vale_filtrar = count($nota['itens']) >= 8;
 
 <ul class="lista" id="lista-itens">
     <?php foreach ($nota['itens'] as $i): $iid = (int) $i['id']; ?>
-        <?php $barras = codigo_barras_svg($i['produto_ean'] ?? null); ?>
+        <?php $barras = codigo_barras_svg($i['produto_ean'] ?? null); $cx = $como_nota($i); ?>
         <li id="item-<?= $iid ?>" data-busca="<?= e($chave_busca($i)) ?>">
             <a href="<?= $i['produto_id'] ? '/produtos/' . (int) $i['produto_id'] : '#' ?>">
                 <div class="linha-topo">
@@ -100,6 +129,10 @@ $vale_filtrar = count($nota['itens']) >= 8;
                 </div>
                 <div class="linha-baixo">
                     <span>
+                        <?php if ($cx['aberta']): ?>
+                            <?= qtd_fmt($cx['qtd']) ?> <?= e($cx['unidade']) ?>
+                            × <?= moeda($cx['preco_caixa']) ?> ·
+                        <?php endif; ?>
                         <?= qtd_fmt($i['quantidade']) ?> <?= e($i['unidade'] ?: 'un') ?>
                         × <?= moeda($i['valor_unitario_liquido']) ?>
                         <?php if ((float) $i['desconto'] > 0): ?>
@@ -117,6 +150,12 @@ $vale_filtrar = count($nota['itens']) >= 8;
                 <?php if ($barras): ?>
                     <div class="barras"><?= $barras ?></div>
                 <?php endif; ?>
+                <?php if ($cx['aberta'] && $i['caixa_produto_id'] !== null): ?>
+                    <div class="linha-baixo">
+                        <span class="ajuda">caixa com <?= qtd_fmt($cx['por']) ?></span>
+                        <span class="mono"><?= $cx['ean'] !== '' ? e($cx['ean']) : 'caixa sem GTIN' ?></span>
+                    </div>
+                <?php endif; ?>
             </a>
 
             <details class="item-editor">
@@ -133,8 +172,8 @@ $vale_filtrar = count($nota['itens']) >= 8;
                     <div class="duas">
                         <label>Código de barras
                             <input type="text" name="ean" class="campo-ean" inputmode="numeric"
-                                   value="<?= e($i['produto_ean'] ?? '') ?>"
-                                   placeholder="o que você bipa na prateleira">
+                                   value="<?= e($cx['ean']) ?>"
+                                   placeholder="o que veio na nota">
                         </label>
                         <button type="button" class="botao botao-alt bipar">Bipar</button>
                     </div>
@@ -142,11 +181,11 @@ $vale_filtrar = count($nota['itens']) >= 8;
                     <div class="tres">
                         <label>Quantidade
                             <input type="text" name="quantidade" class="qtd" inputmode="decimal"
-                                   value="<?= e($qtd_campo($i['quantidade'])) ?>">
+                                   value="<?= e($qtd_campo($cx['qtd'])) ?>">
                         </label>
                         <label>Unidade
                             <input type="text" name="unidade" maxlength="10"
-                                   value="<?= e($i['unidade'] ?: 'UN') ?>">
+                                   value="<?= e($cx['unidade']) ?>">
                         </label>
                         <label>Total pago R$
                             <input type="text" name="valor_total" class="vt" inputmode="decimal"
@@ -159,12 +198,25 @@ $vale_filtrar = count($nota['itens']) >= 8;
                                value="<?= number_format((float) $i['desconto'], 2, ',', '') ?>">
                     </label>
 
-                    <div class="duas">
-                        <label>Veio caixa fechada? Quantas unidades tinha dentro
-                            <input type="text" class="por-caixa" inputmode="numeric" placeholder="12">
+                    <?php // A caixa nao e aberta no cliente: quem multiplica e o
+                          // servidor, e o formulario continua falando da caixa.
+                          // Vazio fecha de novo. ?>
+                    <fieldset class="caixa-aberta">
+                        <legend>Veio caixa? Vende por unidade</legend>
+                        <label>Unidades por caixa
+                            <input type="text" name="por_caixa" class="por-caixa" inputmode="numeric"
+                                   value="<?= $cx['aberta'] ? e($qtd_campo($cx['por'])) : '' ?>"
+                                   placeholder="12">
                         </label>
-                        <button type="button" class="botao botao-alt abrir-caixa">Abrir caixa</button>
-                    </div>
+                        <div class="duas">
+                            <label>Código da unidade
+                                <input type="text" name="ean_unidade" class="campo-ean-un" inputmode="numeric"
+                                       value="<?= e($cx['ean_un']) ?>"
+                                       placeholder="o que você bipa na prateleira">
+                            </label>
+                            <button type="button" class="botao botao-alt bipar-un">Bipar</button>
+                        </div>
+                    </fieldset>
 
                     <p class="previa" aria-live="polite"></p>
 
@@ -205,20 +257,31 @@ $vale_filtrar = count($nota['itens']) >= 8;
 
     const brl = (v) => 'R$ ' + v.toFixed(2).replace('.', ',');
 
+    const qtdTxt = (v) => (Math.round(v * 1e4) / 1e4).toString().replace('.', ',');
+
     function recalcular(form) {
         const qtd = num(form.querySelector('.qtd').value);
         const vt  = num(form.querySelector('.vt').value);
         const vd  = Math.min(Math.max(num(form.querySelector('.vd').value), 0), vt);
         const un  = (form.querySelector('[name="unidade"]').value || 'un').trim();
+        const por = num(form.querySelector('.por-caixa').value);
         const p   = form.querySelector('.previa');
 
         if (qtd <= 0 || vt <= 0) {
             p.textContent = 'Informe quantidade e total maiores que zero.';
             return;
         }
+        if (por > 0 && por < 2) {
+            p.textContent = 'Quantas unidades vêm na caixa? Informe 2 ou mais.';
+            return;
+        }
         // O unitario mostrado e o liquido: e ele que vira custo no histórico.
-        p.textContent = qtd.toString().replace('.', ',') + ' ' + un + ' × ' +
-            brl((vt - vd) / qtd) + ' = ' + brl(vt - vd) + ' pagos';
+        let txt = qtdTxt(qtd) + ' ' + un + ' × ' + brl((vt - vd) / qtd) + ' = ' + brl(vt - vd) + ' pagos';
+        // Caixa aberta: o mesmo total, dividido pelas unidades de dentro.
+        if (por >= 2) {
+            txt += ' · ' + qtdTxt(qtd * por) + ' UN × ' + brl((vt - vd) / (qtd * por));
+        }
+        p.textContent = txt;
     }
 
     function caixaCamera() {
@@ -254,8 +317,7 @@ $vale_filtrar = count($nota['itens']) >= 8;
         }
     }
 
-    async function ligarCamera(form) {
-        const campo = form.querySelector('.campo-ean');
+    async function ligarCamera(campo) {
         // Tocar de novo no mesmo item e desligar de proposito: ai solta mesmo,
         // senao "desliguei" e o LED continua aceso por mais 45 segundos.
         if (alvo === campo) { fecharCamera(); return; }
@@ -272,6 +334,7 @@ $vale_filtrar = count($nota['itens']) >= 8;
         try {
             leitor = await Scanner.iniciar(cx.querySelector('video'), Scanner.BARRAS, (codigo) => {
                 campo.value = codigo;
+                campo.dispatchEvent(new Event('input', { bubbles: true }));
                 if (navigator.vibrate) navigator.vibrate(60);
                 // Leu um item e provavelmente vai ler o proximo: guarda.
                 fecharCamera({ guardar: true });
@@ -287,23 +350,10 @@ $vale_filtrar = count($nota['itens']) >= 8;
         form.addEventListener('input', () => recalcular(form));
         recalcular(form);
 
-        form.querySelector('.bipar').addEventListener('click', () => ligarCamera(form));
-
-        // "Abrir caixa" so multiplica a quantidade. O total pago nao se mexe —
-        // e por isso que o unitario cai na proporcao certa.
-        form.querySelector('.abrir-caixa').addEventListener('click', () => {
-            const n = num(form.querySelector('.por-caixa').value);
-            if (n < 2) {
-                alert('Quantas unidades vieram na caixa? Informe 2 ou mais.');
-                return;
-            }
-            const q = form.querySelector('.qtd');
-            // Arredonda em 4 casas (o que a coluna guarda) para 2 x 12 nao
-            // virar "24.000000000000004" no campo.
-            q.value = (Math.round(num(q.value) * n * 1e4) / 1e4).toString().replace('.', ',');
-            form.querySelector('[name="unidade"]').value = 'UN';
-            recalcular(form);
-        });
+        form.querySelector('.bipar').addEventListener('click',
+            () => ligarCamera(form.querySelector('.campo-ean')));
+        form.querySelector('.bipar-un').addEventListener('click',
+            () => ligarCamera(form.querySelector('.campo-ean-un')));
     });
 
     // Fechar o editor solta a camera junto: sem isso o LED fica aceso.

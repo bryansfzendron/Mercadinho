@@ -79,6 +79,12 @@ function migracoes(): array
         'itens' => [
             'valor_total_liquido'    => 'DECIMAL(14,2) NOT NULL DEFAULT 0 AFTER desconto',
             'valor_unitario_liquido' => 'DECIMAL(14,4) NOT NULL DEFAULT 0 AFTER valor_total_liquido',
+            // O ALTER aceita varias clausulas: o indice da caixa vem junto com
+            // a coluna, senao instalacao antiga ficaria sem ele para sempre.
+            'caixa_produto_id'       => 'INT UNSIGNED NULL AFTER valor_unitario_liquido,'
+                                      . ' ADD KEY ix_itens_caixa (caixa_produto_id)',
+            'por_caixa'              => 'DECIMAL(14,4) NULL AFTER caixa_produto_id',
+            'caixa_unidade'          => 'VARCHAR(10) NULL AFTER por_caixa',
         ],
     ];
 }

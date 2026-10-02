@@ -809,6 +809,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
 .form-item .duas .botao { margin-bottom: .55rem; padding-left: .9rem; padding-right: .9rem; }
 .form-item .camera-caixa { margin-bottom: .7rem; }
 
+/* Caixa aberta: um grupo a parte, porque fala de outra coisa — a unidade que
+   vai para a prateleira — enquanto o resto do formulario fala da nota. */
+.caixa-aberta {
+    margin: .2rem 0 .7rem; padding: .55rem .7rem .1rem;
+    border: 1px solid var(--borda); border-radius: 12px;
+}
+.caixa-aberta legend { padding: 0 .3rem; font-size: .85rem; font-weight: 600; color: var(--suave); }
+
 /* A previa e a resposta a pergunta que se esta fazendo — quanto sai a unidade. */
 .form-item .previa {
     margin: .2rem 0 .8rem; font-size: .85rem; font-weight: 600;

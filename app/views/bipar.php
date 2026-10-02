@@ -415,7 +415,8 @@
             let linhas = d.ultimas.map(u =>
                 '<li><div class="linha-topo"><span class="forte">' + u.loja + '</span>' +
                 '<span class="valor">' + moeda(u.unitario) + '</span></div>' +
-                '<div class="linha-baixo"><span>' + u.data + '</span></div></li>'
+                '<div class="linha-baixo"><span>' + u.data + '</span>' +
+                (u.outro ? '<span>' + esc(u.outro) + '</span>' : '') + '</div></li>'
             ).join('');
 
             alvo.innerHTML =
