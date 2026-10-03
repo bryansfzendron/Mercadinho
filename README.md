@@ -737,7 +737,8 @@ o segundo toque manda. No servidor (`promocao_criar()`):
 - a lista de promoções do TouchPay é **relida na hora**, e uma do mesmo produto e PDV
   com datas que se cruzam — criada por aqui ou direto no painel — **impede a nova**:
   desconto em cima de desconto, e ninguém sabe o que o caixa deles faz com isso. Se a
-  lista não responder, a criação para; criar no escuro é o caso que a checagem evita;
+  lista não responder, a checagem cai no diário daqui e a criação **segue**: uma leitura
+  auxiliar quebrada já barrou a criação inteira uma vez (ver abaixo);
 - desconto fora de 1–90%, decimal, começando no passado ou durando mais de 120 dias é
   recusado antes de sair daqui.
 
@@ -776,6 +777,13 @@ cada promoção traz `type`, `startsOn`/`expiresOn`, `isValid` e as regras por p
 produto × PDV, que é a pergunta que as telas fazem. Só o tipo `Percentage` foi visto;
 desconto em dinheiro é escrito em reais, e tipo desconhecido fica com o número cru em
 vez de adivinhar.
+
+**A URL da lista é a do painel, letra por letra** (`pageSize=10&sortOrder=dateCreated&descending=false`).
+A primeira versão pedia 200 por página e as mais novas primeiro: o servidor deles
+respondeu **500 "erro interno"**, e como a criação dependia da lista, nenhuma promoção
+nova saía. Com a URL do painel, 200 OK. A lista inteira é lida página a página (até
+`hasNextPage` dizer que acabou), porque na ordem do painel as recentes vêm por último. O
+teste trava a URL exata — mexer nela é testar contra a conta de verdade antes.
 
 Se o painel não responder, a aba avisa e mostra o diário daqui (`promocoes`) no lugar.
 Encerrar uma promoção antes do fim ainda é no painel — falta ver a chamada que ele usa.

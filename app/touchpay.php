@@ -519,13 +519,16 @@ function tp_promocao_criar(array $corpo): array
 /**
  * A URL da lista de promocoes de produto. Funcao pura.
  *
- * A mesma que o painel usa na tela de Descontos, com os filtros vazios — vem
- * tudo, encerradas inclusive — e as mais novas primeiro.
+ * EXATAMENTE a que o painel usa na tela de Descontos: 10 por pagina, das
+ * mais velhas para as mais novas, filtros vazios. Nao e capricho — a
+ * primeira versao pedia 200 por pagina e das mais novas primeiro, e o
+ * servidor deles respondeu 500 "erro interno". Com a URL do painel, 200 OK.
+ * Aqui nao se mexe sem testar contra a conta de verdade.
  */
-function tp_promocoes_url(int $pagina, int $por_pagina): string
+function tp_promocoes_url(int $pagina): string
 {
-    return '/api/discountproducts/paginated?page=' . $pagina . '&pageSize=' . $por_pagina
-        . '&sortOrder=dateCreated&descending=true&search=&startDate=&endDate=&discountType='
+    return '/api/discountproducts/paginated?page=' . $pagina . '&pageSize=10'
+        . '&sortOrder=dateCreated&descending=false&search=&startDate=&endDate=&discountType='
         . '&timezoneOffset=180';
 }
 
@@ -533,13 +536,30 @@ function tp_promocoes_url(int $pagina, int $por_pagina): string
  * Todas as promocoes de produto da conta.
  *
  * Resposta conferida em 03/10/2026: `items` com uma promocao cada, e dentro
- * dela as regras por produto e por ponto de venda; `totalItems` vem, entao o
- * paginador para pelo total. Pagina de 200 e nao de 10 mil: o painel deles
- * pede 10, e nao vale descobrir na pratica o teto do servidor.
+ * dela as regras por produto e por ponto de venda; `totalItems` e
+ * `hasNextPage` vem. Como a pagina e de 10 e a ordem e da mais velha para a
+ * mais nova, a lista INTEIRA precisa ser lida — parar cedo perderia
+ * justamente as promocoes recentes. O teto de 100 paginas (mil promocoes)
+ * so existe para um servidor que nunca diga que acabou.
  */
 function tp_promocoes(): array
 {
-    return tp_paginar(static fn (int $p, int $n) => tp_promocoes_url($p, 200));
+    $itens = [];
+    for ($pagina = 1; $pagina <= 100; $pagina++) {
+        $r     = tp_chamar('GET', tp_promocoes_url($pagina));
+        $lista = pg_itens($r);
+        foreach ($lista as $item) {
+            $itens[] = $item;
+        }
+        $total = tp_total($r);
+        $mais  = is_array($r) && array_key_exists('hasNextPage', $r)
+            ? (bool) $r['hasNextPage']
+            : ($total !== null ? count($itens) < $total : count($lista) >= 10);
+        if (!$lista || !$mais) {
+            break;
+        }
+    }
+    return $itens;
 }
 
 /**

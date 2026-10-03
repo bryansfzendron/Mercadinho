@@ -229,8 +229,13 @@ checar('tipo desconhecido: nao sei', promocao_preco_final('Combo', 3.95, 1.0), n
 checar('sem preco: nao sei', promocao_preco_final('Percentage', null, 29), null);
 
 // ----------------------------------------------------------- a URL
-checar('a lista vem das mais novas', str_contains(tp_promocoes_url(1, 200), 'sortOrder=dateCreated&descending=true'), true);
-checar('a pagina vai na URL', str_contains(tp_promocoes_url(2, 200), 'page=2&pageSize=200'), true);
+// A URL do painel, letra por letra: foi a unica conferida contra a conta de
+// verdade (200 OK). Pedir 200 por pagina e das mais novas primeiro deu 500
+// "erro interno" e barrou a criacao de promocao.
+checar('a lista e pedida igual ao painel', tp_promocoes_url(1),
+    '/api/discountproducts/paginated?page=1&pageSize=10&sortOrder=dateCreated&descending=false'
+    . '&search=&startDate=&endDate=&discountType=&timezoneOffset=180');
+checar('so a pagina muda', str_contains(tp_promocoes_url(3), 'page=3&pageSize=10&'), true);
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

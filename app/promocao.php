@@ -646,14 +646,14 @@ function promocoes_touchpay(): ?array
  * Do TouchPay quando ele responde; senao, as que o app criou — melhor avisar
  * pela metade do que dizer "nenhuma" com o painel fora do ar.
  */
-function promocoes_do_item(array $item): array
+function promocoes_do_item(array $item, bool $usar_touchpay = true): array
 {
     $produto = (int) ($item['externo_produto_id'] ?? 0);
     $pdv_ext = (int) ($item['pdv_externo'] ?? 0);
     if ($produto <= 0) {
         return [];
     }
-    $tp = promocoes_touchpay();
+    $tp = $usar_touchpay ? promocoes_touchpay() : null;
     if ($tp !== null) {
         return array_values(array_filter(promocoes_valendo($tp),
             static fn (array $l): bool => $l['pdv_externo'] === $pdv_ext && $l['produto_externo'] === $produto));
@@ -765,11 +765,19 @@ function promocao_criar(array $u, array $dados): array
         return ['ok' => false, 'erro' => 'Ponto de venda desconhecido.'];
     }
 
-    // Relida agora, e se o painel nao responder a criacao para: sem a lista
-    // nao da para saber se ja existe promocao, e criar no escuro e o caso
-    // que esta checagem existe para evitar.
-    $cruzam = promocoes_que_cruzam(promocoes_tp_normalizar(tp_promocoes()),
-                                   (int) $pdv['externo_id'], $produto, $inicio, $fim);
+    // Relida agora. Se a LISTA falhar, a criacao nao para: o POST e outra
+    // chamada, e foi assim que a primeira versao funcionou. Uma leitura
+    // auxiliar quebrada ja barrou a criacao inteira uma vez — entao, sem a
+    // lista de la, a checagem cai no diario daqui (o que o app criou).
+    try {
+        $lista = promocoes_tp_normalizar(tp_promocoes());
+    } catch (TouchPayErro $e) {
+        error_log('promocao_criar: lista do TouchPay falhou, usando o diario: ' . $e->getMessage());
+        $lista = array_map(static fn (array $p): array => $p + [
+            'valido' => true, 'pdv_externo' => (int) $pdv['externo_id'], 'produto_externo' => $produto,
+        ], promocoes_do_item($item + ['pdv_externo' => (int) $pdv['externo_id']], false));
+    }
+    $cruzam = promocoes_que_cruzam($lista, (int) $pdv['externo_id'], $produto, $inicio, $fim);
     if ($cruzam) {
         $p = $cruzam[0];
         return ['ok' => false, 'erro' => 'Já existe promoção deste produto neste ponto de venda ('
