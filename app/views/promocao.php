@@ -77,8 +77,9 @@ $pode_promover = $preco !== null && $preco > 0
 
 <?php foreach ($ativas as $a): ?>
     <div class="aviso aviso-info">
+        <?php $por = promocao_preco_final($a['tipo'], $preco, (float) $a['valor']); ?>
         <strong>Já tem promoção <?= e(promocao_status($a['inicio'], $a['fim'])) ?>:</strong>
-        −<?= (int) $a['percentual'] ?>%, <?= moeda($a['preco_promo']) ?>,
+        <?= e($a['desconto']) ?><?= $por !== null ? ', ' . moeda($por) : '' ?>,
         de <?= e(pg_data_br($a['inicio'])) ?> a <?= e(pg_data_br($a['fim'])) ?>.
     </div>
 <?php endforeach; ?>

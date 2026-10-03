@@ -734,9 +734,10 @@ o segundo toque manda. No servidor (`promocao_criar()`):
 
 - o preço base é **relido do planograma na hora**; se mudou desde que a tela abriu, para
   com 409 em vez de criar um "de/por" que mente;
-- promoção que o app já criou para o mesmo produto e PDV, com datas que se cruzam,
-  **impede a nova** — desconto em cima de desconto, e ninguém sabe o que o caixa deles
-  faz com isso;
+- a lista de promoções do TouchPay é **relida na hora**, e uma do mesmo produto e PDV
+  com datas que se cruzam — criada por aqui ou direto no painel — **impede a nova**:
+  desconto em cima de desconto, e ninguém sabe o que o caixa deles faz com isso. Se a
+  lista não responder, a criação para; criar no escuro é o caso que a checagem evita;
 - desconto fora de 1–90%, decimal, começando no passado ou durando mais de 120 dias é
   recusado antes de sair daqui.
 
@@ -761,13 +762,23 @@ preço que valia na hora. **Tabela nova:** rode `/setup.php?token=...`.
 
 1. **Vencidos na prateleira** — com estoque e validade passada. Tirar da gôndola e zerar.
 2. **Pedem promoção** — validade em até 60 dias, estoque, e a análise dizendo que não sai
-   a tempo no preço de hoje. Quem já tem promoção criada pelo app sai da lista.
-3. **Criadas pelo app** — com o estado pelas datas: *no ar*, *agendada*, *encerrada* ou
-   *recusada*.
+   a tempo no preço de hoje. Quem já tem promoção valendo no TouchPay sai da lista.
+3. **No TouchPay** — o que está no ar ou agendado, **inclusive o que foi feito direto no
+   painel**, com de/por (sobre o preço do planograma), PDV e a marca *pelo app* quando
+   saiu daqui. Embaixo, as encerradas dos últimos 30 dias.
+4. **Recusadas pelo TouchPay** — tentativas da última semana que voltaram com erro, que
+   são as únicas que a lista de lá não mostra.
 
-Promoções feitas direto no painel do TouchPay ainda não aparecem: a resposta do
-`GET /api/discountproducts/paginated` ainda não foi vista, e a lista não vai adivinhar
-nomes de campo. Encerrar uma promoção antes do fim também ainda é no painel.
+A lista vem de `GET /api/discountproducts/paginated` (resposta conferida em 03/10/2026):
+cada promoção traz `type`, `startsOn`/`expiresOn`, `isValid` e as regras por produto
+(`productId`, `productCode`, `productDefaultPrice`, `amount`) e por PDV
+(`pointOfSaleId`, `localName`). `promocoes_tp_normalizar()` achata em uma linha por
+produto × PDV, que é a pergunta que as telas fazem. Só o tipo `Percentage` foi visto;
+desconto em dinheiro é escrito em reais, e tipo desconhecido fica com o número cru em
+vez de adivinhar.
+
+Se o painel não responder, a aba avisa e mostra o diário daqui (`promocoes`) no lugar.
+Encerrar uma promoção antes do fim ainda é no painel — falta ver a chamada que ele usa.
 
 ## Um gesto só para atualizar
 

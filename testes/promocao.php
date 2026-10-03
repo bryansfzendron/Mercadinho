@@ -170,5 +170,67 @@ checar('o corpo e o do painel', json_encode($corpo, JSON_UNESCAPED_UNICODE),
     . '"discountPointOfSaleRules":[{"id":0,"pointOfSaleId":892,"discountBaseId":0}],'
     . '"usage":0,"category":"Product"}');
 
+// ------------------------------------------------- a lista do TouchPay
+// A resposta de GET /api/discountproducts/paginated de 03/10/2026, com os
+// nomes de lugar trocados.
+$resposta = json_decode('{"items":[{"id":728,"type":"Percentage","category":"Product",'
+    . '"startsOn":"2026-10-03T00:00:00","expiresOn":"2026-10-05T00:00:00",'
+    . '"dateCreated":"2026-10-03T16:05:58.789183","isValid":true,'
+    . '"description":"Promoção Fofura Presunto 60g","usage":0,'
+    . '"discountPointOfSaleRules":[{"id":167,"pointOfSaleId":892,"customerName":"CLIENTE",'
+    . '"localName":"CONDOMINIO","specificLocation":"Sala"}],'
+    . '"discountProductRules":[{"id":596,"productId":"7467","productCode":"7892840823207",'
+    . '"productDescription":"Fofura Presunto 60g","productCategory":"SALGADINHOS",'
+    . '"productDefaultPrice":3.95,"quantity":1,"amount":29.0,"paymentMethod":null,'
+    . '"minimumValue":null,"maxDiscountValue":null}]}],'
+    . '"pageIndex":1,"totalPages":1,"totalItems":1,"pageSize":10,'
+    . '"hasPreviousPage":false,"hasNextPage":false}', true);
+
+checar('a pagina tem os itens em items', count(pg_itens($resposta)), 1);
+checar('e diz o total', tp_total($resposta), 1);
+
+$l = promocoes_tp_normalizar(pg_itens($resposta));
+checar('uma linha por produto x PDV', count($l), 1);
+checar('as datas viram dia', [$l[0]['inicio'], $l[0]['fim']], ['2026-10-03', '2026-10-05']);
+checar('o produto vem como numero', $l[0]['produto_externo'], 7467);
+checar('o PDV tambem', $l[0]['pdv_externo'], 892);
+checar('o desconto escrito', $l[0]['desconto'], '−29%');
+checar('valida', $l[0]['valido'], true);
+checar('o preco padrao vem junto', $l[0]['preco_padrao'], 3.95);
+
+// Uma promocao com dois produtos em dois PDVs vira quatro linhas.
+$dupla = $resposta['items'][0];
+$dupla['discountProductRules'][] = ['productId' => '8000', 'amount' => 10];
+$dupla['discountPointOfSaleRules'][] = ['pointOfSaleId' => 900];
+checar('dois produtos x dois PDVs = quatro', count(promocoes_tp_normalizar([$dupla])), 4);
+checar('sem data, fora', promocoes_tp_normalizar([['id' => 1, 'discountProductRules' => [[]],
+    'discountPointOfSaleRules' => [[]]]]), []);
+
+// -------------------------------------------------- valendo e cruzando
+$h = '2026-10-04';
+checar('no meio do periodo, valendo', count(promocoes_valendo($l, $h)), 1);
+checar('depois do fim, nao', count(promocoes_valendo($l, '2026-10-06')), 0);
+$desligada = $l; $desligada[0]['valido'] = false;
+checar('desligada no painel, nao', count(promocoes_valendo($desligada, $h)), 0);
+
+checar('mesmo produto e PDV, datas cruzam', count(promocoes_que_cruzam($l, 892, 7467, '2026-10-05', '2026-10-09')), 1);
+checar('comecando no dia seguinte ao fim, nao cruza', count(promocoes_que_cruzam($l, 892, 7467, '2026-10-06', '2026-10-09')), 0);
+checar('outro PDV, nao cruza', count(promocoes_que_cruzam($l, 900, 7467, '2026-10-03', '2026-10-05')), 0);
+checar('outro produto, nao cruza', count(promocoes_que_cruzam($l, 892, 1, '2026-10-03', '2026-10-05')), 0);
+checar('desligada nao briga', count(promocoes_que_cruzam($desligada, 892, 7467, '2026-10-03', '2026-10-05')), 0);
+
+// ------------------------------------------------ desconto em dinheiro
+checar('percentual com casa', promocao_desconto_texto('Percentage', 12.5), '−12,5%');
+checar('em dinheiro', promocao_desconto_texto('Value', 1.5), '−R$ 1,50');
+checar('tipo desconhecido fica cru', promocao_desconto_texto('Combo', 3), 'Combo 3');
+checar('preco final percentual', promocao_preco_final('Percentage', 3.95, 29), 2.8);
+checar('preco final em dinheiro', promocao_preco_final('Value', 3.95, 1.0), 2.95);
+checar('tipo desconhecido: nao sei', promocao_preco_final('Combo', 3.95, 1.0), null);
+checar('sem preco: nao sei', promocao_preco_final('Percentage', null, 29), null);
+
+// ----------------------------------------------------------- a URL
+checar('a lista vem das mais novas', str_contains(tp_promocoes_url(1, 200), 'sortOrder=dateCreated&descending=true'), true);
+checar('a pagina vai na URL', str_contains(tp_promocoes_url(2, 200), 'page=2&pageSize=200'), true);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

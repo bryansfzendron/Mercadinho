@@ -498,6 +498,32 @@ function tp_promocao_criar(array $corpo): array
 }
 
 /**
+ * A URL da lista de promocoes de produto. Funcao pura.
+ *
+ * A mesma que o painel usa na tela de Descontos, com os filtros vazios — vem
+ * tudo, encerradas inclusive — e as mais novas primeiro.
+ */
+function tp_promocoes_url(int $pagina, int $por_pagina): string
+{
+    return '/api/discountproducts/paginated?page=' . $pagina . '&pageSize=' . $por_pagina
+        . '&sortOrder=dateCreated&descending=true&search=&startDate=&endDate=&discountType='
+        . '&timezoneOffset=180';
+}
+
+/**
+ * Todas as promocoes de produto da conta.
+ *
+ * Resposta conferida em 03/10/2026: `items` com uma promocao cada, e dentro
+ * dela as regras por produto e por ponto de venda; `totalItems` vem, entao o
+ * paginador para pelo total. Pagina de 200 e nao de 10 mil: o painel deles
+ * pede 10, e nao vale descobrir na pratica o teto do servidor.
+ */
+function tp_promocoes(): array
+{
+    return tp_paginar(static fn (int $p, int $n) => tp_promocoes_url($p, 200));
+}
+
+/**
  * DEFINE o estoque de um item — nao soma.
  *
  * A quantidade vai na URL e o corpo e vazio. Conferido: `.../quantity/3` faz

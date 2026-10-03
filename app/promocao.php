@@ -260,7 +260,7 @@ function promocao_link_repor(int $pdv_id, string $codigo, ?float $custo, ?float 
 function promocao_item(int $item_id): ?array
 {
     return q1(
-        'SELECT li.*, p.nome AS pdv, p.id AS pdv_id
+        'SELECT li.*, p.nome AS pdv, p.id AS pdv_id, p.externo_id AS pdv_externo
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
           WHERE li.id = ? AND p.ativo = 1 AND p.unificado_para IS NULL',
@@ -342,7 +342,7 @@ function promocao_dados(int $item_id, int $usuario_id): ?array
         return null;
     }
     $d = promocao_analisar($item, $usuario_id, margens_minimos());
-    $d['ativas'] = promocoes_do_item((int) $item['pdv_id'], (int) ($item['externo_produto_id'] ?? 0));
+    $d['ativas'] = promocoes_do_item($item);
     return $d;
 }
 
@@ -502,24 +502,225 @@ function promocao_corpo(int $produto_externo, int $pdv_externo, int $percentual,
     ];
 }
 
-/** As promocoes que o app ja criou para este produto neste PDV e que ainda valem. */
-function promocoes_do_item(int $pdv_id, int $produto_externo): array
+// ---------------------------------------------------------------------
+// O que esta no TouchPay
+// ---------------------------------------------------------------------
+//
+// A lista de la e a verdade: inclui o que foi criado direto no painel, e o
+// que alguem desligou por la. A tabela `promocoes` daqui so sabe o que saiu
+// do app — serve de diario e de reserva quando o painel nao responde.
+
+/**
+ * A lista de promocoes do TouchPay, uma linha por produto x ponto de venda.
+ * Funcao pura.
+ *
+ * Uma promocao deles pode cobrir varios produtos e varios PDVs; achatar em
+ * pares e o que deixa responder "este produto, neste container, esta em
+ * promocao?" sem laco dentro de laco em cada tela. Resposta conferida em
+ * 03/10/2026:
+ *
+ *   {id, type, startsOn: "2026-10-03T00:00:00", expiresOn, isValid,
+ *    description, discountPointOfSaleRules: [{pointOfSaleId, localName}],
+ *    discountProductRules: [{productId: "7467", productCode,
+ *                            productDescription, productDefaultPrice, amount}]}
+ */
+function promocoes_tp_normalizar(array $itens): array
 {
-    if ($produto_externo <= 0) {
-        return [];
+    $saida = [];
+    foreach ($itens as $d) {
+        if (!is_array($d)) {
+            continue;
+        }
+        $inicio = pg_data_iso($d['startsOn'] ?? null);
+        $fim    = pg_data_iso($d['expiresOn'] ?? null);
+        if ($inicio === null || $fim === null) {
+            continue;
+        }
+        $tipo = (string) ($d['type'] ?? '');
+        foreach ((array) ($d['discountProductRules'] ?? []) as $pr) {
+            foreach ((array) ($d['discountPointOfSaleRules'] ?? []) as $pv) {
+                $valor = (float) ($pr['amount'] ?? 0);
+                $saida[] = [
+                    'externo_id'      => (int) ($d['id'] ?? 0),
+                    'tipo'            => $tipo,
+                    'inicio'          => $inicio,
+                    'fim'             => $fim,
+                    'descricao'       => (string) ($d['description'] ?? ''),
+                    // Ausente conta como valida: so o "false" explicito desliga.
+                    'valido'          => ($d['isValid'] ?? true) !== false,
+                    'pdv_externo'     => (int) ($pv['pointOfSaleId'] ?? 0),
+                    'pdv_nome'        => (string) ($pv['localName'] ?? ''),
+                    'produto_externo' => (int) ($pr['productId'] ?? 0),
+                    'codigo'          => pg_codigo_limpo($pr['productCode'] ?? ''),
+                    'produto'         => (string) ($pr['productDescription'] ?? ''),
+                    'preco_padrao'    => isset($pr['productDefaultPrice']) ? (float) $pr['productDefaultPrice'] : null,
+                    'valor'           => $valor,
+                    'desconto'        => promocao_desconto_texto($tipo, $valor),
+                ];
+            }
+        }
+    }
+    return $saida;
+}
+
+/**
+ * "−29%", ou "−R$ 1,50" quando o desconto e em dinheiro. Funcao pura.
+ *
+ * So o tipo percentual foi visto ate agora. O resto e escrito em reais
+ * porque o painel deles tem desconto em valor; o que nao se reconhece fica
+ * com o numero cru, para ninguem ler 29 reais onde eram 29 de outra coisa.
+ */
+function promocao_desconto_texto(string $tipo, float $valor): string
+{
+    $n = rtrim(rtrim(number_format($valor, 2, ',', '.'), '0'), ',');
+    if (strcasecmp($tipo, 'Percentage') === 0) {
+        return '−' . $n . '%';
+    }
+    if (stripos($tipo, 'value') !== false || stripos($tipo, 'amount') !== false) {
+        return '−' . moeda($valor);
+    }
+    return $tipo . ' ' . $n;
+}
+
+/** O preco no caixa com este desconto, quando da para saber. Funcao pura. */
+function promocao_preco_final(string $tipo, ?float $preco, float $valor): ?float
+{
+    if ($preco === null || $preco <= 0) {
+        return null;
+    }
+    if (strcasecmp($tipo, 'Percentage') === 0) {
+        return promocao_preco_com($preco, $valor);
+    }
+    if (stripos($tipo, 'value') !== false || stripos($tipo, 'amount') !== false) {
+        return max(0.0, round($preco - $valor, 2));
+    }
+    return null;
+}
+
+/** As que ainda valem: ligadas e que nao acabaram. Funcao pura. */
+function promocoes_valendo(array $linhas, ?string $hoje = null): array
+{
+    $hoje = $hoje ?? date('Y-m-d');
+    return array_values(array_filter($linhas,
+        static fn (array $l): bool => $l['valido'] && $l['fim'] >= $hoje));
+}
+
+/**
+ * As promocoes deste produto, neste PDV, que cruzam o periodo pedido. Funcao pura.
+ *
+ * Desligada nao conta: o que alguem desligou no painel nao briga com nada.
+ */
+function promocoes_que_cruzam(array $linhas, int $pdv_externo, int $produto_externo,
+                              string $inicio, string $fim): array
+{
+    return array_values(array_filter($linhas, static fn (array $l): bool =>
+        $l['valido']
+        && $l['pdv_externo'] === $pdv_externo
+        && $l['produto_externo'] === $produto_externo
+        && $l['inicio'] <= $fim && $l['fim'] >= $inicio));
+}
+
+/**
+ * A lista do TouchPay, ja achatada — ou null quando o painel nao respondeu.
+ *
+ * Uma ida por requisicao: a aba Promocoes pergunta por item, e a lista e a
+ * mesma para todos.
+ */
+function promocoes_touchpay(): ?array
+{
+    static $cache = false;
+    if ($cache !== false) {
+        return $cache;
     }
     try {
-        return q(
+        return $cache = promocoes_tp_normalizar(tp_promocoes());
+    } catch (TouchPayErro $e) {
+        error_log('promocoes_touchpay: ' . $e->getMessage());
+        return $cache = null;
+    }
+}
+
+/**
+ * As promocoes que ainda valem para este item.
+ *
+ * Do TouchPay quando ele responde; senao, as que o app criou — melhor avisar
+ * pela metade do que dizer "nenhuma" com o painel fora do ar.
+ */
+function promocoes_do_item(array $item): array
+{
+    $produto = (int) ($item['externo_produto_id'] ?? 0);
+    $pdv_ext = (int) ($item['pdv_externo'] ?? 0);
+    if ($produto <= 0) {
+        return [];
+    }
+    $tp = promocoes_touchpay();
+    if ($tp !== null) {
+        return array_values(array_filter(promocoes_valendo($tp),
+            static fn (array $l): bool => $l['pdv_externo'] === $pdv_ext && $l['produto_externo'] === $produto));
+    }
+    try {
+        $locais = q(
             'SELECT * FROM promocoes
               WHERE pdv_id = ? AND produto_externo_id = ? AND ok = 1 AND fim >= ?
            ORDER BY inicio',
-            [$pdv_id, $produto_externo, date('Y-m-d')]
+            [(int) $item['pdv_id'], $produto, date('Y-m-d')]
         );
     } catch (Throwable $e) {
         // Tabela ainda nao criada pelo setup: a tela segue, so sem o aviso.
         error_log('promocoes_do_item: ' . $e->getMessage());
         return [];
     }
+    return array_map(static fn (array $p): array => [
+        'externo_id' => (int) ($p['externo_id'] ?? 0), 'tipo' => 'Percentage',
+        'inicio' => $p['inicio'], 'fim' => $p['fim'], 'valido' => true,
+        'valor' => (float) $p['percentual'], 'desconto' => promocao_desconto_texto('Percentage', (float) $p['percentual']),
+    ], $locais);
+}
+
+/**
+ * Cada linha do TouchPay com o que o app sabe dela: o nome do PDV daqui, o
+ * item do espelho (para virar link e mostrar o preco do planograma) e se fui
+ * eu que criei.
+ */
+function promocoes_enriquecer(array $linhas): array
+{
+    if (!$linhas) {
+        return [];
+    }
+    $pdvs = [];
+    foreach (q('SELECT id, nome, externo_id FROM loja_pdvs WHERE unificado_para IS NULL') as $p) {
+        $pdvs[(int) $p['externo_id']] = $p;
+    }
+
+    $itens = [];
+    foreach (q('SELECT li.id, li.externo_produto_id, li.preco_venda, li.validade, li.estoque, p.externo_id AS pdv_externo
+                  FROM loja_itens li JOIN loja_pdvs p ON p.id = li.pdv_id
+                 WHERE li.externo_produto_id IS NOT NULL AND p.unificado_para IS NULL') as $i) {
+        $itens[(int) $i['pdv_externo'] . ':' . (int) $i['externo_produto_id']] = $i;
+    }
+
+    $doApp = [];
+    try {
+        foreach (q('SELECT externo_id FROM promocoes WHERE ok = 1 AND externo_id IS NOT NULL') as $p) {
+            $doApp[(int) $p['externo_id']] = true;
+        }
+    } catch (Throwable $e) {
+        error_log('promocoes_enriquecer: ' . $e->getMessage());
+    }
+
+    foreach ($linhas as &$l) {
+        $item = $itens[$l['pdv_externo'] . ':' . $l['produto_externo']] ?? null;
+        $l['pdv']       = $pdvs[$l['pdv_externo']]['nome'] ?? ($l['pdv_nome'] ?: ('PDV ' . $l['pdv_externo']));
+        $l['item_id']   = $item ? (int) $item['id'] : null;
+        $l['validade']  = $item['validade'] ?? null;
+        // O preco do planograma e o que o caixa cobra; o "padrao" do
+        // cadastro deles pode ser outro. Sem planograma, fica o padrao.
+        $l['preco']     = $item && $item['preco_venda'] !== null ? (float) $item['preco_venda'] : $l['preco_padrao'];
+        $l['preco_com'] = promocao_preco_final($l['tipo'], $l['preco'], $l['valor']);
+        $l['do_app']    = isset($doApp[$l['externo_id']]);
+    }
+    unset($l);
+    return $linhas;
 }
 
 /**
@@ -531,9 +732,10 @@ function promocoes_do_item(int $pdv_id, int $produto_externo): array
  *  - O preco base e relido do planograma NA HORA: o desconto incide sobre o
  *    preco de la, e se ele mudou desde que a tela abriu, o "de R$ 4,29 por
  *    R$ 3,13" que a pessoa confirmou ja nao e verdade (409).
- *  - Promocao que o app ja criou para o mesmo produto e PDV, com datas que se
- *    cruzam, para a criacao: duas promocoes empilhadas e desconto em cima de
- *    desconto, e ninguem sabe o que o caixa deles faz com isso.
+ *  - Promocao do mesmo produto e PDV com datas que se cruzam — criada por
+ *    aqui ou direto no painel — para a criacao: duas promocoes empilhadas e
+ *    desconto em cima de desconto, e ninguem sabe o que o caixa deles faz com
+ *    isso. A lista e relida do TouchPay na hora, nao do cache da tela.
  *
  * @param array $dados item, percentual, inicio, fim, visto_preco
  * @return array{ok:bool, conflito?:bool, erro?:string, promocao?:array}
@@ -558,16 +760,21 @@ function promocao_criar(array $u, array $dados): array
     }
     $pct = (int) round($pct);
 
-    foreach (promocoes_do_item((int) $item['pdv_id'], $produto) as $p) {
-        if ($p['inicio'] <= $fim && $p['fim'] >= $inicio) {
-            return ['ok' => false, 'erro' => 'Já existe uma promoção deste produto neste ponto de venda de '
-                . pg_data_br($p['inicio']) . ' a ' . pg_data_br($p['fim']) . '.'];
-        }
-    }
-
     $pdv = planograma_pdv((int) $item['pdv_id']);
     if (!$pdv) {
         return ['ok' => false, 'erro' => 'Ponto de venda desconhecido.'];
+    }
+
+    // Relida agora, e se o painel nao responder a criacao para: sem a lista
+    // nao da para saber se ja existe promocao, e criar no escuro e o caso
+    // que esta checagem existe para evitar.
+    $cruzam = promocoes_que_cruzam(promocoes_tp_normalizar(tp_promocoes()),
+                                   (int) $pdv['externo_id'], $produto, $inicio, $fim);
+    if ($cruzam) {
+        $p = $cruzam[0];
+        return ['ok' => false, 'erro' => 'Já existe promoção deste produto neste ponto de venda ('
+            . $p['desconto'] . ', de ' . pg_data_br($p['inicio']) . ' a ' . pg_data_br($p['fim'])
+            . '). Ajuste as datas ou encerre a outra no painel.'];
     }
 
     // O preco de AGORA, do planograma — e sobre ele que o desconto incide.
@@ -626,8 +833,13 @@ function promocao_registrar(array $linha): void
     }
 }
 
-/** As promocoes que o app criou, das mais novas para as mais velhas. */
-function promocoes_locais(int $limite = 60): array
+/**
+ * As promocoes que o app criou, das mais novas para as mais velhas.
+ *
+ * @param bool $so_recusadas so as que o TouchPay recusou — com a lista de la
+ *                           respondendo, sao as unicas que ela nao mostra
+ */
+function promocoes_locais(int $limite = 60, bool $so_recusadas = false): array
 {
     try {
         return q(
@@ -635,8 +847,10 @@ function promocoes_locais(int $limite = 60): array
                FROM promocoes pr
           LEFT JOIN loja_pdvs p ON p.id = pr.pdv_id
           LEFT JOIN usuarios  u ON u.id = pr.usuario_id
+              WHERE ' . ($so_recusadas ? 'pr.ok = 0 AND pr.criado_em >= ?' : '1 = 1') . '
            ORDER BY pr.id DESC
-              LIMIT ' . max(1, min(200, $limite))
+              LIMIT ' . max(1, min(200, $limite)),
+            $so_recusadas ? [date('Y-m-d 00:00:00', strtotime('-7 days'))] : []
         );
     } catch (Throwable $e) {
         error_log('promocoes_locais: ' . $e->getMessage());
@@ -649,15 +863,15 @@ function promocoes_locais(int $limite = 60): array
  * cada um ja analisado.
  *
  * E a lista de trabalho da aba Promocoes: o que pede promocao agora e o que
- * tem de sair da prateleira. Item que ja tem promocao criada pelo app sai da
- * lista de sugestoes — ja foi resolvido.
+ * tem de sair da prateleira. Item que ja tem promocao valendo — criada por
+ * aqui ou no painel — sai da lista de sugestoes: ja foi resolvido.
  *
  * @return array{sugeridas:array, retirar:array}
  */
 function promocoes_sugeridas(int $usuario_id): array
 {
     $itens = q(
-        'SELECT li.*, p.nome AS pdv, p.id AS pdv_id
+        'SELECT li.*, p.nome AS pdv, p.id AS pdv_id, p.externo_id AS pdv_externo
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
           WHERE p.ativo = 1 AND p.unificado_para IS NULL
@@ -675,8 +889,7 @@ function promocoes_sugeridas(int $usuario_id): array
         $a = promocao_analisar($item, $usuario_id, $minimos);
         if ($a['sugestao']['acao'] === 'retirar') {
             $retirar[] = $a;
-        } elseif ($a['sugestao']['acao'] === 'promocao'
-                  && !promocoes_do_item((int) $item['pdv_id'], (int) ($item['externo_produto_id'] ?? 0))) {
+        } elseif ($a['sugestao']['acao'] === 'promocao' && !promocoes_do_item($item)) {
             $sugeridas[] = $a;
         }
     }

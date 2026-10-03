@@ -438,11 +438,31 @@ function rota_promocao(array $u, int $item_id): void
  */
 function rota_promocoes(array $u): void
 {
+    // A lista do TouchPay primeiro: as sugestoes usam a mesma (uma ida so)
+    // para tirar quem ja esta em promocao.
+    $tp    = promocoes_touchpay();
     $lista = promocoes_sugeridas((int) $u['id']);
+
+    $hoje = date('Y-m-d');
+    $valendo = $encerradas = [];
+    if ($tp !== null) {
+        $todas = promocoes_enriquecer($tp);
+        $valendo = array_values(array_filter($todas, static fn ($l) => $l['valido'] && $l['fim'] >= $hoje));
+        usort($valendo, static fn ($a, $b) => [$a['fim'], $a['produto']] <=> [$b['fim'], $b['produto']]);
+        $limite = date('Y-m-d', strtotime('-30 days'));
+        $encerradas = array_slice(array_values(array_filter($todas,
+            static fn ($l) => ($l['fim'] < $hoje || !$l['valido']) && $l['fim'] >= $limite)), 0, 15);
+    }
+
     ver('promocoes', [
-        'sugeridas' => $lista['sugeridas'],
-        'retirar'   => $lista['retirar'],
-        'criadas'   => promocoes_locais(),
+        'sugeridas'  => $lista['sugeridas'],
+        'retirar'    => $lista['retirar'],
+        'tp_ok'      => $tp !== null,
+        'valendo'    => $valendo,
+        'encerradas' => $encerradas,
+        // Com o painel respondendo, a lista de la ja mostra o que deu certo;
+        // daqui so falta o que ele recusou. Fora do ar, o diario inteiro.
+        'locais'     => $tp !== null ? promocoes_locais(20, true) : promocoes_locais(),
     ], 'Promoções');
 }
 
