@@ -823,7 +823,7 @@ function promocao_criar(array $u, array $dados): array
         $r = tp_promocao_criar($corpo);
     } catch (TouchPayErro $e) {
         promocao_registrar($linhaLocal + ['ok' => 0, 'erro' => mb_substr($e->getMessage(), 0, 255)]);
-        throw $e;
+        throw new TouchPayErro(promocao_erro_legivel($e->getMessage()));
     }
 
     $externo = is_array($r) && is_numeric($r['id'] ?? null) ? (int) $r['id'] : null;
@@ -831,6 +831,25 @@ function promocao_criar(array $u, array $dados): array
     promocao_registrar($linhaLocal);
 
     return ['ok' => true, 'promocao' => $linhaLocal];
+}
+
+/**
+ * A recusa do TouchPay ao criar promocao, em portugues de gente. Funcao pura.
+ *
+ * Achado de 03/10/2026: para a maioria dos produtos o POST de promocao volta
+ * 500 "Erro interno" — mesmo mandado direto, no formato exato do painel, com
+ * qualquer desconto (5% a 30%) e qualquer data. So passou no Fofura (7467),
+ * pelo app e pelo painel. Nao e o app: e o servidor deles recusando aquele
+ * produto. Dizer isso poupa a pessoa de tentar dez vezes outro desconto.
+ */
+function promocao_erro_legivel(string $erro): string
+{
+    if (str_contains($erro, 'POST /api/discountProducts') && str_contains($erro, 'HTTP 500')) {
+        return 'O TouchPay recusou criar promoção para este produto ("erro interno" do servidor deles). '
+             . 'O mesmo pedido, no formato do painel, também falha — trocar desconto ou datas não resolve. '
+             . 'Tente criar este produto direto no painel; se lá também der erro, é com o suporte do TouchPay.';
+    }
+    return $erro;
 }
 
 /** Uma linha em promocoes. Nunca derruba a criacao: ela ja aconteceu la. */

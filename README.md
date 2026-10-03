@@ -786,6 +786,26 @@ nova saía. Com a URL do painel, 200 OK. A lista inteira é lida página a pági
 teste trava a URL exata — mexer nela é testar contra a conta de verdade antes.
 
 Se o painel não responder, a aba avisa e mostra o diário daqui (`promocoes`) no lugar.
+
+### O 500 "Erro interno" ao criar (03/10/2026)
+
+Para a maioria dos produtos, `POST /api/discountProducts` volta **500 "Erro interno"**.
+Investigado contra a conta de verdade:
+
+- mandado direto, no formato **exato** do painel (cabeçalhos inclusive): falha igual;
+- com desconto de 5% a 30%, de 1 a 7 dias, começando hoje ou daqui a três dias: falha;
+- o `productId` está certo (planograma e catálogo dão o mesmo id), e
+  `/api/Products/discount-reference-price/{id}` responde o preço certo;
+- **só passou no Fofura Presunto 60g (7467)**, pelo app e pelo painel.
+
+A única diferença achada até aqui: no Fofura o `defaultPrice` do catálogo (3,95) é igual
+ao preço do planograma (3,95); nos que falham, não é (goiabada 4,20 × 5,00; pudim 16,00
+× 16,90). É hipótese, não confirmada — confirmar exigiria criar promoção num produto com
+os dois preços iguais. Nenhuma das tentativas que voltaram 500 criou promoção (a lista
+foi conferida depois).
+
+O app passa a dizer isso com todas as letras (`promocao_erro_legivel()`) em vez de "Erro
+interno", e chama o `discount-reference-price` antes do POST, como o painel faz.
 Encerrar uma promoção antes do fim ainda é no painel — falta ver a chamada que ele usa.
 
 ## Um gesto só para atualizar

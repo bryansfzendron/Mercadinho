@@ -237,5 +237,16 @@ checar('a lista e pedida igual ao painel', tp_promocoes_url(1),
     . '&search=&startDate=&endDate=&discountType=&timezoneOffset=180');
 checar('so a pagina muda', str_contains(tp_promocoes_url(3), 'page=3&pageSize=10&'), true);
 
+// ----------------------------------------------- a recusa do TouchPay
+checar('500 no POST de promocao vira explicacao',
+    str_contains(promocao_erro_legivel('TouchPay respondeu HTTP 500: Erro interno (POST /api/discountProducts)'),
+        'recusou criar promoção para este produto'), true);
+checar('outro erro passa como veio',
+    promocao_erro_legivel('TouchPay (HTTP 400): Data invalida (POST /api/discountProducts)'),
+    'TouchPay (HTTP 400): Data invalida (POST /api/discountProducts)');
+checar('500 de outra chamada passa como veio',
+    promocao_erro_legivel('TouchPay respondeu HTTP 500. (GET /api/discountproducts/paginated)'),
+    'TouchPay respondeu HTTP 500. (GET /api/discountproducts/paginated)');
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);
