@@ -284,6 +284,23 @@ h2 { font-size: 1.1rem; line-height: 1.25; letter-spacing: -.013em; margin: 1.4r
 .faixa-validade.vencendo { color: var(--ambar); }
 .faixa-validade.suspeita { color: var(--ambar); }
 
+/* Sugestao de promocao. A taxa grande a esquerda e o preco a direita, na
+   mesma leitura do cartao de margem: o numero que se decide e o que se ve
+   primeiro, o resto e justificativa. */
+.promo-rotulo { margin: 0 0 .4rem; font-size: .78rem; font-weight: 600; color: var(--suave);
+                text-transform: uppercase; letter-spacing: .04em; }
+.promo-linha { display: flex; align-items: baseline; justify-content: space-between; gap: .8rem; }
+.promo-taxa { font-size: 2.2rem; font-weight: 600; letter-spacing: -.03em; line-height: 1;
+              font-variant-numeric: tabular-nums; color: var(--marca); }
+.promo-taxa span { font-size: 1.1rem; margin-left: .1rem; }
+.promo-preco { text-align: right; font-variant-numeric: tabular-nums; }
+.promo-preco strong { display: block; font-size: 1.5rem; line-height: 1.1; }
+.promo-preco span { font-size: .8rem; color: var(--suave); }
+.promo-motivos { margin: .6rem 0 .9rem; padding-left: 1.1rem; font-size: .88rem; }
+.promo-motivos li + li { margin-top: .3rem; }
+.promo-sugestao .botao { margin-bottom: .4rem; }
+.lista li a.promo-escolhida { box-shadow: inset 3px 0 0 var(--marca); }
+
 /* ---------- formularios ---------- */
 label { display: block; margin-bottom: .7rem; font-size: .82rem; color: var(--suave); }
 input, select, textarea {

@@ -70,6 +70,10 @@ function despachar(string $rota): void
         rota_produto_detalhe($u, (int) $mm[1]);
         return;
     }
+    if (preg_match('#^/promocao/(\d+)$#', $rota, $mm)) {
+        rota_promocao($u, (int) $mm[1]);
+        return;
+    }
     if (preg_match('#^/produtos/(\d+)/ean$#', $rota, $mm) && $m === 'POST') {
         rota_produto_vincular_ean($u, (int) $mm[1]);
         return;
@@ -408,6 +412,22 @@ function rota_produto_detalhe(array $u, int $id): void
     // quanto tem em estoque agora.
     $loja = loja_por_ean($produto['ean'], $id);
     ver('produto_detalhe', compact('produto', 'historico', 'stats', 'loja'), $produto['descricao']);
+}
+
+/**
+ * Sugestao de promocao para um item do espelho que esta perto de vencer.
+ *
+ * O id e o da linha de loja_itens, e nao o do produto: a validade, o estoque
+ * e o preco sao de UM ponto de venda, e a promocao tambem.
+ */
+function rota_promocao(array $u, int $item_id): void
+{
+    $dados = promocao_dados($item_id, (int) $u['id']);
+    if (!$dados) {
+        http_response_code(404);
+        ver('erro', ['codigo' => 404, 'mensagem' => 'Item nao encontrado na loja'], 'Nao encontrado');
+    }
+    ver('promocao', $dados, 'Promoção');
 }
 
 function rota_produto_vincular_ean(array $u, int $id): void

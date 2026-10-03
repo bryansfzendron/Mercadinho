@@ -302,6 +302,8 @@
         // ---- procurar ----
 
         let procurando = false;
+        // Custo e taxa que chegaram no link, esperando a ficha abrir.
+        let preencher = null;
 
         async function procurar(codigo) {
             if (procurando) return;
@@ -323,6 +325,7 @@
                 aviso('erro', 'Sem resposta — confira o sinal e bipe de novo.');
             } finally {
                 procurando = false;
+                preencher = null;
                 if (dicaCam) dicaCam.textContent = '';
             }
         }
@@ -387,6 +390,13 @@
             const ctx = { d: d, novo: novo, ficha: ficha, atual: atual };
             ligarCompras();
             ligarConta();
+            // So a primeira ficha, que e a do produto que veio no link: o bipe
+            // seguinte e outro produto, com outro custo. (procurar() limpa no
+            // fim, entao uma busca que falhou tambem nao deixa sobra.)
+            if (preencher) {
+                aplicarPreenchimento(preencher);
+                preencher = null;
+            }
             ligarValidade(atual.validade || null);
             doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
         }
@@ -492,10 +502,6 @@
                 const custo = numero(elCusto.value);
                 const taxa  = numero(elTaxa.value);
 
-                if (taxa !== null) {
-                    try { global.localStorage.setItem(LEMBRAR_TAXA, qtdTexto(taxa)); } catch (e) { /* modo privado */ }
-                }
-
                 const p = precoSugerido(custo, taxa);
                 if (p === null) {
                     // Falta um dos dois: o preco que ja esta no campo fica
@@ -508,8 +514,42 @@
             }
 
             elCusto.addEventListener('input', refazer);
-            elTaxa.addEventListener('input', refazer);
+            elTaxa.addEventListener('input', () => {
+                // So o que o dedo digita na taxa fica lembrado. A taxa que
+                // chega da sugestao de promocao (1,6 de um produto vencendo)
+                // nao pode virar a taxa de todo dia dos proximos trinta bipes.
+                const taxa = numero(elTaxa.value);
+                if (taxa !== null) {
+                    try { global.localStorage.setItem(LEMBRAR_TAXA, qtdTexto(taxa)); } catch (e) { /* modo privado */ }
+                }
+                refazer();
+            });
             refazer();
+        }
+
+        /**
+         * Custo e taxa vindos da sugestao de promocao.
+         *
+         * Entram nos dois campos auxiliares, e nao direto no preco: a conta
+         * aparece por extenso embaixo, igual a quando se digita, e e ela que
+         * mostra o custo errado antes de ele virar etiqueta. O evento vai no
+         * custo, que refaz a conta sem gravar a taxa como a de todo dia.
+         */
+        function aplicarPreenchimento(p) {
+            const elCusto = alvo.querySelector('[data-aux="custo"]');
+            const elTaxa  = alvo.querySelector('[data-aux="taxa"]');
+            if (!elCusto || !elTaxa) return;
+            if (p.custo) elCusto.value = p.custo;
+            if (p.taxa) elTaxa.value = p.taxa;
+            elCusto.dispatchEvent(new Event('input', { bubbles: true }));
+            if (p.promo) {
+                const ficha = doc.getElementById('pg-ficha');
+                if (ficha) {
+                    ficha.insertAdjacentHTML('afterbegin',
+                        '<p class="aviso aviso-info">Promoção sugerida: taxa <strong>'
+                        + esc(p.taxa) + '</strong>. Confira o preço e salve.</p>');
+                }
+            }
         }
 
         /**
@@ -772,6 +812,33 @@
             campo.value = ev.detail;
             procurar(ev.detail);
         });
+
+        // Chegou de um link (a sugestao de promocao): ja abre a ficha do
+        // produto no PDV certo, com custo e taxa esperando no lugar.
+        try {
+            const q = new URLSearchParams(global.location.search);
+            const codigo = (q.get('codigo') || '').trim();
+            if (codigo) {
+                const pdv = q.get('pdv');
+                if (pdv && selPdv.querySelector('option[value="' + Number(pdv) + '"]:not([disabled])')) {
+                    selPdv.value = String(Number(pdv));
+                    mostrarPlano();
+                }
+                preencher = {
+                    codigo: codigo,
+                    custo: q.get('custo') || '',
+                    taxa: q.get('taxa') || '',
+                    promo: q.get('promo') === '1',
+                };
+                // Recarregar a pagina nao pode reabrir a mesma ficha por cima
+                // do que ja foi feito nela.
+                if (global.history && global.history.replaceState) {
+                    global.history.replaceState(null, '', global.location.pathname);
+                }
+                campo.value = codigo;
+                procurar(codigo);
+            }
+        } catch (e) { /* navegador sem URLSearchParams: a tela segue normal */ }
     }
 
     api.iniciar = iniciar;

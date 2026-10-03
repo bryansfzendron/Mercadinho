@@ -119,7 +119,7 @@
 </div>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/planograma.js?v=6"></script>
+<script src="/assets/planograma.js?v=7"></script>
 <script>
 (function () {
     /*

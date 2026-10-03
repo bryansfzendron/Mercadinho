@@ -670,6 +670,58 @@ loja, e mil linhas sem data no fim empurrariam o limite de 400 por cima do que
 interessa. Os números do topo contam a mesma coisa que a lista. O chip *Com estoque*
 continua valendo e tira o que já saiu da prateleira.
 
+### Promoção para o que está vencendo
+
+Nessa ordem, tocar num item abre `/promocao/{id}` (o id é da linha de `loja_itens`:
+validade, estoque e preço são de **um** ponto de venda, e a promoção também). A tela
+responde "por quanto eu ponho isto para sair a tempo?" com uma **taxa sobre o custo** —
+a mesma conta custo × taxa do Repor — e o preço que ela dá.
+
+A taxa sai de uma escada pela data, partindo do 1,9 de todo dia:
+
+| faltam | taxa |
+|---|---|
+| até 3 dias | 1,4× |
+| 4 a 7 dias | 1,5× |
+| 8 a 15 dias | 1,6× |
+| 16 a 30 dias | 1,7× |
+| 31 a 60 dias | 1,8× |
+| mais de 60 | sem promoção |
+
+Mas a data sozinha mente para os dois lados, então **o ritmo de venda** daquele PDV
+(últimos 30 dias, de `venda_itens`) mexe na escada:
+
+- o estoque acaba antes de 70% do prazo → **não precisa de promoção**;
+- acaba a tempo, mas no aperto → um degrau **mais leve**;
+- não acaba a tempo → o degrau da data;
+- não sai nem a metade, ou não vendeu nada no mês → um degrau **mais fundo** (e aí até
+  quem tem até 90 dias pela frente já entra).
+
+Sem venda nenhuma no PDV na janela, o problema é o sync, não o produto: a sugestão vai
+só pela data e a tela diz isso.
+
+Três travas:
+
+- **o piso de prejuízo** (`margens_minimos()`, arredondado para cima em 0,05): a taxa
+  nunca desce dele. Abaixo, cada venda tira dinheiro do bolso — pode até valer mais que
+  jogar fora, mas isso é decisão de quem olha o produto, e o Repor deixa digitar;
+- **sugestão que aumenta o preço não é promoção**: se o preço de hoje já está na faixa
+  ou abaixo, a tela diz "não precisa";
+- **vencido não se vende**, nem em promoção (CDC, art. 18, § 6º): a tela manda retirar
+  da prateleira e oferece o Repor para zerar o estoque.
+
+O custo é o das unidades que estão na prateleira (`produto_custo_estoque()`), e na falta
+dele o da última nota. Sem nota, a taxa ainda aparece, e o preço nasce no Repor depois
+de digitar o custo. Abaixo da sugestão ficam as outras taxas (1,4 a 1,8), cada uma com o
+seu preço e com aviso quando dá prejuízo ou não baixa o preço.
+
+**Nada é gravado nessa tela.** "Aplicar no Repor" abre `/planograma?pdv=…&codigo=…&custo=…&taxa=…&promo=1`:
+a ficha do produto já aberta no PDV certo, com custo e taxa nos campos e a conta por
+extenso embaixo. Dali o preço segue o caminho de sempre — de→para e segundo toque. A
+taxa que chega pelo link **não vira a taxa lembrada**: só o que o dedo digita no campo
+fica guardado, senão o 1,4 de um iogurte vencendo viraria a taxa dos trinta bipes
+seguintes. E a URL é limpa ao abrir, para recarregar a página não reabrir a ficha.
+
 ## Um gesto só para atualizar
 
 Havia quatro jeitos de mandar o app buscar dados: um botão na capa, dois em Configurações,

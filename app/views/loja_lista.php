@@ -136,7 +136,11 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
             <li>
                 <?php
                 // Produto ja conhecido leva para o historico; o resto e so leitura.
-                $destino = $l['produto_id'] ? '/produtos/' . (int) $l['produto_id'] : null;
+                // Por vencimento a pergunta e outra — "por quanto ponho isto para
+                // sair?" —, e todo item leva para a sugestao de promocao.
+                $destino = $ordem === 'validade'
+                    ? '/promocao/' . (int) $l['id']
+                    : ($l['produto_id'] ? '/produtos/' . (int) $l['produto_id'] : null);
                 ?>
                 <?php if ($destino): ?><a href="<?= $destino ?>"><?php else: ?><div style="padding:.7rem .85rem"><?php endif; ?>
                     <div class="linha-topo">
@@ -174,7 +178,11 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
                                 <?php if ($val['texto']): ?>
                                     <span class="selo selo-validade <?= e($val['classe']) ?>"><?= e($val['texto']) ?></span>
                                 <?php endif; ?>
-                                <?php if ($destino): ?>
+                                <?php if ($ordem === 'validade'): ?>
+                                    <?php if (($val['dias'] ?? 0) >= 0 && ($val['dias'] ?? 0) <= 60 && (float) $l['estoque'] > 0): ?>
+                                        <span class="selo selo-pendente">ver promoção</span>
+                                    <?php endif; ?>
+                                <?php elseif ($destino): ?>
                                     <span class="selo selo-ok">no seu histórico</span>
                                 <?php endif; ?>
                             </span>
