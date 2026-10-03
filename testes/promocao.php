@@ -122,5 +122,53 @@ checar('o link leva tudo', $l,
     '/planograma?pdv=3&codigo=7891234567895&custo=2%2C25&taxa=1%2C60&promo=1');
 checar('sem taxa nao e promocao', promocao_link_repor(3, '789', null, null), '/planograma?pdv=3&codigo=789');
 
+// ------------------------------------------- taxa sobre custo -> percentual
+// R$ 4,29 hoje, alvo R$ 3,15 (2,25 x 1,4): 26,57% -> 26%. Para BAIXO: o
+// preco final fica um pouco acima do alvo, que ja respeita o piso.
+checar('percentual arredonda para baixo', promocao_percentual(4.29, 3.15), 26);
+checar('e o preco fica acima do alvo', promocao_preco_com(4.29, 26) >= 3.15, true);
+checar('alvo igual ao preco nao e promocao', promocao_percentual(4.29, 4.29), null);
+checar('alvo acima nao e promocao', promocao_percentual(4.29, 5.0), null);
+checar('menos de 1% nao e promocao', promocao_percentual(10.0, 9.95), null);
+checar('sem preco, sem percentual', promocao_percentual(null, 3.0), null);
+checar('sem alvo, sem percentual', promocao_percentual(4.29, null), null);
+checar('teto de 90%', promocao_percentual(10.0, 0.10), 90);
+// 1 - 8/10 = 0,19999... em float: sem a folga viraria 19%.
+checar('20% exato nao vira 19', promocao_percentual(10.0, 8.0), 20);
+
+checar('preco com desconto', promocao_preco_com(4.29, 27), 3.13);
+
+// ------------------------------------------------------------ o status
+checar('comecou e nao acabou: no ar', promocao_status('2026-10-01', '2026-10-08', '2026-10-03'), 'no ar');
+checar('o ultimo dia ainda e no ar', promocao_status('2026-10-01', '2026-10-03', '2026-10-03'), 'no ar');
+checar('ainda vai comecar', promocao_status('2026-10-05', '2026-10-08', '2026-10-03'), 'agendada');
+checar('ja acabou', promocao_status('2026-09-20', '2026-10-02', '2026-10-03'), 'encerrada');
+
+// ----------------------------------------------------------- a validacao
+$h = '2026-10-03';
+checar('pedido certo passa', promocao_validar(25.0, '2026-10-03', '2026-10-08', $h), null);
+checar('0% recusa', promocao_validar(0.0, '2026-10-03', '2026-10-08', $h) !== null, true);
+checar('sem desconto recusa', promocao_validar(null, '2026-10-03', '2026-10-08', $h) !== null, true);
+checar('95% recusa', promocao_validar(95.0, '2026-10-03', '2026-10-08', $h) !== null, true);
+checar('decimal recusa', promocao_validar(12.5, '2026-10-03', '2026-10-08', $h) !== null, true);
+checar('comecando ontem recusa', promocao_validar(25.0, '2026-10-02', '2026-10-08', $h) !== null, true);
+checar('fim antes do comeco recusa', promocao_validar(25.0, '2026-10-05', '2026-10-04', $h) !== null, true);
+checar('um dia so passa', promocao_validar(25.0, '2026-10-03', '2026-10-03', $h), null);
+checar('mais de 120 dias recusa', promocao_validar(25.0, '2026-10-03', '2027-03-01', $h) !== null, true);
+checar('sem data recusa', promocao_validar(25.0, null, '2026-10-08', $h) !== null, true);
+
+// --------------------------------------------------------------- o nome
+checar('nome neutro', promocao_nome('IOGURTE  NESTLE 170G'), 'Promoção IOGURTE NESTLE 170G');
+checar('nome cabe em 60', mb_strlen(promocao_nome(str_repeat('X', 100))), 60);
+
+// -------------------------------------------------------------- o corpo
+// Campo a campo o que o painel deles mandou na captura de 03/10/2026.
+$corpo = promocao_corpo(7467, 892, 10, '2026-10-03', '2026-10-05', 'Fofura promo');
+checar('o corpo e o do painel', json_encode($corpo, JSON_UNESCAPED_UNICODE),
+    '{"type":"Percentage","startsOn":"2026-10-03","expiresOn":"2026-10-05","description":"Fofura promo",'
+    . '"discountProductRules":[{"id":0,"productId":"7467","quantity":1,"amount":10}],'
+    . '"discountPointOfSaleRules":[{"id":0,"pointOfSaleId":892,"discountBaseId":0}],'
+    . '"usage":0,"category":"Product"}');
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

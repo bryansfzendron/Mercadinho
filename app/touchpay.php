@@ -486,6 +486,18 @@ function tp_operacao(array $corpo): array
 }
 
 /**
+ * Cria uma promocao de produto.
+ *
+ * O corpo e o que o painel deles manda, campo a campo (captura de 03/10/2026):
+ * tipo, comeco e fim em AAAA-MM-DD, uma regra por produto e uma por ponto de
+ * venda. Quem monta e promocao_corpo(); aqui so sai.
+ */
+function tp_promocao_criar(array $corpo): array
+{
+    return tp_chamar('POST', '/api/discountProducts', $corpo);
+}
+
+/**
  * DEFINE o estoque de um item — nao soma.
  *
  * A quantidade vai na URL e o corpo e vazio. Conferido: `.../quantity/3` faz

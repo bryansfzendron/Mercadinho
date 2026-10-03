@@ -299,7 +299,17 @@ h2 { font-size: 1.1rem; line-height: 1.25; letter-spacing: -.013em; margin: 1.4r
 .promo-motivos { margin: .6rem 0 .9rem; padding-left: 1.1rem; font-size: .88rem; }
 .promo-motivos li + li { margin-top: .3rem; }
 .promo-sugestao .botao { margin-bottom: .4rem; }
-.lista li a.promo-escolhida { box-shadow: inset 3px 0 0 var(--marca); }
+/* O preco com desconto mora onde ficaria um campo, e com a mesma altura,
+   para a grade de quatro nao pular quando ele aparece. */
+.promo-saida {
+    display: block; margin-top: .2rem; padding: .6rem .7rem;
+    font-size: 1rem; font-weight: 600; color: var(--texto);
+    font-variant-numeric: tabular-nums;
+}
+.promo-atalhos { display: flex; flex-wrap: wrap; gap: .4rem; margin: .2rem 0 .9rem; }
+.promo-atalhos .chip { font: inherit; font-size: .82rem; cursor: pointer; }
+.promo-prejuizo { color: var(--vermelho); }
+#promo-conta.aviso { margin: .3rem 0 .7rem; }
 
 /* ---------- formularios ---------- */
 label { display: block; margin-bottom: .7rem; font-size: .82rem; color: var(--suave); }
@@ -534,9 +544,15 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     backdrop-filter: blur(16px) saturate(160%);
     border: 1px solid var(--vidro-borda);
     border-radius: 12px; padding: .2rem;
+    /* Seis abas na Loja nao cabem lado a lado num celular estreito. Em vez de
+       espremer o rotulo ate quebrar em duas linhas, o trilho rola para o lado
+       (e o layout centraliza a ativa ao abrir). */
+    overflow-x: auto; scrollbar-width: none;
 }
+.abas::-webkit-scrollbar { display: none; }
 .aba {
-    flex: 1; text-align: center; padding: .45rem .5rem; border-radius: 9px;
+    flex: 1 0 auto; white-space: nowrap;
+    text-align: center; padding: .45rem .55rem; border-radius: 9px;
     color: var(--texto); font-size: .85rem; font-weight: 500;
     -webkit-tap-highlight-color: transparent;
     /* A pilula do ativo mora num ::before atras do texto; sem isolar, "atras

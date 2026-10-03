@@ -2,9 +2,12 @@
 /**
  * Promocao para o que esta perto de vencer.
  *
- * Esta tela nao grava nada. Ela responde "por quanto ponho isto para sair a
- * tempo?" e entrega o Repor ja preenchido — e e la, com o de/para e o
- * segundo toque, que o preco vai para o TouchPay.
+ * Responde "por quanto ponho isto para sair a tempo?" e cria a resposta no
+ * TouchPay como PROMOCAO: desconto percentual com comeco e fim. O preco do
+ * planograma nao e tocado e volta sozinho quando a promocao acaba.
+ *
+ * Mesmo cuidado do Repor: o botao abre um resumo de/por, e so o segundo
+ * toque manda. O servidor rele o preco antes de criar.
  *
  * @var array  $item
  * @var array  $validade
@@ -14,20 +17,25 @@
  * @var array  $minimos
  * @var array  $sugestao
  * @var string $codigo
+ * @var ?int   $percentual
+ * @var array  $ativas
  */
-$pdv_id = (int) $item['pdv_id'];
-$c      = $custo['custo'];
-$sug    = $sugestao;
+$pdv_id  = (int) $item['pdv_id'];
+$c       = $custo['custo'];
+$sug     = $sugestao;
 $taxa_br = static fn (float $t): string => number_format($t, 2, ',', '.');
+$piso    = promocao_piso($minimos['prejuizo'] ?? null);
 
-// O que sobra por unidade no preco sugerido, depois do que sai de toda venda.
-$sobra = null;
-if ($sug['preco'] !== null && $c !== null) {
-    $sobra = $sug['preco'] - $c - $sug['preco'] * (float) $minimos['pct_variavel'] / 100;
-}
-$desconto = $sug['preco'] !== null && $preco ? (1 - $sug['preco'] / $preco) * 100 : null;
+// Ate quando: a validade, que e quando o produto tem de sair de qualquer
+// jeito. Validade ja passada ou ausente cai numa semana.
+$hoje   = date('Y-m-d');
+$fim    = $item['validade'] && $item['validade'] >= $hoje
+    ? $item['validade']
+    : date('Y-m-d', strtotime('+7 days'));
+$pode_promover = $preco !== null && $preco > 0
+    && !in_array($sug['acao'], ['retirar', 'sem_estoque', 'suspeita'], true);
 ?>
-<a class="voltar" href="/loja?<?= e(http_build_query(['ordem' => 'validade', 'pdv' => $pdv_id])) ?>">‹ Vencimentos</a>
+<a class="voltar" href="/promocoes">‹ Promoções</a>
 
 <div class="cartao">
     <h1 class="sem-topo"><?= e($item['descricao']) ?></h1>
@@ -67,11 +75,19 @@ $desconto = $sug['preco'] !== null && $preco ? (1 - $sug['preco'] / $preco) * 10
     </div>
 </div>
 
+<?php foreach ($ativas as $a): ?>
+    <div class="aviso aviso-info">
+        <strong>Já tem promoção <?= e(promocao_status($a['inicio'], $a['fim'])) ?>:</strong>
+        −<?= (int) $a['percentual'] ?>%, <?= moeda($a['preco_promo']) ?>,
+        de <?= e(pg_data_br($a['inicio'])) ?> a <?= e(pg_data_br($a['fim'])) ?>.
+    </div>
+<?php endforeach; ?>
+
 <?php if ($sug['acao'] === 'retirar'): ?>
     <div class="aviso aviso-erro">
         <strong>Retire da prateleira.</strong> <?= e($sug['motivos'][0]) ?>
     </div>
-    <a class="botao" href="<?= e(promocao_link_repor($pdv_id, $codigo, null, null)) ?>">Abrir no Repor</a>
+    <a class="botao" href="<?= e(promocao_link_repor($pdv_id, $codigo, null, null)) ?>">Zerar o estoque no Repor</a>
 
 <?php elseif (in_array($sug['acao'], ['suspeita', 'sem_estoque', 'sem_validade'], true)): ?>
     <div class="aviso aviso-info"><?= e($sug['motivos'][0]) ?></div>
@@ -79,69 +95,78 @@ $desconto = $sug['preco'] !== null && $preco ? (1 - $sug['preco'] / $preco) * 10
         <a class="botao" href="<?= e(promocao_link_repor($pdv_id, $codigo, null, null)) ?>">Corrigir no Repor</a>
     <?php endif; ?>
 
-<?php elseif ($sug['acao'] === 'promocao'): ?>
+<?php else: ?>
     <div class="cartao promo-sugestao">
-        <p class="promo-rotulo">Promoção sugerida</p>
-        <div class="promo-linha">
-            <strong class="promo-taxa"><?= $taxa_br($sug['taxa']) ?><span>×</span></strong>
-            <?php if ($sug['preco'] !== null): ?>
-                <div class="promo-preco">
-                    <strong><?= moeda($sug['preco']) ?></strong>
-                    <?php if ($preco): ?>
-                        <span>de <s><?= moeda($preco) ?></s><?= $desconto !== null && $desconto > 0 ? ' · −' . number_format($desconto, 0, ',', '.') . '%' : '' ?></span>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-        <?php if ($sobra !== null): ?>
-            <p class="ajuda">
-                <?= $sobra >= 0 ? 'Sobram' : 'Perde' ?> <strong><?= moeda(abs($sobra)) ?></strong> por unidade
-                depois da maquininha, do condomínio e da franquia.
-            </p>
+        <?php if ($sug['acao'] === 'promocao'): ?>
+            <p class="promo-rotulo">Promoção sugerida</p>
+            <div class="promo-linha">
+                <strong class="promo-taxa"><?= $taxa_br($sug['taxa']) ?><span>×</span></strong>
+                <?php if ($sug['preco'] !== null): ?>
+                    <div class="promo-preco">
+                        <strong><?= $percentual !== null ? moeda(promocao_preco_com((float) $preco, $percentual)) : moeda($sug['preco']) ?></strong>
+                        <?php if ($percentual !== null): ?>
+                            <span>de <s><?= moeda($preco) ?></s> · −<?= $percentual ?>%</span>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+            <p class="promo-rotulo">Não precisa de promoção</p>
         <?php endif; ?>
         <ul class="promo-motivos">
             <?php foreach ($sug['motivos'] as $m): ?><li><?= e($m) ?></li><?php endforeach; ?>
         </ul>
-        <a class="botao" href="<?= e(promocao_link_repor($pdv_id, $codigo, $c, $sug['taxa'])) ?>">
-            Aplicar no Repor
-        </a>
-        <p class="ajuda">Nada é gravado daqui. O Repor abre com custo e taxa preenchidos, e o preço
-            só vai para o TouchPay depois do de→para e do segundo toque.</p>
     </div>
 
-<?php else: /* manter */ ?>
-    <div class="cartao">
-        <p class="promo-rotulo">Não precisa de promoção</p>
-        <ul class="promo-motivos">
-            <?php foreach ($sug['motivos'] as $m): ?><li><?= e($m) ?></li><?php endforeach; ?>
-        </ul>
-    </div>
-<?php endif; ?>
+    <?php if ($pode_promover): ?>
+        <div class="cartao" id="promo-form"
+             data-item="<?= (int) $item['id'] ?>"
+             data-preco="<?= e((string) $preco) ?>"
+             data-custo="<?= e($c === null ? '' : (string) $c) ?>"
+             data-piso="<?= e($piso === null ? '' : (string) $piso) ?>"
+             data-pct-variavel="<?= e((string) ($minimos['pct_variavel'] ?? 0)) ?>">
+            <h2 class="sem-topo">Criar promoção no TouchPay</h2>
+            <div class="pg-campos">
+                <label>Desconto (%)
+                    <input type="text" inputmode="numeric" data-promo="percentual"
+                           value="<?= $sug['acao'] === 'promocao' && $percentual !== null ? $percentual : '' ?>"
+                           placeholder="ex.: 20" autocomplete="off">
+                </label>
+                <label>Preço com desconto
+                    <output class="promo-saida" id="promo-saida">—</output>
+                </label>
+                <label>Começa
+                    <input type="date" data-promo="inicio" value="<?= e($hoje) ?>" min="<?= e($hoje) ?>">
+                </label>
+                <label>Termina
+                    <input type="date" data-promo="fim" value="<?= e($fim) ?>" min="<?= e($hoje) ?>">
+                </label>
+            </div>
+            <p class="ajuda" id="promo-conta"></p>
 
-<?php if (in_array($sug['acao'], ['promocao', 'manter'], true) && $sug['opcoes']): ?>
-    <h2>Outra taxa</h2>
-    <ul class="lista">
-        <?php foreach ($sug['opcoes'] as $o): ?>
-            <?php $escolhida = $sug['taxa'] !== null && abs($o['taxa'] - $sug['taxa']) < 0.001; ?>
-            <li><a href="<?= e(promocao_link_repor($pdv_id, $codigo, $c, $o['taxa'])) ?>"
-                   class="<?= $escolhida ? 'promo-escolhida' : '' ?>">
-                <div class="linha-topo">
-                    <span class="forte"><?= $taxa_br($o['taxa']) ?>×<?= $escolhida ? ' · sugerida' : '' ?></span>
-                    <span class="valor"><?= $o['preco'] === null ? '—' : moeda($o['preco']) ?></span>
+            <?php if ($c !== null): ?>
+                <div class="promo-atalhos">
+                    <?php foreach ($sug['opcoes'] as $o):
+                        $p = promocao_percentual($preco, $o['preco']);
+                        if ($p === null) { continue; }
+                        $escolhida = $sug['taxa'] !== null && abs($o['taxa'] - $sug['taxa']) < 0.001; ?>
+                        <button type="button" class="chip<?= $escolhida ? ' ativo' : '' ?><?= $o['abaixo_piso'] ? ' promo-prejuizo' : '' ?>"
+                                data-pct="<?= $p ?>">
+                            <?= $taxa_br($o['taxa']) ?>× · −<?= $p ?>%
+                        </button>
+                    <?php endforeach; ?>
                 </div>
-                <?php if ($o['abaixo_piso'] || $o['nao_baixa']): ?>
-                    <div class="linha-baixo"><span>
-                        <?php if ($o['abaixo_piso']): ?>
-                            <span class="zerado">abaixo do piso: dá prejuízo</span>
-                        <?php else: ?>
-                            não baixa do preço de hoje
-                        <?php endif; ?>
-                    </span></div>
-                <?php endif; ?>
-            </a></li>
-        <?php endforeach; ?>
-    </ul>
-    <?php if ($c === null): ?>
-        <p class="ajuda">Sem custo de nota, o preço só aparece no Repor, depois de digitar o custo.</p>
+            <?php endif; ?>
+
+            <div id="promo-acao">
+                <button type="button" class="botao" id="promo-criar">Criar promoção</button>
+            </div>
+            <p class="ajuda">O preço do planograma não muda: a promoção é um desconto com começo e
+                fim, e quando ela acaba o preço normal volta sozinho.</p>
+        </div>
+    <?php elseif ($preco === null): ?>
+        <p class="ajuda">Este item não tem preço de venda no planograma, então não há sobre o que dar desconto.</p>
     <?php endif; ?>
 <?php endif; ?>
+
+<script src="/assets/promocao.js?v=1"></script>

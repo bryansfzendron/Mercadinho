@@ -367,3 +367,38 @@ CREATE TABLE IF NOT EXISTS planograma_log (
     CONSTRAINT fk_pglog_pdv FOREIGN KEY (pdv_id)
         REFERENCES loja_pdvs (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Promocoes criadas pelo app no TouchPay (POST /api/discountProducts).
+--
+-- A promocao e um desconto com comeco e fim, e nao uma troca de preco: o
+-- preco do planograma fica intacto e volta sozinho quando ela acaba. O
+-- painel deles nao diz quem criou nem por que, entao fica aqui — com o preco
+-- que valia na hora, para a lista mostrar de/por sem perguntar de novo.
+-- Tentativa recusada tambem vira linha (ok = 0), igual ao planograma_log.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS promocoes (
+    id                 INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    usuario_id         INT UNSIGNED  NULL,
+    pdv_id             INT UNSIGNED  NULL,
+    produto_externo_id INT UNSIGNED  NOT NULL,
+    ean                VARCHAR(14)   NULL,
+    descricao          VARCHAR(255)  NULL,
+    preco_base         DECIMAL(14,2) NOT NULL,
+    percentual         DECIMAL(5,2)  NOT NULL,
+    preco_promo        DECIMAL(14,2) NOT NULL,
+    inicio             DATE          NOT NULL,
+    fim                DATE          NOT NULL,
+    -- A validade que motivou a promocao, quando houve.
+    validade           DATE          NULL,
+    -- O id do desconto do lado de la, quando a resposta trouxer.
+    externo_id         INT UNSIGNED  NULL,
+    ok                 TINYINT(1)    NOT NULL DEFAULT 1,
+    erro               VARCHAR(255)  NULL,
+    criado_em          DATETIME      NOT NULL,
+    PRIMARY KEY (id),
+    KEY ix_promo_fim (fim),
+    KEY ix_promo_produto (pdv_id, produto_externo_id),
+    CONSTRAINT fk_promo_pdv FOREIGN KEY (pdv_id)
+        REFERENCES loja_pdvs (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

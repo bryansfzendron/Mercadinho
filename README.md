@@ -715,12 +715,59 @@ dele o da última nota. Sem nota, a taxa ainda aparece, e o preço nasce no Repo
 de digitar o custo. Abaixo da sugestão ficam as outras taxas (1,4 a 1,8), cada uma com o
 seu preço e com aviso quando dá prejuízo ou não baixa o preço.
 
-**Nada é gravado nessa tela.** "Aplicar no Repor" abre `/planograma?pdv=…&codigo=…&custo=…&taxa=…&promo=1`:
-a ficha do produto já aberta no PDV certo, com custo e taxa nos campos e a conta por
-extenso embaixo. Dali o preço segue o caminho de sempre — de→para e segundo toque. A
-taxa que chega pelo link **não vira a taxa lembrada**: só o que o dedo digita no campo
-fica guardado, senão o 1,4 de um iogurte vencendo viraria a taxa dos trinta bipes
-seguintes. E a URL é limpa ao abrir, para recarregar a página não reabrir a ficha.
+### Promoção, e não troca de preço
+
+A sugestão vira **promoção do TouchPay** (`POST /api/discountProducts`): um desconto
+percentual com começo e fim. O preço do planograma **não é tocado** — volta sozinho
+quando a promoção acaba, ninguém precisa lembrar de desfazer, e a aba Margens continua
+comparando com o preço de verdade.
+
+A sugestão fala em taxa sobre o custo; o TouchPay fala em percentual sobre o preço de
+venda. `promocao_percentual()` traduz: inteiro e **arredondado para baixo** (26,6% vira
+26%), para o preço final ficar um pouco acima do alvo — que já respeita o piso — e nunca
+abaixo. Atalhos de 1,4× a 1,8× preenchem o percentual, e a linha embaixo mostra o preço,
+o fator e quanto sobra por unidade, em vermelho quando fura o piso.
+
+Começa hoje e termina **na validade** (ou em uma semana, se ela já passou). Mesmo cuidado
+do Repor: "Criar promoção" abre o resumo `−26%: R$ 4,29 → R$ 3,17, de 03/10 a 08/10`, e só
+o segundo toque manda. No servidor (`promocao_criar()`):
+
+- o preço base é **relido do planograma na hora**; se mudou desde que a tela abriu, para
+  com 409 em vez de criar um "de/por" que mente;
+- promoção que o app já criou para o mesmo produto e PDV, com datas que se cruzam,
+  **impede a nova** — desconto em cima de desconto, e ninguém sabe o que o caixa deles
+  faz com isso;
+- desconto fora de 1–90%, decimal, começando no passado ou durando mais de 120 dias é
+  recusado antes de sair daqui.
+
+O corpo é o que o painel deles manda, campo a campo (captura de 03/10/2026):
+
+```json
+{"type":"Percentage","startsOn":"2026-10-03","expiresOn":"2026-10-05",
+ "description":"Promoção …",
+ "discountProductRules":[{"id":0,"productId":"7467","quantity":1,"amount":10}],
+ "discountPointOfSaleRules":[{"id":0,"pointOfSaleId":892,"discountBaseId":0}],
+ "usage":0,"category":"Product"}
+```
+
+`productId` é o `externo_produto_id` do espelho e `pointOfSaleId` o `externo_id` do PDV.
+
+Cada tentativa vira linha em `promocoes` — inclusive a recusada, com o erro —, com o
+preço que valia na hora. **Tabela nova:** rode `/setup.php?token=...`.
+
+### A aba Promoções
+
+`/promocoes`, dentro da Loja, é a lista de trabalho:
+
+1. **Vencidos na prateleira** — com estoque e validade passada. Tirar da gôndola e zerar.
+2. **Pedem promoção** — validade em até 60 dias, estoque, e a análise dizendo que não sai
+   a tempo no preço de hoje. Quem já tem promoção criada pelo app sai da lista.
+3. **Criadas pelo app** — com o estado pelas datas: *no ar*, *agendada*, *encerrada* ou
+   *recusada*.
+
+Promoções feitas direto no painel do TouchPay ainda não aparecem: a resposta do
+`GET /api/discountproducts/paginated` ainda não foi vista, e a lista não vai adivinhar
+nomes de campo. Encerrar uma promoção antes do fim também ainda é no painel.
 
 ## Um gesto só para atualizar
 

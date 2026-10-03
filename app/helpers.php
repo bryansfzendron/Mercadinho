@@ -613,6 +613,7 @@ function abas_loja(string $atual): string
     return abas([
         '/loja'       => 'Catálogo',
         '/planograma' => 'Repor',
+        '/promocoes'  => 'Promoções',
         '/margens'    => 'Margens',
         '/vendas'     => 'Vendas',
         '/metas'      => 'Metas',

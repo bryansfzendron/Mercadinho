@@ -28,6 +28,7 @@ function despachar(string $rota): void
     if ($rota === '/produtos')  { rota_produtos($u); return; }
     if ($rota === '/loja')      { rota_loja($u); return; }
     if ($rota === '/planograma') { rota_planograma($u); return; }
+    if ($rota === '/promocoes') { rota_promocoes($u); return; }
     if ($rota === '/margens')   { rota_margens($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }
     if ($rota === '/vendas/transacoes') { rota_vendas_transacoes($u); return; }
@@ -44,6 +45,7 @@ function despachar(string $rota): void
     if ($rota === '/api/loja/sincronizar' && $m === 'POST') { rota_loja_sincronizar($u); return; }
     if ($rota === '/api/planograma/buscar' && $m === 'GET')  { rota_api_planograma_buscar($u); return; }
     if ($rota === '/api/planograma/salvar' && $m === 'POST') { rota_api_planograma_salvar($u); return; }
+    if ($rota === '/api/promocao/criar' && $m === 'POST') { rota_api_promocao_criar($u); return; }
     if ($rota === '/api/vendas/sincronizar' && $m === 'POST') { rota_vendas_sincronizar($u); return; }
 
     if (preg_match('#^/api/notas/(\d+)/status$#', $rota, $mm)) {
@@ -428,6 +430,32 @@ function rota_promocao(array $u, int $item_id): void
         ver('erro', ['codigo' => 404, 'mensagem' => 'Item nao encontrado na loja'], 'Nao encontrado');
     }
     ver('promocao', $dados, 'Promoção');
+}
+
+/**
+ * A aba Promocoes: o que pede promocao agora, o que tem de sair da
+ * prateleira, e o que o app ja criou no TouchPay.
+ */
+function rota_promocoes(array $u): void
+{
+    $lista = promocoes_sugeridas((int) $u['id']);
+    ver('promocoes', [
+        'sugeridas' => $lista['sugeridas'],
+        'retirar'   => $lista['retirar'],
+        'criadas'   => promocoes_locais(),
+    ], 'Promoções');
+}
+
+/** Cria a promocao no TouchPay. 409 quando o preco mudou desde que a tela abriu. */
+function rota_api_promocao_criar(array $u): void
+{
+    exigir_csrf();
+    try {
+        $r = promocao_criar($u, corpo_json());
+        json_resposta($r, $r['ok'] ? 200 : (($r['conflito'] ?? false) ? 409 : 422));
+    } catch (TouchPayErro $e) {
+        json_resposta(['ok' => false, 'erro' => $e->getMessage()], 502);
+    }
 }
 
 function rota_produto_vincular_ean(array $u, int $id): void

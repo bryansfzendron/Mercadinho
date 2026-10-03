@@ -13,9 +13,11 @@ declare(strict_types=1);
  *  - quanto ele custou (as notas do atacado).
  *
  * A sugestao vem como TAXA sobre o custo — a mesma conta custo x taxa do
- * Repor —, porque e assim que o preco e pensado aqui. E nada e gravado nesta
- * tela: o botao leva ao Repor com custo e taxa preenchidos, e la o preco
- * passa pelo de/para e pelo segundo toque como qualquer outro.
+ * Repor —, porque e assim que o preco e pensado aqui. E vira PROMOCAO do
+ * TouchPay, nao troca de preco: um desconto percentual com comeco e fim. O
+ * preco do planograma fica intacto e volta sozinho quando a promocao acaba —
+ * ninguem precisa lembrar de desfazer, e o relatorio de margem continua
+ * comparando com o preco de verdade.
  */
 
 /**
@@ -339,11 +341,23 @@ function promocao_dados(int $item_id, int $usuario_id): ?array
     if (!$item) {
         return null;
     }
+    $d = promocao_analisar($item, $usuario_id, margens_minimos());
+    $d['ativas'] = promocoes_do_item((int) $item['pdv_id'], (int) ($item['externo_produto_id'] ?? 0));
+    return $d;
+}
 
+/**
+ * A analise de um item, com os cortes ja calculados por quem chama.
+ *
+ * Separada de promocao_dados() porque a lista de sugestoes passa por isto
+ * item a item, e calcular margens_minimos() (que soma o faturamento do mes)
+ * uma vez por item seria a mesma conta repetida dezenas de vezes.
+ */
+function promocao_analisar(array $item, int $usuario_id, array $minimos): array
+{
     $val     = validade_estado($item['validade'] ?? null);
     $custo   = promocao_custo($item, $usuario_id);
     $vdia    = promocao_venda_dia($item);
-    $minimos = margens_minimos();
     $preco   = $item['preco_venda'] === null ? null : (float) $item['preco_venda'];
 
     $sug = promocao_sugerir([
@@ -358,13 +372,313 @@ function promocao_dados(int $item_id, int $usuario_id): ?array
     $codigo = (string) ($item['ean'] ?: pg_codigo_limpo($item['codigo'] ?? ''));
 
     return [
-        'item'      => $item,
-        'validade'  => $val,
-        'custo'     => $custo,
-        'venda_dia' => $vdia,
-        'preco'     => $preco,
-        'minimos'   => $minimos,
-        'sugestao'  => $sug,
-        'codigo'    => $codigo,
+        'item'       => $item,
+        'validade'   => $val,
+        'custo'      => $custo,
+        'venda_dia'  => $vdia,
+        'preco'      => $preco,
+        'minimos'    => $minimos,
+        'sugestao'   => $sug,
+        'codigo'     => $codigo,
+        'percentual' => $preco !== null ? promocao_percentual($preco, $sug['preco']) : null,
     ];
+}
+
+// ---------------------------------------------------------------------
+// A promocao do TouchPay (desconto com comeco e fim)
+// ---------------------------------------------------------------------
+//
+// A sugestao fala em taxa sobre o custo, que e como o preco e pensado aqui.
+// O TouchPay fala em PERCENTUAL sobre o preco de venda, que e como o
+// desconto dele funciona. As funcoes abaixo traduzem uma lingua na outra.
+
+/**
+ * Quantos por cento tirar do preco de hoje para chegar no preco alvo. Funcao pura.
+ *
+ * Inteiro e arredondado PARA BAIXO: desconto de 26,7% vira 26%, e o preco
+ * final fica um pouco ACIMA do alvo, nunca abaixo — o alvo ja vem respeitando
+ * o piso de prejuizo, e arredondar para cima poderia atravessa-lo. Inteiro
+ * porque e o que o painel deles mostra, e nao vale descobrir na pratica se o
+ * servidor aceita casa decimal.
+ *
+ * Null quando o alvo nao baixa o preco (nao e promocao) ou falta numero.
+ */
+function promocao_percentual(?float $preco_hoje, ?float $preco_alvo): ?int
+{
+    if ($preco_hoje === null || $preco_hoje <= 0 || $preco_alvo === null || $preco_alvo <= 0) {
+        return null;
+    }
+    $pct = (int) floor((1 - $preco_alvo / $preco_hoje) * 100 + 1e-9);
+    return $pct >= 1 ? min($pct, 90) : null;
+}
+
+/** O preco no caixa com o desconto. Funcao pura. */
+function promocao_preco_com(float $preco, float $percentual): float
+{
+    return round($preco * (1 - $percentual / 100), 2);
+}
+
+/** Em que pe esta uma promocao, pelas datas. Funcao pura. */
+function promocao_status(string $inicio, string $fim, ?string $hoje = null): string
+{
+    $hoje = $hoje ?? date('Y-m-d');
+    if ($fim < $hoje) {
+        return 'encerrada';
+    }
+    return $inicio > $hoje ? 'agendada' : 'no ar';
+}
+
+/**
+ * O que a pessoa pediu esta em condicoes de virar promocao? Funcao pura.
+ *
+ * Cada recusa aqui e um erro que custaria caro do lado de la: desconto de
+ * 0% (nao e promocao), de 95% (o dedo escorregou), comecando ontem, ou que
+ * dura um ano — promocao de vencimento que sobrevive ao produto.
+ *
+ * @return ?string a queixa, ou null quando esta tudo certo
+ */
+function promocao_validar(?float $percentual, ?string $inicio, ?string $fim, ?string $hoje = null): ?string
+{
+    $hoje = $hoje ?? date('Y-m-d');
+    if ($percentual === null || $percentual < 1) {
+        return 'Digite um desconto de pelo menos 1%.';
+    }
+    if ($percentual > 90) {
+        return 'Desconto acima de 90% — confira o número.';
+    }
+    if (abs($percentual - round($percentual)) > 0.0001) {
+        return 'O desconto vai em número inteiro (ex.: 25%).';
+    }
+    if ($inicio === null || $fim === null) {
+        return 'Faltou a data de começo ou de fim.';
+    }
+    if ($inicio < $hoje) {
+        return 'A promoção não pode começar no passado.';
+    }
+    if ($fim < $inicio) {
+        return 'O fim vem antes do começo.';
+    }
+    if ((strtotime($fim) - strtotime($inicio)) / 86400 > 120) {
+        return 'Mais de 120 dias de promoção — confira as datas.';
+    }
+    return null;
+}
+
+/**
+ * O nome que vai para o TouchPay. Funcao pura.
+ *
+ * Neutro de proposito: nao se sabe onde o painel deles mostra isto, e
+ * "vence dia 8" numa tela de cliente nao e o que se quer anunciar.
+ */
+function promocao_nome(string $descricao): string
+{
+    $d = trim(preg_replace('/\s+/', ' ', $descricao));
+    return mb_substr('Promoção ' . ($d !== '' ? $d : 'do dia'), 0, 60);
+}
+
+/**
+ * O corpo do POST /api/discountProducts. Funcao pura.
+ *
+ * Campo a campo o que o painel deles mandou na captura de 03/10/2026, so com
+ * os valores trocados: `quantity: 1` e o desconto valer a partir de uma
+ * unidade; os `id: 0` sao "regra nova".
+ */
+function promocao_corpo(int $produto_externo, int $pdv_externo, int $percentual,
+                        string $inicio, string $fim, string $nome): array
+{
+    return [
+        'type'                      => 'Percentage',
+        'startsOn'                  => $inicio,
+        'expiresOn'                 => $fim,
+        'description'               => $nome,
+        'discountProductRules'      => [[
+            'id' => 0, 'productId' => (string) $produto_externo, 'quantity' => 1, 'amount' => $percentual,
+        ]],
+        'discountPointOfSaleRules'  => [[
+            'id' => 0, 'pointOfSaleId' => $pdv_externo, 'discountBaseId' => 0,
+        ]],
+        'usage'                     => 0,
+        'category'                  => 'Product',
+    ];
+}
+
+/** As promocoes que o app ja criou para este produto neste PDV e que ainda valem. */
+function promocoes_do_item(int $pdv_id, int $produto_externo): array
+{
+    if ($produto_externo <= 0) {
+        return [];
+    }
+    try {
+        return q(
+            'SELECT * FROM promocoes
+              WHERE pdv_id = ? AND produto_externo_id = ? AND ok = 1 AND fim >= ?
+           ORDER BY inicio',
+            [$pdv_id, $produto_externo, date('Y-m-d')]
+        );
+    } catch (Throwable $e) {
+        // Tabela ainda nao criada pelo setup: a tela segue, so sem o aviso.
+        error_log('promocoes_do_item: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Cria a promocao no TouchPay.
+ *
+ * Mesmas tres ideias do Repor: reler antes de gravar, parar em vez de
+ * atropelar, e registrar o que saiu daqui.
+ *
+ *  - O preco base e relido do planograma NA HORA: o desconto incide sobre o
+ *    preco de la, e se ele mudou desde que a tela abriu, o "de R$ 4,29 por
+ *    R$ 3,13" que a pessoa confirmou ja nao e verdade (409).
+ *  - Promocao que o app ja criou para o mesmo produto e PDV, com datas que se
+ *    cruzam, para a criacao: duas promocoes empilhadas e desconto em cima de
+ *    desconto, e ninguem sabe o que o caixa deles faz com isso.
+ *
+ * @param array $dados item, percentual, inicio, fim, visto_preco
+ * @return array{ok:bool, conflito?:bool, erro?:string, promocao?:array}
+ */
+function promocao_criar(array $u, array $dados): array
+{
+    $item = promocao_item((int) ($dados['item'] ?? 0));
+    if (!$item) {
+        return ['ok' => false, 'erro' => 'Item não encontrado na loja.'];
+    }
+    $produto = (int) ($item['externo_produto_id'] ?? 0);
+    if ($produto <= 0) {
+        return ['ok' => false, 'erro' => 'Este item não tem o código do produto no TouchPay. Puxe a loja de novo.'];
+    }
+
+    $pct    = pg_numero($dados['percentual'] ?? null);
+    $inicio = pg_data_iso($dados['inicio'] ?? null);
+    $fim    = pg_data_iso($dados['fim'] ?? null);
+    $queixa = promocao_validar($pct, $inicio, $fim);
+    if ($queixa !== null) {
+        return ['ok' => false, 'erro' => $queixa];
+    }
+    $pct = (int) round($pct);
+
+    foreach (promocoes_do_item((int) $item['pdv_id'], $produto) as $p) {
+        if ($p['inicio'] <= $fim && $p['fim'] >= $inicio) {
+            return ['ok' => false, 'erro' => 'Já existe uma promoção deste produto neste ponto de venda de '
+                . pg_data_br($p['inicio']) . ' a ' . pg_data_br($p['fim']) . '.'];
+        }
+    }
+
+    $pdv = planograma_pdv((int) $item['pdv_id']);
+    if (!$pdv) {
+        return ['ok' => false, 'erro' => 'Ponto de venda desconhecido.'];
+    }
+
+    // O preco de AGORA, do planograma — e sobre ele que o desconto incide.
+    $ean   = (string) ($item['ean'] ?? '');
+    $linha = pg_casar(tp_planograma_buscar(planograma_ativo($pdv), $ean !== '' ? $ean : (string) $produto),
+                      $produto, $ean);
+    if (!$linha || (float) ($linha['price'] ?? 0) <= 0) {
+        return ['ok' => false, 'erro' => 'O produto não está no planograma deste ponto de venda: sem preço, não há sobre o que dar desconto.'];
+    }
+    $preco = (float) $linha['price'];
+
+    $visto = pg_numero($dados['visto_preco'] ?? null);
+    if ($visto !== null && abs($visto - $preco) > 0.009) {
+        return ['ok' => false, 'conflito' => true,
+                'erro' => 'O preço mudou para ' . moeda($preco) . ' desde que a tela abriu. Nada foi criado; confira de novo.'];
+    }
+
+    $linhaLocal = [
+        'usuario_id'         => (int) ($u['id'] ?? 0) ?: null,
+        'pdv_id'             => (int) $pdv['id'],
+        'produto_externo_id' => $produto,
+        'ean'                => $ean !== '' ? mb_substr($ean, 0, 14) : null,
+        'descricao'          => mb_substr((string) $item['descricao'], 0, 255),
+        'preco_base'         => $preco,
+        'percentual'         => $pct,
+        'preco_promo'        => promocao_preco_com($preco, $pct),
+        'inicio'             => $inicio,
+        'fim'                => $fim,
+        'validade'           => $item['validade'] ?: null,
+        'criado_em'          => date('Y-m-d H:i:s'),
+    ];
+
+    $corpo = promocao_corpo($produto, (int) $pdv['externo_id'], $pct, $inicio, $fim,
+                            promocao_nome((string) $item['descricao']));
+    try {
+        $r = tp_promocao_criar($corpo);
+    } catch (TouchPayErro $e) {
+        promocao_registrar($linhaLocal + ['ok' => 0, 'erro' => mb_substr($e->getMessage(), 0, 255)]);
+        throw $e;
+    }
+
+    $externo = is_array($r) && is_numeric($r['id'] ?? null) ? (int) $r['id'] : null;
+    $linhaLocal += ['ok' => 1, 'externo_id' => $externo];
+    promocao_registrar($linhaLocal);
+
+    return ['ok' => true, 'promocao' => $linhaLocal];
+}
+
+/** Uma linha em promocoes. Nunca derruba a criacao: ela ja aconteceu la. */
+function promocao_registrar(array $linha): void
+{
+    try {
+        inserir('promocoes', $linha);
+    } catch (Throwable $e) {
+        error_log('promocoes: ' . $e->getMessage());
+    }
+}
+
+/** As promocoes que o app criou, das mais novas para as mais velhas. */
+function promocoes_locais(int $limite = 60): array
+{
+    try {
+        return q(
+            'SELECT pr.*, p.nome AS pdv, u.nome AS usuario
+               FROM promocoes pr
+          LEFT JOIN loja_pdvs p ON p.id = pr.pdv_id
+          LEFT JOIN usuarios  u ON u.id = pr.usuario_id
+           ORDER BY pr.id DESC
+              LIMIT ' . max(1, min(200, $limite))
+        );
+    } catch (Throwable $e) {
+        error_log('promocoes_locais: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Os itens com validade nos proximos 60 dias (ou ja vencidos) e estoque,
+ * cada um ja analisado.
+ *
+ * E a lista de trabalho da aba Promocoes: o que pede promocao agora e o que
+ * tem de sair da prateleira. Item que ja tem promocao criada pelo app sai da
+ * lista de sugestoes — ja foi resolvido.
+ *
+ * @return array{sugeridas:array, retirar:array}
+ */
+function promocoes_sugeridas(int $usuario_id): array
+{
+    $itens = q(
+        'SELECT li.*, p.nome AS pdv, p.id AS pdv_id
+           FROM loja_itens li
+           JOIN loja_pdvs p ON p.id = li.pdv_id
+          WHERE p.ativo = 1 AND p.unificado_para IS NULL
+            AND li.validade IS NOT NULL AND li.validade <= ?
+            AND li.estoque > 0
+       ORDER BY li.validade, li.descricao
+          LIMIT 300',
+        [date('Y-m-d', strtotime('+60 days'))]
+    );
+
+    $minimos   = margens_minimos();
+    $sugeridas = [];
+    $retirar   = [];
+    foreach ($itens as $item) {
+        $a = promocao_analisar($item, $usuario_id, $minimos);
+        if ($a['sugestao']['acao'] === 'retirar') {
+            $retirar[] = $a;
+        } elseif ($a['sugestao']['acao'] === 'promocao'
+                  && !promocoes_do_item((int) $item['pdv_id'], (int) ($item['externo_produto_id'] ?? 0))) {
+            $sugeridas[] = $a;
+        }
+    }
+    return ['sugeridas' => $sugeridas, 'retirar' => $retirar];
 }
