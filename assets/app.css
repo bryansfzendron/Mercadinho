@@ -275,6 +275,15 @@ h2 { font-size: 1.1rem; line-height: 1.25; letter-spacing: -.013em; margin: 1.4r
 .selo-validade.suspeita { color: var(--ambar); }
 .selos-linha { display: flex; gap: .3rem; align-items: center; flex: none; }
 
+/* As faixas da lista por vencimento. So o titulo leva a cor, com a mesma
+   regra dos selos: ambar e vermelho para o que pede acao agora, e o resto
+   sem tinta, senao a urgencia se perde. */
+.faixa-validade { display: flex; align-items: baseline; gap: .4rem; }
+.faixa-validade span { font-size: .8rem; font-weight: 500; color: var(--suave); }
+.faixa-validade.vencido { color: var(--vermelho); }
+.faixa-validade.vencendo { color: var(--ambar); }
+.faixa-validade.suspeita { color: var(--ambar); }
+
 /* ---------- formularios ---------- */
 label { display: block; margin-bottom: .7rem; font-size: .82rem; color: var(--suave); }
 input, select, textarea {
@@ -1009,6 +1018,31 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
    viajam para o TouchPay. */
 .pg-calc { margin-bottom: .7rem; padding-left: .6rem; border-left: 2px solid var(--borda); }
 .pg-calc .ajuda { margin: .35rem 0 0; }
+
+/* Compras do produto, logo acima do custo — e para ele que servem. Linhas
+   baixas e sem cartao proprio: ja estao dentro da ficha, e cartao dentro de
+   cartao empurraria os campos para fora da tela do celular. */
+.pg-compras { margin-bottom: .8rem; }
+.pg-compras-titulo {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: .2rem 0 .3rem; font-size: .82rem; color: var(--suave);
+}
+.pg-compras-lista { list-style: none; margin: 0; padding: 0; }
+.pg-compras-lista li + li { border-top: 1px solid var(--vidro-borda); }
+.pg-compra {
+    display: flex; justify-content: space-between; align-items: center; gap: .6rem;
+    width: 100%; padding: .45rem .1rem; margin: 0;
+    background: none; border: 0; border-radius: 8px;
+    color: var(--texto); font: inherit; font-size: .9rem; text-align: left; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.pg-compra:active { background: var(--vidro); }
+.pg-compra small { display: block; font-size: .74rem; color: var(--suave); }
+.pg-compra-quando { min-width: 0; font-variant-numeric: tabular-nums; }
+.pg-compra-quando small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-compra-preco { flex: none; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pg-compra-preco small { font-weight: 400; }
+.pg-compras > .ajuda, .pg-compras-vazio { margin: .3rem 0 .7rem; font-size: .78rem; }
 
 /* Validade. Separada dos quatro campos por uma linha porque a decisao aqui
    nao e "que numero eu digito", e sim "qual das duas datas vale" — e essa

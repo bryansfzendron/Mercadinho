@@ -466,6 +466,24 @@ arredondamento é no centavo, porque centavo é o que a etiqueta tem.
 margem só o dia inteiro e um custo diferente a cada produto; sem isso, seriam trinta
 vezes digitando `1,9`.
 
+### As compras vêm junto com o bipe
+
+Logo acima do custo, a ficha lista as últimas compras do produto — data, loja,
+preço unitário e quantidade —, com um link para o histórico inteiro quando há mais
+de oito. É o número que se procura para fazer custo × taxa, e antes ele morava em
+outra aba (*Bipar produto*).
+
+**Tocar numa compra põe o preço dela no custo**, e a conta do preço se refaz na
+hora. É o mesmo evento de digitar no campo, então um resumo de→para aberto cai do
+mesmo jeito.
+
+O preço é o **líquido** (o que saiu do bolso, com o desconto do item abatido), o
+mesmo das estatísticas e do custo do estoque. Caixa aberta mostra o outro lado ao
+lado (*caixa com 12: R$ 27,00*). O histórico é achado pelo EAN no catálogo daqui
+(`planograma_compras()`): código interno de balança não tem EAN e por isso aparece
+como "nenhuma compra registrada". E um erro nessa leitura nunca derruba o bipe — a
+ficha existe para mexer no TouchPay, o histórico é ajuda.
+
 ### Isto não passa pelo n8n
 
 Nenhum dos fluxos do TouchPay passa mais — preço, estoque e vendas também são colhidos
@@ -629,6 +647,28 @@ fazer a conta de cabeça. Só aparece quando existe: a maioria dos itens não te
 validade cadastrada, e uma coluna de travessões em trezentas linhas não informa nada.
 
 Quem grava pela tela do Repor não espera o próximo sync: o espelho é atualizado junto.
+
+### O que vence primeiro
+
+Na Loja, **Ordenar por → vencimento** (`/loja?ordem=validade`, com um atalho na aba
+Repor) mostra só os itens com validade cadastrada, do que vence primeiro para o que
+vence depois, cortados em faixas:
+
+| faixa | quando |
+|---|---|
+| Já venceram | antes de hoje |
+| Vencem em até 7 dias | hoje até o 7º dia — o que vence antes da próxima reposição semanal |
+| Vencem em até 30 dias | do 8º ao 30º |
+| Vencem em até 3 meses | do 31º ao 90º |
+| Vencem depois de 3 meses | do 91º em diante |
+| Data suspeita — confira o ano | mais de 10 anos à frente (o caso do 5027) |
+
+A pergunta de quem abre essa ordem não é "qual a próxima data", é "o que eu tiro
+esta semana e o que fica de olho no mês"; uma lista corrida de datas obriga a achar
+sozinho onde uma coisa vira a outra. Item sem validade fica de fora — é a maioria da
+loja, e mil linhas sem data no fim empurrariam o limite de 400 por cima do que
+interessa. Os números do topo contam a mesma coisa que a lista. O chip *Com estoque*
+continua valendo e tira o que já saiu da prateleira.
 
 ## Um gesto só para atualizar
 

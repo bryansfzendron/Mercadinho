@@ -77,6 +77,66 @@ function validade_estado(?string $data, ?string $hoje = null): array
     return ['texto' => 'validade ' . $br, 'classe' => '', 'dias' => $dias];
 }
 
+/**
+ * A lista ordenada por vencimento, cortada em faixas. Funcao pura.
+ *
+ * A pergunta de quem abre esta ordem nao e "qual a proxima data", e "o que
+ * eu tiro da prateleira esta semana, o que fica de olho no mes, e o que da
+ * para esquecer por ora". Uma lista corrida de datas obriga a achar sozinho
+ * onde uma coisa vira a outra; as faixas ja dizem.
+ *
+ * Os cortes seguem o jeito que se fala — dias, semanas, meses — e o de 7
+ * dias e o mesmo de uma reposicao semanal: o que vence antes da proxima
+ * visita ao container tem de sair nesta.
+ *
+ * A data absurda (o 5027 do inventario deles) vai para uma faixa propria no
+ * fim. Misturada em "mais adiante", sumiria; e ela nao e prazo, e erro de
+ * digitacao esperando alguem corrigir.
+ *
+ * @param array $itens linhas de loja_listar(), ja em ordem de validade
+ * @return array<int, array{chave:string, rotulo:string, classe:string, itens:array}>
+ */
+function loja_faixas_validade(array $itens, ?string $hoje = null): array
+{
+    $faixas = [
+        'vencido'   => ['Já venceram', 'vencido'],
+        'semana'    => ['Vencem em até 7 dias', 'vencendo'],
+        'mes'       => ['Vencem em até 30 dias', 'vencendo'],
+        'trimestre' => ['Vencem em até 3 meses', ''],
+        'depois'    => ['Vencem depois de 3 meses', ''],
+        'suspeita'  => ['Data suspeita — confira o ano', 'suspeita'],
+    ];
+    $grupos = [];
+    foreach ($itens as $l) {
+        $dias = validade_estado($l['validade'] ?? null, $hoje)['dias'];
+        if ($dias === null) {
+            continue;
+        }
+        if ($dias < 0) {
+            $chave = 'vencido';
+        } elseif ($dias <= 7) {
+            $chave = 'semana';
+        } elseif ($dias <= 30) {
+            $chave = 'mes';
+        } elseif ($dias <= 90) {
+            $chave = 'trimestre';
+        } elseif ($dias <= 3650) {
+            $chave = 'depois';
+        } else {
+            $chave = 'suspeita';
+        }
+        $grupos[$chave][] = $l;
+    }
+
+    $saida = [];
+    foreach ($faixas as $chave => [$rotulo, $classe]) {
+        if (!empty($grupos[$chave])) {
+            $saida[] = ['chave' => $chave, 'rotulo' => $rotulo, 'classe' => $classe, 'itens' => $grupos[$chave]];
+        }
+    }
+    return $saida;
+}
+
 // ---------------------------------------------------------------------
 // Coleta local — o que antes era o workflow do n8n
 // ---------------------------------------------------------------------
@@ -643,7 +703,7 @@ function loja_por_produtos(array $produto_ids): array
 /**
  * Catalogo da loja: tudo que o TouchPay mandou, com filtro e ordem.
  *
- * @param string $ordem  nome | preco | preco_desc | estoque | estoque_desc | categoria
+ * @param string $ordem  nome | preco | preco_desc | estoque | estoque_desc | categoria | validade
  */
 function loja_listar(
     string $busca = '',
@@ -675,6 +735,12 @@ function loja_listar(
     } elseif ($estoque === 'sem') {
         $onde[] = 'li.estoque <= 0';
     }
+    // Ordenar por vencimento so tem sentido entre quem tem vencimento. A
+    // maioria da loja nao tem validade cadastrada, e mil linhas sem data no
+    // fim da lista empurrariam o limite de 400 para cima do que interessa.
+    if ($ordem === 'validade') {
+        $onde[] = 'li.validade IS NOT NULL';
+    }
 
     // Lista fixa: nada aqui pode vir do usuario direto para dentro do SQL.
     $ordens = [
@@ -684,6 +750,7 @@ function loja_listar(
         'estoque'      => 'li.estoque ASC, li.descricao ASC',
         'estoque_desc' => 'li.estoque DESC, li.descricao ASC',
         'categoria'    => 'li.categoria ASC, li.descricao ASC',
+        'validade'     => 'li.validade ASC, li.descricao ASC',
     ];
     $por = $ordens[$ordem] ?? $ordens['nome'];
 
@@ -701,10 +768,15 @@ function loja_listar(
     );
 }
 
-/** Totais do catalogo da loja, com os mesmos filtros da listagem. */
-function loja_totais(string $busca = '', int $pdv_id = 0, string $estoque = ''): array
+/**
+ * Totais do catalogo da loja, com os mesmos filtros da listagem.
+ *
+ * A ordem entra so pelo filtro que ela carrega: por validade, a lista mostra
+ * so quem tem validade, e os numeros de cima tem de contar a mesma coisa.
+ */
+function loja_totais(string $busca = '', int $pdv_id = 0, string $estoque = '', string $ordem = 'nome'): array
 {
-    $todos = loja_listar($busca, $pdv_id, 'nome', $estoque, 100000);
+    $todos = loja_listar($busca, $pdv_id, $ordem === 'validade' ? 'validade' : 'nome', $estoque, 100000);
     $valor = 0.0;
     $comEstoque = 0;
     foreach ($todos as $l) {

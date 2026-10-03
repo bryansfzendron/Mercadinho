@@ -340,10 +340,14 @@ function rota_planograma(array $u): void
 function rota_api_planograma_buscar(array $u): void
 {
     try {
-        json_resposta(planograma_para_tela(planograma_procurar(
-            (int) ($_GET['pdv'] ?? 0),
-            (string) ($_GET['codigo'] ?? '')
-        )));
+        $r = planograma_procurar((int) ($_GET['pdv'] ?? 0), (string) ($_GET['codigo'] ?? ''));
+        // Por quanto e quando foi comprado: e com esse numero na mao que se
+        // faz custo x taxa. Produto que nem existe no TouchPay nao tem ficha,
+        // entao nao ha onde mostrar.
+        if ($r['onde'] !== 'nenhum') {
+            $r['compras'] = planograma_compras($r['codigo'], (int) $u['id']);
+        }
+        json_resposta(planograma_para_tela($r));
     } catch (TouchPayErro $e) {
         // 502 e nao 500: quem recusou foi o painel deles, e a tela diz isso
         // com todas as letras em vez de "erro inesperado".
@@ -377,7 +381,7 @@ function rota_loja(array $u): void
     $estoque = $estoque === '1' ? 'com' : (in_array($estoque, ['com', 'sem'], true) ? $estoque : '');
 
     $itens  = loja_listar($busca, $pdv_id, $ordem, $estoque);
-    $totais = loja_totais($busca, $pdv_id, $estoque);
+    $totais = loja_totais($busca, $pdv_id, $estoque, $ordem);
     $pdvs   = loja_resumo();
 
     ver(

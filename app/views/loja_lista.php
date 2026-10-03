@@ -15,6 +15,7 @@ $ordens = [
     'estoque'      => 'menor estoque',
     'estoque_desc' => 'maior estoque',
     'categoria'    => 'categoria',
+    'validade'     => 'vencimento',
 ];
 ?>
 <h1>Loja</h1>
@@ -94,6 +95,9 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
     <p class="vazio">
         <?php if ($busca !== ''): ?>
             Nada encontrado para essa busca.
+        <?php elseif ($ordem === 'validade'): ?>
+            Nenhum item com validade cadastrada neste filtro.<br>
+            A validade se cadastra na aba <a href="/planograma">Repor</a>.
         <?php elseif ($estoque === 'sem'): ?>
             Nenhum item zerado neste filtro. A prateleira está inteira.
         <?php else: ?>
@@ -104,8 +108,31 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
     <?php if (count($itens) >= 400): ?>
         <p class="ajuda">Mostrando os primeiros 400. Use a busca para afinar.</p>
     <?php endif; ?>
+    <?php if ($ordem === 'validade'): ?>
+        <p class="ajuda">
+            Só os itens com validade cadastrada, do que vence primeiro para o que vence depois.
+            <?php if ($estoque === ''): ?>
+                <a href="/loja?<?= e(http_build_query($base + ['estoque' => 'com'])) ?>">Só o que tem estoque</a>
+                tira o que já saiu da prateleira.
+            <?php endif; ?>
+        </p>
+    <?php endif; ?>
+    <?php
+    // Por vencimento, a lista vem cortada em faixas — esta semana, este mes,
+    // os proximos meses —, que e a pergunta de quem abre essa ordem. Nas
+    // outras ordens e uma lista so, sem titulo.
+    $grupos = $ordem === 'validade'
+        ? loja_faixas_validade($itens)
+        : [['rotulo' => null, 'classe' => '', 'itens' => $itens]];
+    ?>
+    <?php foreach ($grupos as $g): ?>
+    <?php if ($g['rotulo'] !== null): ?>
+        <h2 class="faixa-validade <?= e($g['classe']) ?>">
+            <?= e($g['rotulo']) ?> <span><?= count($g['itens']) ?></span>
+        </h2>
+    <?php endif; ?>
     <ul class="lista">
-        <?php foreach ($itens as $l): ?>
+        <?php foreach ($g['itens'] as $l): ?>
             <li>
                 <?php
                 // Produto ja conhecido leva para o historico; o resto e so leitura.
@@ -157,6 +184,7 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
             </li>
         <?php endforeach; ?>
     </ul>
+    <?php endforeach; ?>
 <?php endif; ?>
 
 <?php endif; ?>

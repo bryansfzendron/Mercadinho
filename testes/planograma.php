@@ -365,5 +365,44 @@ checar('vem do mais velho para o mais novo', str_contains($u, 'sortOrder=date&de
 checar('o fuso de Brasilia acompanha', str_contains($u, 'timezoneOffset=180'), true);
 checar('nao filtra por CPF', str_contains($u, 'onlyWithCpf=false'), true);
 
+// ------------------------------------------ as compras na ficha do Repor
+/** Uma linha como produto_historico() devolve. */
+function compra_h(array $extra = []): array
+{
+    return $extra + [
+        'emissao' => '2026-09-15 10:30:00', 'loja' => 'ATACADAO', 'quantidade' => 12.0,
+        'unidade' => 'UN', 'valor_unitario' => 2.50, 'valor_unitario_liquido' => 2.25,
+        'preco_caixa' => null, 'preco_unidade' => null, 'como_caixa' => false, 'por_caixa' => null,
+    ];
+}
+
+$c = pg_compras_linhas([compra_h()]);
+// O liquido, e nao o de tabela: a pergunta e quanto saiu do bolso, e e o
+// numero que vai parar no custo quando a pessoa toca a linha.
+checar('o unitario e o liquido', $c[0]['unitario'], 2.25);
+checar('a data vem escrita', $c[0]['quando'], '15/09/2026');
+checar('e crua, para comparar', $c[0]['data'], '2026-09-15');
+checar('com a loja', $c[0]['loja'], 'ATACADAO');
+checar('quantidade e unidade', [$c[0]['qtd'], $c[0]['unidade']], [12.0, 'UN']);
+checar('sem caixa aberta, sem o outro lado', $c[0]['outro'], null);
+
+checar('loja que sumiu vira travessao', pg_compras_linhas([compra_h(['loja' => null])])[0]['loja'], '—');
+// Brinde ou linha torta: sem preco nao ajuda a decidir o custo.
+checar('compra sem preco fica de fora', pg_compras_linhas([compra_h(['valor_unitario_liquido' => 0])]), []);
+checar('o limite corta a lista', count(pg_compras_linhas(array_fill(0, 20, compra_h()), 8)), 8);
+// O limite conta o que entra, nao o que foi lido: as de preco zero nao
+// podem roubar lugar das que servem.
+checar('as sem preco nao gastam o limite', count(pg_compras_linhas(
+    [compra_h(['valor_unitario_liquido' => 0]), compra_h(), compra_h()], 2)), 2);
+
+$caixa = pg_compras_linhas([compra_h([
+    'por_caixa' => 12.0, 'preco_caixa' => 27.0, 'preco_unidade' => 2.25, 'como_caixa' => false,
+])]);
+checar('caixa aberta mostra o preco da caixa', $caixa[0]['outro'], 'caixa com 12: R$ 27,00');
+$pelaCaixa = pg_compras_linhas([compra_h([
+    'por_caixa' => 12.0, 'preco_caixa' => 27.0, 'preco_unidade' => 2.25, 'como_caixa' => true,
+])]);
+checar('vista pela caixa, mostra a unidade', $pelaCaixa[0]['outro'], 'R$ 2,25 a unidade');
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

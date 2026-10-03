@@ -570,6 +570,84 @@ function planograma_procurar(int $pdv_id, string $codigo): array
 }
 
 /**
+ * As compras deste produto, do jeito que a ficha do Repor mostra. Funcao pura.
+ *
+ * E o mesmo historico do "bipar produto", mas a pergunta aqui e outra: quem
+ * repoe esta com o custo na cabeca para fazer custo x taxa, e o que ele quer
+ * ver e "por quanto eu comprei, e quando". Por isso o unitario e o LIQUIDO —
+ * o que saiu do bolso, com o desconto do item ja abatido —, que e o mesmo
+ * numero que as estatisticas e o custo do estoque usam.
+ *
+ * A data vai crua (AAAA-MM-DD) alem de escrita: a tela agrupa e compara, e
+ * comparar "02/10/2026" com "15/09/2026" como texto da a ordem errada.
+ *
+ * @param array $historico saida de produto_historico(), do mais novo ao mais velho
+ * @return array<int, array{data:string, quando:string, loja:string, unitario:float,
+ *                          qtd:float, unidade:?string, outro:?string}>
+ */
+function pg_compras_linhas(array $historico, int $limite = 8): array
+{
+    $saida = [];
+    foreach ($historico as $h) {
+        $unitario = (float) ($h['valor_unitario_liquido'] ?? 0);
+        // Item de brinde ou linha torta da nota: sem preco, nao ajuda a decidir.
+        if ($unitario <= 0) {
+            continue;
+        }
+        $saida[] = [
+            'data'     => $h['emissao'] ? substr((string) $h['emissao'], 0, 10) : '',
+            'quando'   => data_fmt($h['emissao'] ?? null),
+            'loja'     => (string) ($h['loja'] ?? '') ?: '—',
+            'unitario' => round($unitario, 4),
+            'qtd'      => (float) ($h['quantidade'] ?? 0),
+            'unidade'  => $h['unidade'] ?? null,
+            // Caixa aberta: o preco do outro lado, ja escrito — igual ao bipar.
+            'outro'    => ($h['preco_caixa'] ?? null) === null ? null
+                        : (!empty($h['como_caixa'])
+                            ? moeda($h['preco_unidade']) . ' a unidade'
+                            : 'caixa com ' . qtd_fmt($h['por_caixa']) . ': ' . moeda($h['preco_caixa'])),
+        ];
+        if (count($saida) >= $limite) {
+            break;
+        }
+    }
+    return $saida;
+}
+
+/**
+ * O historico de compras de um codigo bipado no Repor.
+ *
+ * O bipe chega com o EAN da gondola, e e pelo EAN que o catalogo daqui acha o
+ * produto — inclusive as compras que vieram SEM GTIN e foram amarradas depois.
+ * Codigo interno de balanca nao tem EAN e por isso nao tem historico: volta
+ * vazio, e a ficha diz que nao ha compra registrada.
+ *
+ * Nunca derruba o bipe. A ficha existe para mexer no TouchPay; o historico e
+ * ajuda, e um erro aqui nao pode esconder o preco e o estoque.
+ *
+ * @return array{linhas:array, total:int, url:?string}
+ */
+function planograma_compras(string $codigo, int $usuario_id): array
+{
+    $vazio = ['linhas' => [], 'total' => 0, 'url' => null];
+    try {
+        $p = produto_por_ean($codigo);
+        if (!$p) {
+            return $vazio;
+        }
+        $hist = produto_historico((int) $p['id'], $usuario_id);
+        return [
+            'linhas' => pg_compras_linhas($hist),
+            'total'  => count($hist),
+            'url'    => $hist ? '/produtos/' . (int) $p['id'] : null,
+        ];
+    } catch (Throwable $e) {
+        error_log('compras no repor: ' . $e->getMessage());
+        return $vazio;
+    }
+}
+
+/**
  * A validade que o TouchPay tem para este produto AGORA.
  *
  * Le o inventario filtrado pelo produto: resposta pequena, uma ida so. O

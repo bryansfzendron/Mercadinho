@@ -253,5 +253,41 @@ checar('e todos sem preco', $semPlano['sem_preco'], 3);
 checar('planograma_id nulo quando nao ha', $semPlano['pos']['planograma_id'], null);
 checar('o nome cai no fallback', loja_montar_payload(['id' => 9], [], [], 1, 1)['pos']['nome'], 'PDV 9');
 
+// -------------------------------------------- faixas de vencimento
+$hoje = '2026-10-03';
+$lista = [
+    ['descricao' => 'venceu',   'validade' => '2026-09-30'],
+    ['descricao' => 'hoje',     'validade' => '2026-10-03'],
+    ['descricao' => '7 dias',   'validade' => '2026-10-10'],
+    ['descricao' => '8 dias',   'validade' => '2026-10-11'],
+    ['descricao' => '30 dias',  'validade' => '2026-11-02'],
+    ['descricao' => '31 dias',  'validade' => '2026-11-03'],
+    ['descricao' => '90 dias',  'validade' => '2027-01-01'],
+    ['descricao' => '91 dias',  'validade' => '2027-01-02'],
+    ['descricao' => 'sem data', 'validade' => null],
+    ['descricao' => '5027',     'validade' => '5027-02-14'],
+];
+$faixas = loja_faixas_validade($lista, $hoje);
+$mapa = [];
+foreach ($faixas as $f) {
+    $mapa[$f['chave']] = array_column($f['itens'], 'descricao');
+}
+checar('as faixas saem na ordem de urgencia', array_column($faixas, 'chave'),
+    ['vencido', 'semana', 'mes', 'trimestre', 'depois', 'suspeita']);
+checar('o que ja venceu', $mapa['vencido'], ['venceu']);
+// O corte de 7 dias inclui o setimo: e o que vence antes da proxima visita.
+checar('esta semana inclui hoje e o setimo dia', $mapa['semana'], ['hoje', '7 dias']);
+checar('o oitavo ja e do mes', $mapa['mes'], ['8 dias', '30 dias']);
+checar('ate 3 meses', $mapa['trimestre'], ['31 dias', '90 dias']);
+checar('depois de 3 meses', $mapa['depois'], ['91 dias']);
+// O 5027 nao e prazo, e erro de digitacao: faixa propria, no fim.
+checar('data absurda vai para a suspeita', $mapa['suspeita'], ['5027']);
+checar('item sem validade nao entra em faixa nenhuma',
+    in_array('sem data', array_merge(...array_values($mapa)), true), false);
+checar('faixa vazia nao aparece',
+    array_column(loja_faixas_validade([['validade' => '2026-10-05']], $hoje), 'chave'), ['semana']);
+checar('lista vazia, nenhuma faixa', loja_faixas_validade([], $hoje), []);
+checar('a urgente leva a cor do selo', $faixas[1]['classe'], 'vencendo');
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

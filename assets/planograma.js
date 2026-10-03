@@ -358,6 +358,7 @@
                       + 'Salvando, ele entra.</p>'
                     : '<p class="ajuda">No planograma. Tem <strong>' + qtdTexto(atual.estoque)
                       + '</strong> em estoque agora.</p>') +
+                  blocoCompras(d.compras) +
                   '<div class="pg-calc">' +
                     '<div class="pg-campos">' +
                       linhaAux('custo', 'Custo (R$)', '', '0,00') +
@@ -384,6 +385,7 @@
                 '</div>';
 
             const ctx = { d: d, novo: novo, ficha: ficha, atual: atual };
+            ligarCompras();
             ligarConta();
             ligarValidade(atual.validade || null);
             doc.getElementById('pg-salvar').addEventListener('click', () => resumir(ctx));
@@ -413,6 +415,57 @@
                        'value="' + esc(valor) + '" placeholder="' + esc(dica) + '" ' +
                        'autocomplete="off" autocorrect="off" spellcheck="false">' +
                 '</label>';
+        }
+
+        /**
+         * Por quanto e quando o produto foi comprado.
+         *
+         * Fica logo acima do custo porque e para ele que serve: quem repoe
+         * olha a ultima compra e faz custo x taxa. Cada linha e um botao —
+         * tocar poe aquele unitario no campo de custo, em vez de a pessoa
+         * transcrever de uma linha para a outra com o dedo.
+         *
+         * O unitario e o liquido (o que saiu do bolso), o mesmo das
+         * estatisticas e do custo do estoque.
+         */
+        function blocoCompras(c) {
+            const linhas = (c && c.linhas) || [];
+            if (!linhas.length) {
+                return '<p class="ajuda pg-compras-vazio">Nenhuma compra registrada deste produto.</p>';
+            }
+            const itens = linhas.map((l) =>
+                '<li><button type="button" class="pg-compra" data-custo="' + esc(l.unitario) + '">' +
+                  '<span class="pg-compra-quando">' + esc(l.quando) +
+                    '<small>' + esc(l.loja) + (l.outro ? ' · ' + esc(l.outro) : '') + '</small>' +
+                  '</span>' +
+                  '<span class="pg-compra-preco">' + esc(moeda(l.unitario)) +
+                    '<small>' + esc(qtdTexto(l.qtd)) + (l.unidade ? ' ' + esc(l.unidade) : '') + '</small>' +
+                  '</span>' +
+                '</button></li>'
+            ).join('');
+            const mais = c.total > linhas.length && c.url
+                ? '<a href="' + esc(c.url) + '">Ver as ' + c.total + ' compras</a>'
+                : '';
+            return '<div class="pg-compras">' +
+                     '<p class="pg-compras-titulo"><span>Compras</span>' + mais + '</p>' +
+                     '<ul class="pg-compras-lista">' + itens + '</ul>' +
+                     '<p class="ajuda">Toque numa compra para usar o preço como custo.</p>' +
+                   '</div>';
+        }
+
+        function ligarCompras() {
+            const elCusto = alvo.querySelector('[data-aux="custo"]');
+            if (!elCusto) return;
+            alvo.querySelectorAll('.pg-compra').forEach((b) => {
+                b.addEventListener('click', () => {
+                    const v = Number(b.dataset.custo);
+                    if (!(v > 0)) return;
+                    elCusto.value = v.toFixed(2).replace('.', ',');
+                    // O evento e o que refaz a conta do preco — e o que derruba
+                    // um resumo aberto, igual a digitar no campo.
+                    elCusto.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+            });
         }
 
         function taxaLembrada() {

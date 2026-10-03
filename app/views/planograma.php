@@ -36,6 +36,7 @@
     ele entra no planograma na hora. O preço pode sair da conta
     <strong>custo × taxa</strong>, com o custo da nota do atacado, e a validade
     mostra a que já está no estoque antes de você trocar.
+    <a href="/loja?ordem=validade">Ver o que vence primeiro</a>.
 </p>
 
 <div id="planograma"
@@ -118,7 +119,7 @@
 </div>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/planograma.js?v=5"></script>
+<script src="/assets/planograma.js?v=6"></script>
 <script>
 (function () {
     /*
