@@ -818,6 +818,8 @@ function promocao_criar(array $u, array $dados): array
     $corpo = promocao_corpo($produto, (int) $pdv['externo_id'], $pct, $inicio, $fim,
                             promocao_nome((string) $item['descricao']));
     try {
+        // O painel consulta isto antes de todo POST; ver tp_promocao_preco_referencia().
+        tp_promocao_preco_referencia($produto, (int) $pdv['externo_id']);
         $r = tp_promocao_criar($corpo);
     } catch (TouchPayErro $e) {
         promocao_registrar($linhaLocal + ['ok' => 0, 'erro' => mb_substr($e->getMessage(), 0, 255)]);

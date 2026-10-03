@@ -206,7 +206,9 @@ function tp_chamar(string $metodo, string $caminho, ?array $corpo = null, bool $
     ];
 
     if ($corpo !== null) {
-        $cabecalhos[] = 'Content-Type: application/json';
+        // Com o charset, igual ao painel: o corpo leva acento ("Promoção").
+        $cabecalhos[] = 'Content-Type: application/json;charset=UTF-8';
+        $cabecalhos[] = 'Origin: ' . TP_BASE;
         $opcoes[CURLOPT_POSTFIELDS] = json_encode($corpo, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     } elseif ($metodo !== 'GET') {
         // PUT sem corpo: sem isto o cURL nao manda Content-Length e parte dos
@@ -229,7 +231,13 @@ function tp_chamar(string $metodo, string $caminho, ?array $corpo = null, bool $
         return tp_chamar($metodo, $caminho, $corpo, true);
     }
     if ($http >= 400) {
-        throw new TouchPayErro(tp_erro_legivel($http, is_string($resposta) ? $resposta : ''));
+        // Qual chamada caiu vai junto: num fluxo com tres idas ao painel, "HTTP
+        // 500" sozinho obrigava a adivinhar se foi a leitura ou a escrita.
+        $onde = $metodo . ' ' . strtok($caminho, '?');
+        error_log('touchpay ' . $onde . ' -> HTTP ' . $http . ': '
+            . mb_substr(is_string($resposta) ? $resposta : '', 0, 500)
+            . ($corpo !== null ? ' | corpo: ' . mb_substr((string) json_encode($corpo, JSON_UNESCAPED_UNICODE), 0, 800) : ''));
+        throw new TouchPayErro(tp_erro_legivel($http, is_string($resposta) ? $resposta : '') . ' (' . $onde . ')');
     }
 
     // 204 e 200-com-corpo-vazio sao respostas validas de escrita.
@@ -514,6 +522,22 @@ function tp_operacao(array $corpo): array
 function tp_promocao_criar(array $corpo): array
 {
     return tp_chamar('POST', '/api/discountProducts', $corpo);
+}
+
+/**
+ * O preco de referencia do desconto, do jeito que o painel pede antes de criar.
+ *
+ * Na captura de 03/10/2026 o painel chama isto (duas vezes) entre escolher o
+ * produto e mandar o POST. A unica promocao que o app conseguiu criar foi
+ * justamente de um produto que o painel tinha acabado de consultar assim; as
+ * outras voltaram 500 "Erro interno". Pedir o mesmo antes de criar e fazer o
+ * caminho que o painel faz.
+ */
+function tp_promocao_preco_referencia(int $produto_externo, int $pdv_externo)
+{
+    $r = tp_chamar('GET', '/api/Products/discount-reference-price/' . $produto_externo
+        . '?pointOfSaleIds=' . $pdv_externo);
+    return $r;
 }
 
 /**
