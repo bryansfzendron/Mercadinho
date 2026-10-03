@@ -573,8 +573,16 @@ function promocoes_tp_normalizar(array $itens): array
             continue;
         }
         $tipo = (string) ($d['type'] ?? '');
+        // Sem regra de ponto de venda a promocao vale em TODOS (visto em
+        // 03/10/2026: "teste" e "goiabada teste", criadas assim no painel,
+        // valiam tambem no Mirante). Vira uma linha com PDV 0 — "todos" —,
+        // senao ela some da lista e da checagem de promocao repetida.
+        $pdvs = (array) ($d['discountPointOfSaleRules'] ?? []);
+        if (!$pdvs) {
+            $pdvs = [['pointOfSaleId' => 0, 'localName' => 'todos os pontos de venda']];
+        }
         foreach ((array) ($d['discountProductRules'] ?? []) as $pr) {
-            foreach ((array) ($d['discountPointOfSaleRules'] ?? []) as $pv) {
+            foreach ($pdvs as $pv) {
                 $valor = (float) ($pr['amount'] ?? 0);
                 $saida[] = [
                     'externo_id'      => (int) ($d['id'] ?? 0),
@@ -651,7 +659,7 @@ function promocoes_que_cruzam(array $linhas, int $pdv_externo, int $produto_exte
 {
     return array_values(array_filter($linhas, static fn (array $l): bool =>
         $l['valido']
-        && $l['pdv_externo'] === $pdv_externo
+        && ($l['pdv_externo'] === $pdv_externo || $l['pdv_externo'] === 0)
         && $l['produto_externo'] === $produto_externo
         && $l['inicio'] <= $fim && $l['fim'] >= $inicio));
 }
@@ -692,7 +700,8 @@ function promocoes_do_item(array $item, bool $usar_touchpay = true): array
     $tp = $usar_touchpay ? promocoes_touchpay() : null;
     if ($tp !== null) {
         return array_values(array_filter(promocoes_valendo($tp),
-            static fn (array $l): bool => $l['pdv_externo'] === $pdv_ext && $l['produto_externo'] === $produto));
+            static fn (array $l): bool => ($l['pdv_externo'] === $pdv_ext || $l['pdv_externo'] === 0)
+                && $l['produto_externo'] === $produto));
     }
     try {
         $locais = q(
@@ -729,10 +738,15 @@ function promocoes_enriquecer(array $linhas): array
     }
 
     $itens = [];
-    foreach (q('SELECT li.id, li.externo_produto_id, li.preco_venda, li.validade, li.estoque, p.externo_id AS pdv_externo
+    foreach (q('SELECT li.id, li.externo_produto_id, li.preco_venda, li.validade, li.estoque,
+                       p.externo_id AS pdv_externo, p.ativo
                   FROM loja_itens li JOIN loja_pdvs p ON p.id = li.pdv_id
-                 WHERE li.externo_produto_id IS NOT NULL AND p.unificado_para IS NULL') as $i) {
+                 WHERE li.externo_produto_id IS NOT NULL AND p.unificado_para IS NULL
+              ORDER BY p.ativo DESC') as $i) {
         $itens[(int) $i['pdv_externo'] . ':' . (int) $i['externo_produto_id']] = $i;
+        // Promocao sem ponto de venda (PDV 0, "todos") olha o produto num PDV
+        // ligado do app — o primeiro, pela ordem acima —, para ter link e preco.
+        $itens['0:' . (int) $i['externo_produto_id']] ??= $i;
     }
 
     $doApp = [];
@@ -747,7 +761,7 @@ function promocoes_enriquecer(array $linhas): array
     foreach ($linhas as &$l) {
         $item = $itens[$l['pdv_externo'] . ':' . $l['produto_externo']] ?? null;
         $l['pdv']       = $pdvs[$l['pdv_externo']]['nome'] ?? ($l['pdv_nome'] ?: ('PDV ' . $l['pdv_externo']));
-        $l['url']       = $item ? promocao_url((int) ($pdvs[$l['pdv_externo']]['id'] ?? 0), $l['produto_externo']) : null;
+        $l['url']       = $item ? promocao_url((int) ($pdvs[(int) $item['pdv_externo']]['id'] ?? 0), $l['produto_externo']) : null;
         $l['validade']  = $item['validade'] ?? null;
         // O preco do planograma e o que o caixa cobra; o "padrao" do
         // cadastro deles pode ser outro. Sem planograma, fica o padrao.

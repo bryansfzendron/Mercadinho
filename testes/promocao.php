@@ -223,6 +223,17 @@ checar('dois produtos x dois PDVs = quatro', count(promocoes_tp_normalizar([$dup
 checar('sem data, fora', promocoes_tp_normalizar([['id' => 1, 'discountProductRules' => [[]],
     'discountPointOfSaleRules' => [[]]]]), []);
 
+// Sem regra de PDV a promocao vale em todos ("teste" e "goiabada teste", do
+// painel, em 03/10/2026). Vira PDV 0, e nao some.
+$todos = $resposta['items'][0];
+$todos['discountPointOfSaleRules'] = [];
+$lt = promocoes_tp_normalizar([$todos]);
+checar('sem PDV vira uma linha', count($lt), 1);
+checar('com PDV 0, "todos"', [$lt[0]['pdv_externo'], $lt[0]['pdv_nome']], [0, 'todos os pontos de venda']);
+checar('promocao de todos cruza com qualquer PDV',
+    count(promocoes_que_cruzam($lt, 892, 7467, '2026-10-04', '2026-10-04')), 1);
+checar('e com outro PDV tambem', count(promocoes_que_cruzam($lt, 859, 7467, '2026-10-04', '2026-10-04')), 1);
+
 // -------------------------------------------------- valendo e cruzando
 $h = '2026-10-04';
 checar('no meio do periodo, valendo', count(promocoes_valendo($l, $h)), 1);

@@ -810,6 +810,13 @@ teto exato entre 29 e 35 não foi procurado: cada tentativa é uma promoção de
 
 Encerrar uma promoção antes do fim ainda é no painel — falta ver a chamada que ele usa.
 
+### Promoção sem ponto de venda vale em todos
+
+O painel deixa criar promoção sem escolher ponto de venda (`discountPointOfSaleRules: []`), e
+ela passa a valer **nos dois containers**. `promocoes_tp_normalizar()` transforma isso numa
+linha com PDV 0, "todos os pontos de venda", que cruza com qualquer PDV na checagem de
+promoção repetida e aparece na lista. Antes, sem regra de PDV, a linha simplesmente sumia.
+
 ### O endereço da promoção é PDV + produto
 
 `/promocao/{pdv}/{produto do TouchPay}`, e não o id da linha de `loja_itens`: o sync apaga e
