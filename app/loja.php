@@ -755,7 +755,7 @@ function loja_listar(
     $por = $ordens[$ordem] ?? $ordens['nome'];
 
     return q(
-        'SELECT li.id, li.produto_id, li.ean, li.codigo, li.descricao, li.categoria,
+        'SELECT li.id, li.produto_id, li.externo_produto_id, li.ean, li.codigo, li.descricao, li.categoria,
                 li.preco_venda, li.estoque, li.reservado, li.custo_medio, li.unidade,
                 li.imagem, li.validade, li.atualizado_em,
                 p.id AS pdv_id, p.nome AS pdv

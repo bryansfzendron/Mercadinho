@@ -256,15 +256,33 @@ function promocao_link_repor(int $pdv_id, string $codigo, ?float $custo, ?float 
 // O que fala com o banco
 // ---------------------------------------------------------------------
 
-/** Um item do espelho, com o PDV, so se o PDV estiver ligado. */
-function promocao_item(int $item_id): ?array
+/**
+ * O endereco da promocao de um item. Funcao pura.
+ *
+ * PDV + produto do TouchPay, e nao o id da linha do espelho: o sync troca as
+ * linhas de loja_itens a cada 15 minutos (apaga e insere), e o id muda junto.
+ * Um link com o id da linha morria na sincronizacao seguinte — foi o 404 do
+ * pudim em 03/10/2026. O par PDV + produto sobrevive a qualquer sync.
+ */
+function promocao_url(int $pdv_id, int $produto_externo): ?string
 {
+    return $pdv_id > 0 && $produto_externo > 0 ? '/promocao/' . $pdv_id . '/' . $produto_externo : null;
+}
+
+/** Um item do espelho pelo PDV daqui e o produto do TouchPay, so com o PDV ligado. */
+function promocao_item(int $pdv_id, int $produto_externo): ?array
+{
+    if ($pdv_id <= 0 || $produto_externo <= 0) {
+        return null;
+    }
     return q1(
         'SELECT li.*, p.nome AS pdv, p.id AS pdv_id, p.externo_id AS pdv_externo
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
-          WHERE li.id = ? AND p.ativo = 1 AND p.unificado_para IS NULL',
-        [$item_id]
+          WHERE li.pdv_id = ? AND li.externo_produto_id = ?
+            AND p.ativo = 1 AND p.unificado_para IS NULL
+          LIMIT 1',
+        [$pdv_id, $produto_externo]
     );
 }
 
@@ -335,9 +353,9 @@ function promocao_custo(array $item, int $usuario_id): array
 }
 
 /** Tudo que a tela precisa, num lugar so. */
-function promocao_dados(int $item_id, int $usuario_id): ?array
+function promocao_dados(int $pdv_id, int $produto_externo, int $usuario_id): ?array
 {
-    $item = promocao_item($item_id);
+    $item = promocao_item($pdv_id, $produto_externo);
     if (!$item) {
         return null;
     }
@@ -464,16 +482,34 @@ function promocao_validar(?float $percentual, ?string $inicio, ?string $fim, ?st
     return null;
 }
 
+/** O teto do nome da promocao no TouchPay, em caracteres. */
+const PROMO_NOME_MAX = 28;
+
 /**
  * O nome que vai para o TouchPay. Funcao pura.
  *
- * Neutro de proposito: nao se sabe onde o painel deles mostra isto, e
- * "vence dia 8" numa tela de cliente nao e o que se quer anunciar.
+ * CURTO, e isto nao e estetica. O servidor deles recusa nome comprido com
+ * 500 "Erro interno", sem dizer por que — achado de 03/10/2026, depois de
+ * uma tarde culpando produto, ponto de venda e preco de referencia. A mesma
+ * promocao com "Promoção Pudim Gourmet de Café Barbara Brito 170g" (49)
+ * falhava e com "Promo Pudim Cafe" (16) entrou na hora. O maior nome visto
+ * passando tinha 28 caracteres / 30 bytes ("Promoção Fofura Presunto 60g"),
+ * e o menor visto falhando, 36. O teto fica no que se VIU passar, dos dois
+ * jeitos: caracteres e bytes, porque acento ocupa dois e nao se sabe qual
+ * dos dois o banco deles conta.
+ *
+ * So o nome do produto, sem "Promoção" na frente: a lista de descontos ja
+ * diz que e promocao, e os nove caracteres fazem falta no nome.
  */
 function promocao_nome(string $descricao): string
 {
     $d = trim(preg_replace('/\s+/', ' ', $descricao));
-    return mb_substr('Promoção ' . ($d !== '' ? $d : 'do dia'), 0, 60);
+    $d = $d !== '' ? $d : 'Promoção';
+    $s = rtrim(mb_substr($d, 0, PROMO_NOME_MAX));
+    while (strlen($s) > 30) {
+        $s = rtrim(mb_substr($s, 0, mb_strlen($s) - 1));
+    }
+    return $s;
 }
 
 /**
@@ -711,7 +747,7 @@ function promocoes_enriquecer(array $linhas): array
     foreach ($linhas as &$l) {
         $item = $itens[$l['pdv_externo'] . ':' . $l['produto_externo']] ?? null;
         $l['pdv']       = $pdvs[$l['pdv_externo']]['nome'] ?? ($l['pdv_nome'] ?: ('PDV ' . $l['pdv_externo']));
-        $l['item_id']   = $item ? (int) $item['id'] : null;
+        $l['url']       = $item ? promocao_url((int) ($pdvs[$l['pdv_externo']]['id'] ?? 0), $l['produto_externo']) : null;
         $l['validade']  = $item['validade'] ?? null;
         // O preco do planograma e o que o caixa cobra; o "padrao" do
         // cadastro deles pode ser outro. Sem planograma, fica o padrao.
@@ -742,7 +778,7 @@ function promocoes_enriquecer(array $linhas): array
  */
 function promocao_criar(array $u, array $dados): array
 {
-    $item = promocao_item((int) ($dados['item'] ?? 0));
+    $item = promocao_item((int) ($dados['pdv'] ?? 0), (int) ($dados['produto'] ?? 0));
     if (!$item) {
         return ['ok' => false, 'erro' => 'Item não encontrado na loja.'];
     }
@@ -818,12 +854,10 @@ function promocao_criar(array $u, array $dados): array
     $corpo = promocao_corpo($produto, (int) $pdv['externo_id'], $pct, $inicio, $fim,
                             promocao_nome((string) $item['descricao']));
     try {
-        // O painel consulta isto antes de todo POST; ver tp_promocao_preco_referencia().
-        tp_promocao_preco_referencia($produto, (int) $pdv['externo_id']);
         $r = tp_promocao_criar($corpo);
     } catch (TouchPayErro $e) {
         promocao_registrar($linhaLocal + ['ok' => 0, 'erro' => mb_substr($e->getMessage(), 0, 255)]);
-        throw new TouchPayErro(promocao_erro_legivel($e->getMessage()));
+        throw $e;
     }
 
     $externo = is_array($r) && is_numeric($r['id'] ?? null) ? (int) $r['id'] : null;
@@ -831,25 +865,6 @@ function promocao_criar(array $u, array $dados): array
     promocao_registrar($linhaLocal);
 
     return ['ok' => true, 'promocao' => $linhaLocal];
-}
-
-/**
- * A recusa do TouchPay ao criar promocao, em portugues de gente. Funcao pura.
- *
- * Achado de 03/10/2026: para a maioria dos produtos o POST de promocao volta
- * 500 "Erro interno" — mesmo mandado direto, no formato exato do painel, com
- * qualquer desconto (5% a 30%) e qualquer data. So passou no Fofura (7467),
- * pelo app e pelo painel. Nao e o app: e o servidor deles recusando aquele
- * produto. Dizer isso poupa a pessoa de tentar dez vezes outro desconto.
- */
-function promocao_erro_legivel(string $erro): string
-{
-    if (str_contains($erro, 'POST /api/discountProducts') && str_contains($erro, 'HTTP 500')) {
-        return 'O TouchPay recusou criar promoção para este produto ("erro interno" do servidor deles). '
-             . 'O mesmo pedido, no formato do painel, também falha — trocar desconto ou datas não resolve. '
-             . 'Tente criar este produto direto no painel; se lá também der erro, é com o suporte do TouchPay.';
-    }
-    return $erro;
 }
 
 /** Uma linha em promocoes. Nunca derruba a criacao: ela ja aconteceu la. */

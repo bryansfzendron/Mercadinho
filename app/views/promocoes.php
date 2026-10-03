@@ -23,7 +23,7 @@ $hoje = date('Y-m-d');
     <p class="ajuda">Produto vencido não pode ser vendido, nem em promoção. Tire da gôndola e zere o estoque.</p>
     <ul class="lista">
         <?php foreach ($retirar as $a): $it = $a['item']; ?>
-            <li><a href="/promocao/<?= (int) $it['id'] ?>">
+            <li><a href="<?= e(promocao_url((int) $it['pdv_id'], (int) $it['externo_produto_id']) ?? '/promocoes') ?>">
                 <div class="linha-topo">
                     <span class="forte"><?= e($it['descricao']) ?></span>
                     <span class="valor zerado"><?= qtd_fmt($it['estoque']) ?> un.</span>
@@ -50,7 +50,7 @@ $hoje = date('Y-m-d');
             $s   = $a['sugestao'];
             $pct = $a['percentual'];
         ?>
-            <li><a href="/promocao/<?= (int) $it['id'] ?>">
+            <li><a href="<?= e(promocao_url((int) $it['pdv_id'], (int) $it['externo_produto_id']) ?? '/promocoes') ?>">
                 <div class="linha-topo">
                     <span class="forte"><?= e($it['descricao']) ?></span>
                     <span class="valor">
@@ -81,8 +81,8 @@ $linha_tp = static function (array $l, string $hoje): string {
     $st   = !$l['valido'] ? 'desligada' : promocao_status($l['inicio'], $l['fim'], $hoje);
     $selo = ['no ar' => 'selo-ok', 'agendada' => 'selo-pendente', 'encerrada' => 'selo-manual',
              'desligada' => 'selo-manual'][$st];
-    $abre  = $l['item_id'] ? '<a href="/promocao/' . (int) $l['item_id'] . '">' : '<div class="linha-cartao">';
-    $fecha = $l['item_id'] ? '</a>' : '</div>';
+    $abre  = $l['url'] ? '<a href="' . e($l['url']) . '">' : '<div class="linha-cartao">';
+    $fecha = $l['url'] ? '</a>' : '</div>';
     $apagada = in_array($st, ['encerrada', 'desligada'], true);
     return '<li>' . $abre
         . '<div class="linha-topo"><span class="forte">' . e($l['produto'] ?: $l['descricao']) . '</span>'

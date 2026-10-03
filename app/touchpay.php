@@ -525,22 +525,6 @@ function tp_promocao_criar(array $corpo): array
 }
 
 /**
- * O preco de referencia do desconto, do jeito que o painel pede antes de criar.
- *
- * Na captura de 03/10/2026 o painel chama isto (duas vezes) entre escolher o
- * produto e mandar o POST. A unica promocao que o app conseguiu criar foi
- * justamente de um produto que o painel tinha acabado de consultar assim; as
- * outras voltaram 500 "Erro interno". Pedir o mesmo antes de criar e fazer o
- * caminho que o painel faz.
- */
-function tp_promocao_preco_referencia(int $produto_externo, int $pdv_externo)
-{
-    $r = tp_chamar('GET', '/api/Products/discount-reference-price/' . $produto_externo
-        . '?pointOfSaleIds=' . $pdv_externo);
-    return $r;
-}
-
-/**
  * A URL da lista de promocoes de produto. Funcao pura.
  *
  * EXATAMENTE a que o painel usa na tela de Descontos: 10 por pagina, das

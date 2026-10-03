@@ -72,8 +72,8 @@ function despachar(string $rota): void
         rota_produto_detalhe($u, (int) $mm[1]);
         return;
     }
-    if (preg_match('#^/promocao/(\d+)$#', $rota, $mm)) {
-        rota_promocao($u, (int) $mm[1]);
+    if (preg_match('#^/promocao/(\d+)/(\d+)$#', $rota, $mm)) {
+        rota_promocao($u, (int) $mm[1], (int) $mm[2]);
         return;
     }
     if (preg_match('#^/produtos/(\d+)/ean$#', $rota, $mm) && $m === 'POST') {
@@ -419,12 +419,13 @@ function rota_produto_detalhe(array $u, int $id): void
 /**
  * Sugestao de promocao para um item do espelho que esta perto de vencer.
  *
- * O id e o da linha de loja_itens, e nao o do produto: a validade, o estoque
- * e o preco sao de UM ponto de venda, e a promocao tambem.
+ * O endereco e PDV + produto do TouchPay: a validade, o estoque e o preco sao
+ * de UM ponto de venda, e a promocao tambem. Nao o id da linha do espelho,
+ * que muda a cada sync (ver promocao_url()).
  */
-function rota_promocao(array $u, int $item_id): void
+function rota_promocao(array $u, int $pdv_id, int $produto_externo): void
 {
-    $dados = promocao_dados($item_id, (int) $u['id']);
+    $dados = promocao_dados($pdv_id, $produto_externo, (int) $u['id']);
     if (!$dados) {
         http_response_code(404);
         ver('erro', ['codigo' => 404, 'mensagem' => 'Item nao encontrado na loja'], 'Nao encontrado');

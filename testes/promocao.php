@@ -158,8 +158,25 @@ checar('mais de 120 dias recusa', promocao_validar(25.0, '2026-10-03', '2027-03-
 checar('sem data recusa', promocao_validar(25.0, null, '2026-10-08', $h) !== null, true);
 
 // --------------------------------------------------------------- o nome
-checar('nome neutro', promocao_nome('IOGURTE  NESTLE 170G'), 'Promoção IOGURTE NESTLE 170G');
-checar('nome cabe em 60', mb_strlen(promocao_nome(str_repeat('X', 100))), 60);
+// O TouchPay devolve 500 "Erro interno" para nome comprido (03/10/2026: 49 e
+// 36 caracteres falharam, 28 passou). O teto e o que se viu passar.
+checar('nome curto passa inteiro', promocao_nome('IOGURTE  NESTLE 170G'), 'IOGURTE NESTLE 170G');
+$longo = promocao_nome('Pudim Gourmet de Café Barbara Brito 170g');
+checar('nome longo e cortado em 28', mb_strlen($longo) <= 28, true);
+checar('e em 30 bytes', strlen($longo) <= 30, true);
+checar('o corte nao deixa espaco no fim', $longo === rtrim($longo), true);
+$acentos = promocao_nome('Pão de Açúcar Maçã Caramelização Ótima');
+checar('acento conta dois bytes', strlen($acentos) <= 30, true);
+checar('sem quebrar letra no meio', mb_check_encoding($acentos, 'UTF-8'), true);
+// Os nomes que o TouchPay aceitou continuam passando como estao.
+checar('nome visto passando fica igual', promocao_nome('Promoção Fofura Presunto 60g'), 'Promoção Fofura Presunto 60g');
+checar('nome vazio tem nome', promocao_nome('  '), 'Promoção');
+
+// ------------------------------------------------------------ o endereco
+// PDV + produto, e nao o id da linha do espelho, que muda a cada sync.
+checar('endereco por PDV e produto', promocao_url(1, 59534), '/promocao/1/59534');
+checar('sem produto, sem endereco', promocao_url(1, 0), null);
+checar('sem PDV, sem endereco', promocao_url(0, 59534), null);
 
 // -------------------------------------------------------------- o corpo
 // Campo a campo o que o painel deles mandou na captura de 03/10/2026.
@@ -236,17 +253,6 @@ checar('a lista e pedida igual ao painel', tp_promocoes_url(1),
     '/api/discountproducts/paginated?page=1&pageSize=10&sortOrder=dateCreated&descending=false'
     . '&search=&startDate=&endDate=&discountType=&timezoneOffset=180');
 checar('so a pagina muda', str_contains(tp_promocoes_url(3), 'page=3&pageSize=10&'), true);
-
-// ----------------------------------------------- a recusa do TouchPay
-checar('500 no POST de promocao vira explicacao',
-    str_contains(promocao_erro_legivel('TouchPay respondeu HTTP 500: Erro interno (POST /api/discountProducts)'),
-        'recusou criar promoção para este produto'), true);
-checar('outro erro passa como veio',
-    promocao_erro_legivel('TouchPay (HTTP 400): Data invalida (POST /api/discountProducts)'),
-    'TouchPay (HTTP 400): Data invalida (POST /api/discountProducts)');
-checar('500 de outra chamada passa como veio',
-    promocao_erro_legivel('TouchPay respondeu HTTP 500. (GET /api/discountproducts/paginated)'),
-    'TouchPay respondeu HTTP 500. (GET /api/discountproducts/paginated)');
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

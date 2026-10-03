@@ -121,7 +121,8 @@ $pode_promover = $preco !== null && $preco > 0
 
     <?php if ($pode_promover): ?>
         <div class="cartao" id="promo-form"
-             data-item="<?= (int) $item['id'] ?>"
+             data-pdv="<?= (int) $item['pdv_id'] ?>"
+             data-produto="<?= (int) $item['externo_produto_id'] ?>"
              data-preco="<?= e((string) $preco) ?>"
              data-custo="<?= e($c === null ? '' : (string) $c) ?>"
              data-piso="<?= e($piso === null ? '' : (string) $piso) ?>"
@@ -170,4 +171,4 @@ $pode_promover = $preco !== null && $preco > 0
     <?php endif; ?>
 <?php endif; ?>
 
-<script src="/assets/promocao.js?v=2"></script>
+<script src="/assets/promocao.js?v=3"></script>

@@ -787,26 +787,34 @@ teste trava a URL exata — mexer nela é testar contra a conta de verdade antes
 
 Se o painel não responder, a aba avisa e mostra o diário daqui (`promocoes`) no lugar.
 
-### O 500 "Erro interno" ao criar (03/10/2026)
+### Nome de promoção comprido dá 500 (03/10/2026)
 
-Para a maioria dos produtos, `POST /api/discountProducts` volta **500 "Erro interno"**.
-Investigado contra a conta de verdade:
+`POST /api/discountProducts` com `description` comprida volta **500 "Erro interno"** — sem
+dizer que é o nome. Foi a causa de todas as promoções que não saíam:
 
-- mandado direto, no formato **exato** do painel (cabeçalhos inclusive): falha igual;
-- com desconto de 5% a 30%, de 1 a 7 dias, começando hoje ou daqui a três dias: falha;
-- o `productId` está certo (planograma e catálogo dão o mesmo id), e
-  `/api/Products/discount-reference-price/{id}` responde o preço certo;
-- **só passou no Fofura Presunto 60g (7467)**, pelo app e pelo painel.
+| nome | caracteres | resultado |
+|---|---|---|
+| "teste", "goiabada teste", "goiaba teste 2", "Promo Pudim Cafe" | 5–16 | ✅ |
+| "Promoção Fofura Presunto 60g" | 28 (30 bytes) | ✅ |
+| "Promoção Goiabada Serra Alegre 200gr" | 36 | ❌ |
+| "Promoção Pudim Gourmet de Café Barbara Brito 170g" | 49 | ❌ |
 
-A única diferença achada até aqui: no Fofura o `defaultPrice` do catálogo (3,95) é igual
-ao preço do planograma (3,95); nos que falham, não é (goiabada 4,20 × 5,00; pudim 16,00
-× 16,90). É hipótese, não confirmada — confirmar exigiria criar promoção num produto com
-os dois preços iguais. Nenhuma das tentativas que voltaram 500 criou promoção (a lista
-foi conferida depois).
+A prova: o mesmo pudim, mesmo desconto, datas e ponto de venda, falhou com o nome longo e
+entrou na hora com "Promo Pudim Cafe". Antes disso foram descartadas, uma a uma, as outras
+suspeitas — produto, ponto de venda, sobreposição de datas, tamanho do desconto, preço de
+referência, cabeçalhos — e nenhuma tentativa que voltou 500 criou promoção.
 
-O app passa a dizer isso com todas as letras (`promocao_erro_legivel()`) em vez de "Erro
-interno", e chama o `discount-reference-price` antes do POST, como o painel faz.
+`promocao_nome()` agora manda **só o nome do produto, cortado em 28 caracteres e 30 bytes**
+(o maior visto passando, nas duas medidas, porque não se sabe qual o banco deles conta). O
+teto exato entre 29 e 35 não foi procurado: cada tentativa é uma promoção de verdade.
+
 Encerrar uma promoção antes do fim ainda é no painel — falta ver a chamada que ele usa.
+
+### O endereço da promoção é PDV + produto
+
+`/promocao/{pdv}/{produto do TouchPay}`, e não o id da linha de `loja_itens`: o sync apaga e
+reinsere as linhas a cada 15 minutos, e o id muda junto. O link antigo (`/promocao/{id}`)
+dava 404 na sincronização seguinte. O POST de criação também manda PDV + produto.
 
 ## Um gesto só para atualizar
 

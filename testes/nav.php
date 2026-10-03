@@ -76,7 +76,7 @@ $rotas = [
     '/planograma'  => '/loja',
     '/promocoes'   => '/loja',
     // A sugestao de um item e uma tela de dentro de Promocoes.
-    '/promocao/42' => '/loja',
+    '/promocao/1/42' => '/loja',
     '/margens'     => '/loja',
     '/vendas'      => '/loja',
     // A lista de transacoes e uma tela de dentro de Vendas: acende Loja igual.

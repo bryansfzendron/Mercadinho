@@ -181,7 +181,10 @@
                         'X-CSRF-Token': meta ? meta.getAttribute('content') : '',
                     },
                     body: JSON.stringify({
-                        item: Number(caixa.dataset.item),
+                        // PDV + produto, e nao o id da linha: o sync troca as
+                        // linhas a cada 15 minutos e o id muda junto.
+                        pdv: Number(caixa.dataset.pdv),
+                        produto: Number(caixa.dataset.produto),
                         percentual: v.pct,
                         inicio: v.inicio,
                         fim: v.fim,

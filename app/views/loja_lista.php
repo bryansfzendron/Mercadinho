@@ -139,7 +139,7 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
                 // Por vencimento a pergunta e outra — "por quanto ponho isto para
                 // sair?" —, e todo item leva para a sugestao de promocao.
                 $destino = $ordem === 'validade'
-                    ? '/promocao/' . (int) $l['id']
+                    ? promocao_url((int) $l['pdv_id'], (int) ($l['externo_produto_id'] ?? 0))
                     : ($l['produto_id'] ? '/produtos/' . (int) $l['produto_id'] : null);
                 ?>
                 <?php if ($destino): ?><a href="<?= $destino ?>"><?php else: ?><div style="padding:.7rem .85rem"><?php endif; ?>
