@@ -475,6 +475,12 @@ function rota_api_promocao_criar(array $u): void
         json_resposta($r, $r['ok'] ? 200 : (($r['conflito'] ?? false) ? 409 : 422));
     } catch (TouchPayErro $e) {
         json_resposta(['ok' => false, 'erro' => $e->getMessage()], 502);
+    } catch (Throwable $e) {
+        // Erro daqui (banco, tipo, o que for): vai para o log inteiro e para a
+        // tela em uma linha, em JSON — pagina de erro em HTML no meio de um
+        // fetch so dizia "500" e mais nada.
+        error_log('promocao_criar: ' . $e);
+        json_resposta(['ok' => false, 'erro' => 'Erro no app: ' . $e->getMessage()], 500);
     }
 }
 

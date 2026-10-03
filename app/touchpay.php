@@ -251,17 +251,36 @@ function tp_erro_legivel(int $http, string $corpo): string
 {
     $json = json_decode($corpo, true);
     if (is_array($json)) {
-        foreach (['message', 'Message', 'error', 'title'] as $chave) {
-            $msg = trim((string) ($json[$chave] ?? ''));
-            if ($msg !== '') {
-                return 'TouchPay (HTTP ' . $http . '): ' . mb_substr($msg, 0, 180);
+        // Validacao do ASP.NET: {"title": "One or more validation errors",
+        // "errors": {"campo": ["o que esta errado"]}}. O title sozinho nao
+        // diz qual campo; o primeiro erro diz.
+        $detalhe = '';
+        if (is_array($json['errors'] ?? null)) {
+            foreach ($json['errors'] as $campo => $msgs) {
+                $primeira = is_array($msgs) ? (string) reset($msgs) : (string) $msgs;
+                $detalhe = (is_string($campo) ? $campo . ': ' : '') . $primeira;
+                break;
             }
+        }
+        foreach (['message', 'Message', 'error', 'title', 'detail'] as $chave) {
+            $msg = is_scalar($json[$chave] ?? null) ? trim((string) $json[$chave]) : '';
+            if ($msg !== '') {
+                return 'TouchPay (HTTP ' . $http . '): ' . mb_substr($msg . ($detalhe !== '' ? ' — ' . $detalhe : ''), 0, 220);
+            }
+        }
+        if ($detalhe !== '') {
+            return 'TouchPay (HTTP ' . $http . '): ' . mb_substr($detalhe, 0, 220);
         }
     }
     if ($http === 403) {
         return 'TouchPay recusou (HTTP 403): este login nao tem permissao para esta alteracao.';
     }
-    return 'TouchPay respondeu HTTP ' . $http . '.';
+    // Sem JSON legivel: o comeco do corpo, sem tags. E o que separa "o
+    // servidor deles caiu" de "eles recusaram por um motivo" sem abrir log.
+    // style e script saem inteiros: strip_tags tira a tag e deixa o CSS.
+    $sem_blocos = preg_replace('#<(style|script|head)\b[^>]*>.*?</\1>#is', ' ', $corpo) ?? $corpo;
+    $texto = trim(preg_replace('/\s+/', ' ', strip_tags($sem_blocos)));
+    return 'TouchPay respondeu HTTP ' . $http . ($texto !== '' ? ': ' . mb_substr($texto, 0, 160) : '.');
 }
 
 // ---------------------------------------------------------------------

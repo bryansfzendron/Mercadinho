@@ -202,10 +202,18 @@
                     + esc(dataBr(p.inicio)) + ' a ' + esc(dataBr(p.fim)) + '.</div>'
                     + '<a class="botao botao-alt" href="/promocoes">Ver promoções</a>';
             } catch (e) {
+                if (e && e.http) {
+                    // Houve resposta, so que nao em JSON: quem quebrou foi o
+                    // servidor DAQUI (erro de PHP, sessao, tempo). Chamar isso
+                    // de "sem resposta do TouchPay" jogava a culpa no lugar errado.
+                    elAcao.innerHTML = '<div class="aviso aviso-erro"><strong>Erro no app.</strong> '
+                        + esc(e.message) + '<br>Confira a aba Promoções antes de tentar de novo.</div>';
+                    return;
+                }
                 // Sem resposta nao quer dizer que nao criou: pode ter ido e a
                 // volta se perdeu. Mandar de novo criaria duas promocoes.
-                elAcao.innerHTML = '<div class="aviso aviso-erro"><strong>Sem resposta do TouchPay.</strong> '
-                    + 'Pode ter criado ou não. Confira no painel antes de tentar de novo.</div>';
+                elAcao.innerHTML = '<div class="aviso aviso-erro"><strong>Sem resposta.</strong> '
+                    + 'Pode ter criado ou não. Confira a aba Promoções antes de tentar de novo.</div>';
             }
         }
 

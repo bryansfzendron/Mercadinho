@@ -170,4 +170,4 @@ $pode_promover = $preco !== null && $preco > 0
     <?php endif; ?>
 <?php endif; ?>
 
-<script src="/assets/promocao.js?v=1"></script>
+<script src="/assets/promocao.js?v=2"></script>

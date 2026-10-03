@@ -142,10 +142,16 @@ checar('token sem exp devolve null',
 checar('mensagem do JSON aparece',
     tp_erro_legivel(422, '{"message":"Preco invalido"}'),
     'TouchPay (HTTP 422): Preco invalido');
-// Pagina de erro em HTML nao vai crua para uma tela de celular.
+// Pagina de erro em HTML nao vai crua para uma tela de celular: sai so o
+// texto, que e o que diz se o servidor deles caiu ou recusou por um motivo.
 checar('HTML nao vaza para a tela',
-    tp_erro_legivel(500, '<html><body>Internal Server Error</body></html>'),
-    'TouchPay respondeu HTTP 500.');
+    tp_erro_legivel(500, '<html><head><title>x</title><style>body{color:red}</style></head>'
+        . '<body>Internal Server Error</body></html>'),
+    'TouchPay respondeu HTTP 500: Internal Server Error');
+checar('corpo vazio fica so o codigo', tp_erro_legivel(500, ''), 'TouchPay respondeu HTTP 500.');
+checar('erro de validacao diz o campo',
+    tp_erro_legivel(400, '{"title":"One or more validation errors occurred.","errors":{"startsOn":["invalida"]}}'),
+    'TouchPay (HTTP 400): One or more validation errors occurred. — startsOn: invalida');
 checar('403 explica que e permissao',
     str_contains(tp_erro_legivel(403, ''), 'permissao'), true);
 
