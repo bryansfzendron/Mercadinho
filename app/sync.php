@@ -64,6 +64,30 @@ function sync_estado(string $fonte): array
 }
 
 /**
+ * Quando os dados foram atualizados pela ultima vez, ou null se nunca.
+ *
+ * E o "atualizado as" do balao do puxar-para-atualizar: a carga mais recente
+ * que terminou bem, de qualquer das duas fontes.
+ */
+function sync_ultimo(): ?string
+{
+    $v = qv("SELECT MAX(atualizado_em) FROM sync_estado WHERE status = 'ok'");
+    return $v ? (string) $v : null;
+}
+
+/** "às 14:32" se foi hoje, "em 12/10 14:32" se nao — como no app Financas. */
+function sync_ultimo_texto(?string $quando): ?string
+{
+    $t = $quando ? strtotime($quando) : false;
+    if (!$t) {
+        return null;
+    }
+    return date('Y-m-d', $t) === date('Y-m-d')
+        ? 'atualizado às ' . date('H:i', $t)
+        : 'atualizado em ' . date('d/m H:i', $t);
+}
+
+/**
  * Traduz a linha do banco no que a tela precisa. Funcao pura: e onde mora a
  * conta do percentual e a decisao de dar o fluxo por perdido.
  */

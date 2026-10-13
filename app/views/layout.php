@@ -20,7 +20,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=48">
+<link rel="stylesheet" href="/assets/app.css?v=49">
 </head>
 <body>
 
@@ -102,12 +102,14 @@ $flashes = flash_pegar();
 
 <?php if ($usuario): ?>
 <!-- puxar para baixo (puxar-atualizar.js) -->
+<?php $su = sync_ultimo_texto(sync_ultimo()); ?>
 <div id="puxar" aria-live="polite">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>
     </svg>
     <span>Puxe para sincronizar</span>
+    <?php if ($su): ?><small><?= e($su) ?></small><?php endif; ?>
 </div>
 <?php endif; ?>
 

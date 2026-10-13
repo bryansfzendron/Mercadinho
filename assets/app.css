@@ -749,6 +749,7 @@ html, body { overscroll-behavior-y: none; }   /* sem o "elastico" do iOS competi
     box-shadow: 0 10px 30px rgba(0, 0, 0, .18); font-size: 13px; text-align: center;
 }
 #puxar svg { color: var(--suave); transition: transform .2s, color .2s; }
+#puxar small { color: var(--suave); font-size: 11px; }
 #puxar.pronto svg { color: var(--marca); transform: rotate(180deg); }
 #puxar.girando svg { color: var(--marca); animation: gira .8s linear infinite; }
 @keyframes gira { to { transform: rotate(360deg); } }

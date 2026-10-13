@@ -596,7 +596,10 @@ function vendas_gravar_lote(array $p, array $normalizadas): array
         // No ultimo lote da janela, conferir o total. Um lote que se perde no
         // caminho (401, timeout) some calado: o n8n considera o POST entregue.
         // Aqui a conta fecha ou nao fecha, e quem grita e o fluxo.
-        if ($p['lote'] >= $p['lotes'] && $p['total'] > 0 && $p['de'] !== '' && $p['ate'] !== '') {
+        // A coleta local (vendas_sincronizar_local) nao manda total nem janela:
+        // ali nao ha n8n no meio para perder lote, e a conferencia nao se aplica.
+        if ($p['lote'] >= $p['lotes'] && ($p['total'] ?? 0) > 0
+            && ($p['de'] ?? '') !== '' && ($p['ate'] ?? '') !== '') {
             $r['esperado'] = $p['total'];
             $r['gravado']  = (int) qv(
                 'SELECT COUNT(*) FROM vendas WHERE fonte = ? AND data_hora BETWEEN ? AND ?',
