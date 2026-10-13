@@ -737,26 +737,22 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     background: var(--vidro); color: var(--suave); margin-left: .2rem;
 }
 
-/* ---------- puxar para atualizar (so no app instalado) ---------- */
-.puxar {
-    position: fixed; top: 8px; left: 50%; z-index: 30;
-    width: 36px; height: 36px; margin-top: env(safe-area-inset-top);
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 50%;
-    background: var(--cartao); color: var(--marca);
-    border: 1px solid var(--borda);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
-    transform: translate(-50%, 0); opacity: 0;
-    pointer-events: none;
-    transition: opacity .2s ease, transform .2s ease;
+/* ---------- puxar para baixo para sincronizar (igual ao Financas) ---------- */
+html, body { overscroll-behavior-y: none; }   /* sem o "elastico" do iOS competindo com o gesto */
+#puxar {
+    position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 8px); z-index: 40;
+    transform: translate(-50%, -56px); opacity: 0; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 10px 16px; border-radius: 18px; min-width: 170px;
+    background: var(--vidro); color: var(--texto); border: 1px solid var(--borda);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .18); font-size: 13px; text-align: center;
 }
-.puxar svg { width: 19px; height: 19px; }
-.puxar-pronto { color: #fff; background: var(--marca); border-color: var(--marca); }
-.puxar-girando { animation: puxar-gira .7s linear infinite; }
-@keyframes puxar-gira {
-    from { transform: translate(-50%, 70px) rotate(0deg); }
-    to   { transform: translate(-50%, 70px) rotate(360deg); }
-}
+#puxar svg { color: var(--suave); transition: transform .2s, color .2s; }
+#puxar.pronto svg { color: var(--marca); transform: rotate(180deg); }
+#puxar.girando svg { color: var(--marca); animation: gira .8s linear infinite; }
+@keyframes gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #puxar.girando svg { animation-duration: 2.4s; } }
 
 /* ---------- filtros da tela da loja ---------- */
 /* minmax(0, 1fr) e obrigatorio: item de grid tem min-width auto, e o campo de

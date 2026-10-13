@@ -73,26 +73,22 @@ async function puxar(pag, pixels, passos = 6) {
         args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
     });
 
-    // ---- 1. app instalado: puxao longo recarrega ----
+    // ---- 1. puxao longo sincroniza e recarrega ----
     {
         const { ctx, pag, erros } = await abrir(navegador, { standalone: true });
-        checar('standalone: modulo carregou', await pag.evaluate('!!window.PuxarAtualizar'));
-        checar('standalone: reconhece o modo app',
-            await pag.evaluate('window.PuxarAtualizar.ehStandalone()'));
-        checar('standalone: indicador foi criado', await pag.locator('.puxar').count() === 1);
+        checar('modulo carregou', await pag.evaluate('!!window.PuxarAtualizar'));
+        checar('indicador existe', await pag.locator('#puxar').count() === 1);
 
-        // O gatilho e em pixels ja com a resistencia de 50% (ela so vira borracha
-        // depois do gatilho), entao o dedo precisa andar o dobro.
+        // O limiar e em pixels ja amortecidos (metade do dedo), entao o dedo
+        // precisa andar o dobro. O texto troca para "Solte" ao passar dele.
         await puxar(pag, 200);
-        // O puxao agora pede a coleta ao servidor antes de recarregar, entao o
-        // recarregar chega um tique depois do dedo — esperar o estado, e nao
-        // medir no mesmo quadro. (Aqui a rota nao existe: o fetch falha e o
-        // gesto cai no recarregar, que e exatamente o que se quer garantir.)
         const recarregou = await pag.waitForFunction('window.__recarregou === 1', { timeout: 5000 })
             .then(() => true).catch(() => false);
-        checar('standalone: puxao longo recarrega', recarregou);
+        checar('puxao longo recarrega', recarregou);
+        checar('indicador gira enquanto sincroniza',
+            await pag.locator('#puxar').evaluate((el) => el.classList.contains('girando')));
 
-        checar('standalone: sem erro de JS', erros.length === 0, erros.join(' | '));
+        checar('sem erro de JS', erros.length === 0, erros.join(' | '));
         await ctx.close();
     }
 
@@ -100,18 +96,10 @@ async function puxar(pag, pixels, passos = 6) {
     {
         const { ctx, pag } = await abrir(navegador, { standalone: true });
         await puxar(pag, 40);
+        await pag.waitForTimeout(700);
         checar('puxao curto nao recarrega', (await pag.evaluate('window.__recarregou')) === 0);
-        // A volta agora e uma mola, nao um corte: ela leva uns 0,5s pra assentar
-        // e so entao devolve o transform ao CSS. Esperar o estado final em vez
-        // de um prazo fixo — o prazo exato e detalhe da mola, nao do gesto.
-        const voltou = await pag.locator('.puxar')
-            .evaluate((el) => new Promise((ok) => {
-                const t = setInterval(() => {
-                    if (el.style.transform === '') { clearInterval(t); ok(true); }
-                }, 50);
-                setTimeout(() => { clearInterval(t); ok(false); }, 2000);
-            }));
-        checar('indicador volta ao repouso', voltou);
+        const t = await pag.locator('#puxar').evaluate((el) => el.style.transform);
+        checar('indicador volta ao repouso', t === 'translate(-50%, -56px)', t);
         await ctx.close();
     }
 
@@ -138,12 +126,13 @@ async function puxar(pag, pixels, passos = 6) {
         await ctx.close();
     }
 
-    // ---- 5. no navegador comum nem instala o gesto ----
+    // ---- 5. no navegador comum o gesto tambem vale (como no Financas) ----
     {
         const { ctx, pag } = await abrir(navegador, { standalone: false });
-        checar('navegador comum: nao cria indicador', await pag.locator('.puxar').count() === 0);
         await puxar(pag, 200);
-        checar('navegador comum: nao recarrega', (await pag.evaluate('window.__recarregou')) === 0);
+        const recarregou = await pag.waitForFunction('window.__recarregou === 1', { timeout: 5000 })
+            .then(() => true).catch(() => false);
+        checar('navegador comum: puxao longo recarrega', recarregou);
         await ctx.close();
     }
 

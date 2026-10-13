@@ -20,7 +20,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=47">
+<link rel="stylesheet" href="/assets/app.css?v=48">
 </head>
 <body>
 
@@ -100,15 +100,23 @@ $flashes = flash_pegar();
 </nav>
 <?php endif; ?>
 
+<?php if ($usuario): ?>
+<!-- puxar para baixo (puxar-atualizar.js) -->
+<div id="puxar" aria-live="polite">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>
+    </svg>
+    <span>Puxe para sincronizar</span>
+</div>
+<?php endif; ?>
+
 <script src="/assets/resposta.js?v=1" defer></script>
 <script src="/assets/sem-teclado.js?v=2" defer></script>
-<?php // movimento.js vem antes do puxar-atualizar.js de proposito: o puxao usa
-      // a mola dele pra recolher o indicador. Com defer, a ordem de execucao e
-      // a ordem em que estao aqui. ?>
 <script src="/assets/movimento.js?v=1" defer></script>
 <?php // inicio.js so faz algo onde existe o cartao de vendas; nas outras telas sai fora. ?>
 <script src="/assets/inicio.js?v=3" defer></script>
-<script src="/assets/puxar-atualizar.js?v=5" defer></script>
+<script src="/assets/puxar-atualizar.js?v=6" defer></script>
 <script>
 // O trilho de abas rola para o lado quando nao cabe; a aba ativa tem de
 // aparecer sem a pessoa ir procurar. Mexe so no trilho, nunca na pagina.
