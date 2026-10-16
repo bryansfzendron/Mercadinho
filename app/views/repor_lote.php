@@ -13,7 +13,11 @@
  * @var ?string $erro
  */
 ?>
-<a class="voltar" href="/planograma/importar">‹ Repor em lote</a>
+<?php if (!empty($lote['nota_id'])): ?>
+    <a class="voltar" href="/notas/<?= (int) $lote['nota_id'] ?>">‹ Nota</a>
+<?php else: ?>
+    <a class="voltar" href="/planograma/importar">‹ Repor em lote</a>
+<?php endif; ?>
 <h1>Lote <?= (int) $lote['id'] ?></h1>
 <?= abas_loja('/planograma') ?>
 <p class="ajuda"><?= e($lote['arquivo'] ?: '') ?> · <?= e(data_fmt($lote['criado_em'], true)) ?></p>
@@ -35,6 +39,9 @@
             <button id="lt-repetir" class="botao botao-alt" type="button" hidden>Tentar de novo as que falharam</button>
         </div>
         <p class="ajuda" id="lt-aviso">Conferindo no TouchPay… nada é gravado nesta etapa.</p>
+        <?php if (!empty($lote['nota_id'])): ?>
+            <p><a class="botao botao-alt" href="/notas/<?= (int) $lote['nota_id'] ?>/repor">Repor o resto da nota em outro PDV</a></p>
+        <?php endif; ?>
     </div>
 
     <div class="cartao" id="lt-sem" hidden>

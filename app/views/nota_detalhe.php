@@ -90,6 +90,10 @@ $vale_filtrar = count($nota['itens']) >= 8;
         </div>
     <?php endif; ?>
 
+    <?php if ($nota['status'] === 'ok' && $nota['itens']): ?>
+        <p><a class="botao botao-grande" href="/notas/<?= (int) $nota['id'] ?>/repor">⇪ Repor itens</a></p>
+    <?php endif; ?>
+
     <form method="post" action="/notas/<?= (int) $nota['id'] ?>/excluir"
           onsubmit="return confirm('Remover esta nota e todos os seus itens?');">
         <?= csrf_campo() ?>

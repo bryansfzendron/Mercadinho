@@ -1272,3 +1272,22 @@ details.animando { overflow: hidden; }
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
     :root { --suave: #d6d3d1; }
 }
+
+/* Repor itens da nota: um cartao por item, pensado para o celular. */
+.rn-atalhos { display: flex; flex-wrap: wrap; gap: .4rem; margin: .2rem 0 .5rem; }
+.rn-atalhos .botao { width: auto; padding: .45rem .7rem; font-size: .8rem; }
+.rn-marca { display: flex; gap: .55rem; align-items: flex-start; margin: 0 0 .3rem; color: var(--texto); font-size: 1rem; }
+.rn-marca input { width: 1.25rem; height: 1.25rem; margin: .1rem 0 0; flex: none; }
+.rn-item.rn-travado { opacity: .6; }
+.rn-item .selos-linha { flex-wrap: wrap; margin-top: .35rem; }
+.rn-grade { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem .7rem; margin-top: .6rem; align-items: end; }
+.rn-grade label { margin: 0; }
+.rn-estoque { display: flex; flex-direction: column; padding-bottom: .5rem; }
+.rn-preco { display: grid; grid-template-columns: auto 1fr; gap: .5rem .9rem; margin-top: .6rem; align-items: end; }
+.rn-preco label { margin: 0; }
+.rn-atual { display: flex; flex-direction: column; padding-bottom: .5rem; }
+.rn-calc { grid-column: 1 / -1; display: flex; gap: .9rem; font-size: .8rem; color: var(--suave); min-height: 1.1rem; }
+.rn-escolha { display: grid; gap: .3rem; margin-top: .5rem; }
+.rn-escolha label { display: flex; gap: .5rem; align-items: center; margin: 0; color: var(--texto); font-size: .92rem; }
+.rn-escolha input { width: 1.1rem; height: 1.1rem; margin: 0; }
+.rn-mais { margin-top: .6rem; }

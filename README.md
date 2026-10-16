@@ -1785,6 +1785,27 @@ mexe naquele dado.
 - **Erro em qualquer linha da planilha recusa o arquivo** e aponta a linha. Máximo 500 produtos.
 - As tabelas novas (`planograma_lotes`, `planograma_lote_linhas`) entram pelo `setup.php`.
 
+## Repor itens da nota
+
+Na página da nota, **Repor itens** (`/notas/{id}/repor`) cruza os itens da nota com o planograma de
+um PDV. É a ponte entre lançar a nota e repor a máquina, sem bipar de novo.
+
+- **Um cartão por item**, marcado por padrão. Mostra o custo da nota **já líquido do desconto**
+  (por unidade), a entrada (padrão = quantidade da nota), o estoque atual → depois, o preço atual
+  do planograma, o necessária/crítico atuais (editáveis) e a validade atual.
+- **Preço sugerido = custo × taxa.** A taxa é a mesma do Repor (`mercadinho:planograma-taxa`,
+  padrão 1,90) e recalcula tudo na hora. Por item, o app **pergunta**: *manter o atual* ou *trocar
+  pelo sugerido* (mostra variação e margem). Produto sem preço na máquina só entra com preço.
+  O custo cadastrado não aparece: o app não grava custo no TouchPay.
+- **Um PDV por vez.** Marque o que vai para aquele PDV e continue; depois volte e faça o resto no
+  outro. O que já foi gravado a partir da nota sai desmarcado, com o selo *já reposto em X*.
+- **Duas leituras, não uma por item.** A tela lê o planograma e o inventário do PDV inteiros
+  (`tp_planograma_tudo`, `tp_inventario_tudo`) e casa por EAN. Item sem código de barras fica travado;
+  o mesmo EAN em dois itens trava o segundo (some as quantidades à mão).
+- **Não grava nada.** Continuar cria um lote do *Repor em lote* (`planograma_lotes.nota_id`) e abre a
+  tela dele: ela confere cada produto, mostra o de → para e só grava depois do clique, uma linha
+  por vez e de forma idempotente. A entrada precisa ser inteira (quantidade fracionada pede ajuste).
+
 ## Testes
 
 ```bash
@@ -1803,6 +1824,8 @@ php testes/planograma.php   # repor: o item bipado, o de/para, o JWT e o corpo d
 php testes/planilha.php     # importar planilha: ler CSV/XLSX, agrupar notas, erros por linha, modelo
 php testes/planilha_repor.php # repor em lote: validação, o que muda, soma da entrada, retry sem duplicar
 node testes/repor-lote.js   # a fila do navegador: quem entra em cada fase, erro de rede para a fila
+php testes/repor_nota.php   # repor itens da nota: cruzamento com o planograma, formulário -> linhas do lote
+node testes/repor-nota.js   # sugerido/variação/margem da tela (paridade com o Repor)
 #   (transações e paginação entram em testes/vendas.php)
 node testes/mercado.js      # a conta do Mercado: centavos, total e o veredito do caixa
 node testes/ean-nome.js     # o nome do código de barras: chave, memória do aparelho e servidor

@@ -79,6 +79,10 @@ function despachar(string $rota): void
         rota_nota_excluir($u, (int) $mm[1]);
         return;
     }
+    if (preg_match('#^/notas/(\d+)/repor$#', $rota, $mm)) {
+        rota_repor_nota($u, (int) $mm[1], $m);
+        return;
+    }
     if (preg_match('#^/notas/(\d+)/itens/(\d+)$#', $rota, $mm) && $m === 'POST') {
         rota_nota_item_editar($u, (int) $mm[1], (int) $mm[2]);
         return;
@@ -399,6 +403,109 @@ function rota_api_planograma_salvar(array $u): void
 // =====================================================================
 // Repor em lote (planilha)
 // =====================================================================
+
+/**
+ * Repor os itens de uma nota: escolhe o PDV e a taxa, marca o que vai, decide
+ * item a item entre manter o preco e trocar pelo sugerido. Nao grava nada no
+ * TouchPay: cria um lote e manda para a tela dele, que confere e grava.
+ * GET e POST fazem a mesma leitura do PDV, entao um erro de validacao volta a
+ * tela inteira com o que a pessoa ja tinha digitado.
+ */
+function rota_repor_nota(array $u, int $id, string $m): void
+{
+    $nota = nota_carregar($id, (int) $u['id']);
+    if (!$nota) {
+        http_response_code(404);
+        ver('erro', ['codigo' => 404, 'mensagem' => 'Nota não encontrada'], 'Não encontrado');
+    }
+    if ($nota['status'] !== 'ok' || !$nota['itens']) {
+        flash('erro', 'Esta nota ainda não tem itens para repor.');
+        redirecionar('/notas/' . $id);
+    }
+    if (!tp_configurado()) {
+        flash('erro', 'Falta touchpay_email e touchpay_senha no config.php.');
+        redirecionar('/notas/' . $id);
+    }
+
+    $erro_tp = null;
+    $vivos = null;
+    try {
+        $vivos = planograma_sincronizar_pdvs();
+    } catch (TouchPayErro $e) {
+        $erro_tp = $e->getMessage();
+    }
+    $pdvs = array_values(array_filter(
+        repor_pdvs_vivos(planograma_pdvs(), $vivos),
+        static fn($p) => (int) ($p['planograma_id'] ?? 0) > 0
+    ));
+
+    iniciar_sessao();
+    $src = $m === 'POST' ? $_POST : $_GET;
+    $pdv_sel = (int) ($src['pdv'] ?? ($_SESSION['repor_pdv'] ?? 0));
+    $pdv = null;
+    foreach ($pdvs as $p) {
+        if ((int) $p['id'] === $pdv_sel) {
+            $pdv = $p;
+        }
+    }
+    $pdv ??= $pdvs[0] ?? null;
+
+    $taxa_txt = trim((string) ($src['taxa'] ?? '1,90'));
+    $taxa = pg_numero($taxa_txt);
+    if ($taxa === null || $taxa <= 0) {
+        $taxa = REPOR_TAXA_PADRAO;
+        $taxa_txt = '1,90';
+    }
+
+    $dados = ['planograma' => [], 'inventario' => []];
+    $lido = false;
+    if ($pdv !== null) {
+        try {
+            $dados = repor_nota_ler_pdv($pdv);
+            $lido = true;
+        } catch (TouchPayErro $e) {
+            $erro_tp = $e->getMessage();
+        }
+    }
+    $itens = repor_nota_itens($nota['itens'], $dados['planograma'], $dados['inventario'],
+        repor_nota_feitos($id, (int) $u['id']), $taxa, $lido);
+
+    $erros = [];
+    $post = [];
+    if ($m === 'POST') {
+        exigir_csrf();
+        $post = is_array($_POST['itens'] ?? null) ? $_POST['itens'] : [];
+        if ($pdv === null) {
+            $erros[] = ['linha' => 1, 'msg' => 'Escolha um ponto de venda com planograma.'];
+        } else {
+            $conv = repor_nota_linhas_do_post($post, $itens);
+            $erros = $conv['erros'];
+            if (!$erros) {
+                $res = repor_ler_linhas($conv['linhas'], (int) $pdv['id'], $taxa, $pdvs);
+                $erros = $res['erros'];
+                if (!$erros) {
+                    foreach ($res['itens'] as &$it) {
+                        $it['nota_item_id'] = $conv['mapa'][$it['linha']] ?? null;
+                    }
+                    unset($it);
+                    $lote = repor_lote_criar((int) $u['id'], (int) $pdv['id'],
+                        'Nota ' . ($nota['numero'] ?: '#' . $id) . ' · ' . ($nota['loja'] ?? ''),
+                        $res['itens'], $id);
+                    $_SESSION['repor_pdv'] = (int) $pdv['id'];
+                    redirecionar('/planograma/lote/' . $lote);
+                }
+            }
+        }
+    }
+    if ($pdv !== null) {
+        $_SESSION['repor_pdv'] = (int) $pdv['id'];
+    }
+
+    ver('repor_nota', [
+        'nota' => $nota, 'itens' => $itens, 'pdvs' => $pdvs, 'pdv' => $pdv,
+        'taxa' => $taxa_txt, 'erro_tp' => $erro_tp, 'erros' => $erros, 'post' => $post,
+    ], 'Repor itens');
+}
 
 function rota_repor_modelo(string $formato): never
 {

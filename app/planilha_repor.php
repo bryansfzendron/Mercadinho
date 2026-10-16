@@ -464,7 +464,8 @@ function repor_sem_cadastro_csv(array $linhas): string
 // =====================================================================
 
 /** Cria o lote e as linhas (todas 'pendente'). Devolve o id do lote. */
-function repor_lote_criar(int $usuario_id, ?int $pdv_padrao, string $arquivo, array $itens): int
+function repor_lote_criar(int $usuario_id, ?int $pdv_padrao, string $arquivo, array $itens,
+                          ?int $nota_id = null): int
 {
     $pdo = db();
     $pdo->beginTransaction();
@@ -472,6 +473,7 @@ function repor_lote_criar(int $usuario_id, ?int $pdv_padrao, string $arquivo, ar
         $lote_id = inserir('planograma_lotes', [
             'usuario_id'    => $usuario_id,
             'pdv_padrao_id' => $pdv_padrao,
+            'nota_id'       => $nota_id,
             'arquivo'       => mb_substr($arquivo, 0, 190) ?: null,
             'criado_em'     => date('Y-m-d H:i:s'),
         ]);

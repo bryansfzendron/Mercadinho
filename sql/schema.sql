@@ -416,12 +416,17 @@ CREATE TABLE IF NOT EXISTS planograma_lotes (
     id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
     usuario_id    INT UNSIGNED NOT NULL,
     pdv_padrao_id INT UNSIGNED NULL,
+    -- De que nota veio, quando o lote nasceu do "Repor itens" da nota.
+    nota_id       INT UNSIGNED NULL,
     arquivo       VARCHAR(190) NULL,
     criado_em     DATETIME     NOT NULL,
     PRIMARY KEY (id),
     KEY ix_pglote_usuario (usuario_id, criado_em),
+    KEY ix_pglote_nota (nota_id),
     CONSTRAINT fk_pglote_usuario FOREIGN KEY (usuario_id)
-        REFERENCES usuarios (id) ON DELETE CASCADE
+        REFERENCES usuarios (id) ON DELETE CASCADE,
+    CONSTRAINT fk_pglote_nota FOREIGN KEY (nota_id)
+        REFERENCES notas (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS planograma_lote_linhas (

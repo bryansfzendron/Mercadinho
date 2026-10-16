@@ -86,6 +86,14 @@ function migracoes(): array
             'por_caixa'              => 'DECIMAL(14,4) NULL AFTER caixa_produto_id',
             'caixa_unidade'          => 'VARCHAR(10) NULL AFTER por_caixa',
         ],
+        // De que nota veio o lote ("Repor itens" da nota). Indice e FK vem junto
+        // com a coluna pelo mesmo motivo da caixa acima.
+        'planograma_lotes' => [
+            'nota_id' => 'INT UNSIGNED NULL AFTER pdv_padrao_id,'
+                       . ' ADD KEY ix_pglote_nota (nota_id),'
+                       . ' ADD CONSTRAINT fk_pglote_nota FOREIGN KEY (nota_id)'
+                       . ' REFERENCES notas (id) ON DELETE SET NULL',
+        ],
     ];
 }
 
