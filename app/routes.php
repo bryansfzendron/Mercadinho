@@ -421,7 +421,17 @@ function rota_repor_modelo(string $formato): never
 /** GET: tela de envio. POST: le a planilha e, sem erro, cria o lote. */
 function rota_repor_importar(array $u, string $m): void
 {
-    $pdvs = planograma_pdvs();
+    // So os PDVs que o TouchPay ainda tem: um que sumiu de la guarda um
+    // planograma morto e repor nele da 404 (era o "MIRANTE" duplicado).
+    $vivos = null;
+    if (tp_configurado()) {
+        try {
+            $vivos = planograma_sincronizar_pdvs();
+        } catch (TouchPayErro $e) {
+            // painel fora do ar: segue com o que esta guardado
+        }
+    }
+    $pdvs = repor_pdvs_vivos(planograma_pdvs(), $vivos);
     if ($m !== 'POST') {
         ver('repor_importar', ['pdvs' => $pdvs, 'erros' => [], 'taxa' => '1,90', 'pdv_sel' => 0,
             'lotes' => repor_lotes_recentes((int) $u['id'])], 'Repor em lote');

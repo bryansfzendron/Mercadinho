@@ -99,6 +99,21 @@ function repor_preco(?float $preco, ?float $custo, ?float $taxa): ?float
     return null;
 }
 
+/**
+ * Tira da lista os PDVs que o TouchPay nao devolve mais. Pura.
+ * Sem a resposta do painel ($vivos null ou vazio), nao esconde ninguem:
+ * painel fora do ar nao pode deixar a lista vazia.
+ *
+ * @param ?int[] $vivos ids do TouchPay (planograma_sincronizar_pdvs)
+ */
+function repor_pdvs_vivos(array $pdvs, ?array $vivos): array
+{
+    if (!$vivos) {
+        return $pdvs;
+    }
+    return array_values(array_filter($pdvs, static fn($p) => in_array((int) $p['externo_id'], $vivos, true)));
+}
+
 /** Acha o PDV pelo nome (sem acento/caixa) ou pelo id. Pura. */
 function repor_pdv_achar(string $texto, array $pdvs): ?array
 {
@@ -389,6 +404,19 @@ function repor_dados_salvar(array $plano, array $item, ?array $previo = null): a
             'estoque_alvo' => $alvo, 'ja_aplicado' => $ja];
 }
 
+/**
+ * 404 do TouchPay quase sempre e planograma/PDV que mudou ou sumiu: a mensagem
+ * crua ("Not Found (GET /api/Planograms/96856)") nao diz o que fazer. Pura.
+ */
+function repor_dica_erro(string $msg): string
+{
+    if (str_contains($msg, '404') || stripos($msg, 'not found') !== false) {
+        return $msg . ' — o planograma deste PDV pode ter mudado ou o PDV não existe mais no TouchPay. '
+            . 'Volte, escolha o PDV de novo e envie a planilha outra vez.';
+    }
+    return $msg;
+}
+
 /** "estoque 5 → 17; preço 9,50 → 11,90" para a coluna de resultado. Pura. */
 function repor_mudancas_texto(array $mudancas): string
 {
@@ -575,9 +603,10 @@ function repor_conferir_linha(int $lote_id, int $linha, int $usuario_id): ?array
         $l['status'] = $status;
         $l['mensagem'] = $msg;
     } catch (TouchPayErro $e) {
-        repor_linha_salvar($l['id'], 'erro', $l['plano'], $e->getMessage());
+        $msg = repor_dica_erro($e->getMessage());
+        repor_linha_salvar($l['id'], 'erro', $l['plano'], $msg);
         $l['status'] = 'erro';
-        $l['mensagem'] = $e->getMessage();
+        $l['mensagem'] = $msg;
     }
     return repor_linha_tela($l);
 }
@@ -657,8 +686,9 @@ function repor_gravar_linha(array $u, int $lote_id, int $linha): ?array
         $l['plano'] = $plano; $l['status'] = 'gravada'; $l['mensagem'] = $txt;
     } catch (TouchPayErro $e) {
         $l['plano'] = $plano_com_marcador();
-        repor_linha_salvar($l['id'], 'erro', $l['plano'], $e->getMessage());
-        $l['status'] = 'erro'; $l['mensagem'] = $e->getMessage();
+        $msg = repor_dica_erro($e->getMessage());
+        repor_linha_salvar($l['id'], 'erro', $l['plano'], $msg);
+        $l['status'] = 'erro'; $l['mensagem'] = $msg;
     } catch (Throwable $e) {
         error_log('repor lote: ' . $e->getMessage());
         $l['plano'] = $plano_com_marcador();

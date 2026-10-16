@@ -172,6 +172,19 @@ checar('cadastro: estoque = entrada', $m['dados']['estoque'], 12.0);
 $m = repor_dados_salvar($p, $item(['entrada' => null]));
 checar('sem entrada: estoque fica de fora', $m['dados']['estoque'], null);
 
+// ---------- PDV morto (o "MIRANTE" duplicado que deu 404) ----------
+$guardados = [
+    ['id' => 3, 'nome' => 'RESIDENCIAL ITALIA', 'externo_id' => 892],
+    ['id' => 4, 'nome' => 'MIRANTE', 'externo_id' => 859],
+    ['id' => 5, 'nome' => 'MIRANTE', 'externo_id' => 991],
+];
+checar('esconde o PDV que o TouchPay nao devolve mais',
+    array_column(repor_pdvs_vivos($guardados, [892, 991]), 'id'), [3, 5]);
+checar('painel fora do ar (null): nao esconde ninguem', count(repor_pdvs_vivos($guardados, null)), 3);
+checar('painel respondeu vazio: nao esconde ninguem', count(repor_pdvs_vivos($guardados, [])), 3);
+checar('404 ganha a dica do que fazer', str_contains(repor_dica_erro('TouchPay (HTTP 404): Not Found (GET /api/Planograms/96856)'), 'escolha o PDV de novo'), true);
+checar('outro erro passa como veio', repor_dica_erro('Timeout'), 'Timeout');
+
 // ---------- textos ----------
 checar('texto do de/para', repor_mudancas_texto([
     ['campo' => 'estoque', 'de' => 5.0, 'para' => 17.0],

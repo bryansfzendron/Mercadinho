@@ -468,14 +468,22 @@ function planograma_pdv(int $pdv_id): ?array
  * uma ida extra por produto, e repor a gondola sao trinta bipes seguidos.
  * Entao pergunta UMA vez, quando a tela abre, e o resto da sessao usa o que
  * ficou guardado. Planograma nao troca no meio de uma reposicao.
+ *
+ * Devolve os ids (do TouchPay) dos PDVs que o painel AINDA tem. Um PDV que
+ * sumiu de la continua em loja_pdvs com o planograma velho — e repor nele da
+ * 404. Quem lista PDVs para escolher usa isto para esconder os mortos.
+ *
+ * @return int[]
  */
-function planograma_sincronizar_pdvs(): void
+function planograma_sincronizar_pdvs(): array
 {
+    $vivos = [];
     foreach (tp_pdvs() as $p) {
         $externo = (int) ($p['id'] ?? 0);
         if ($externo <= 0) {
             continue;
         }
+        $vivos[] = $externo;
         exec_sql(
             'UPDATE loja_pdvs SET planograma_id = ?, inventario_id = ?
               WHERE fonte = ? AND externo_id = ?',
@@ -487,6 +495,7 @@ function planograma_sincronizar_pdvs(): void
             ]
         );
     }
+    return $vivos;
 }
 
 /** O planograma guardado daquele PDV. Sem ele nao ha onde repor. */
