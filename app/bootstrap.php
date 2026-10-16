@@ -80,6 +80,7 @@ require APP . '/db.php';
 require APP . '/auth.php';
 require APP . '/produtos.php';
 require APP . '/notas.php';
+require APP . '/planilha.php';
 require APP . '/loja.php';
 require APP . '/vendas.php';
 require APP . '/custos.php';

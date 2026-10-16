@@ -19,7 +19,8 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
 ?>
 <a class="voltar" href="/notas">‹ Notas</a>
 <h1>Lançar nota manual</h1>
-<p class="ajuda">Para cupons sem QR Code, feiras, açougue — qualquer compra que você queira no histórico.</p>
+<p class="ajuda">Para cupons sem QR Code, feiras, açougue — qualquer compra que você queira no histórico.
+    Tem várias notas? <a href="/importar">Importe por planilha</a>.</p>
 
 <form method="post" action="/manual" id="form-manual">
     <?= csrf_campo() ?>

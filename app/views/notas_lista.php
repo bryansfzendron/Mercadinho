@@ -20,6 +20,7 @@
     <a class="botao botao-grande" href="/escanear">▣ Escanear nota</a>
     <a class="botao botao-grande botao-alt" href="/bipar">||| Bipar produto</a>
     <a class="botao botao-alt" href="/manual">+ Lançar nota manualmente</a>
+    <a class="botao botao-alt" href="/importar">⇪ Importar planilha (Excel/CSV)</a>
 </div>
 
 <?php if ($pendentes > 0): ?>

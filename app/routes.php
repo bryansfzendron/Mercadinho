@@ -35,6 +35,10 @@ function despachar(string $rota): void
     if ($rota === '/metas')     { rota_metas($u); return; }
     if ($rota === '/config' || str_starts_with($rota, '/config/')) { rota_config($u, $m); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
+    if ($rota === '/importar')  { rota_importar($u, $m); return; }
+    if ($rota === '/importar/confirmar' && $m === 'POST') { rota_importar_confirmar($u); return; }
+    if ($rota === '/importar/modelo.xlsx') { rota_importar_modelo('xlsx'); return; }
+    if ($rota === '/importar/modelo.csv')  { rota_importar_modelo('csv'); return; }
 
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
     if ($rota === '/api/produto' && $m === 'GET')  { rota_api_produto($u); return; }
@@ -605,6 +609,135 @@ function rota_manual(array $u, string $m): void
         flash('erro', 'Falha ao salvar: ' . $ex->getMessage());
         redirecionar('/manual');
     }
+}
+
+// =====================================================================
+// Importar notas por planilha
+// =====================================================================
+
+function rota_importar_modelo(string $formato): never
+{
+    try {
+        if ($formato === 'xlsx') {
+            $corpo = planilha_modelo_xlsx();
+            $tipo  = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        } else {
+            $corpo = planilha_modelo_csv();
+            $tipo  = 'text/csv; charset=utf-8';
+        }
+    } catch (Throwable $ex) {
+        flash('erro', $ex->getMessage());
+        redirecionar('/importar');
+    }
+    header('Content-Type: ' . $tipo);
+    header('Content-Disposition: attachment; filename="modelo-notas.' . $formato . '"');
+    header('Content-Length: ' . strlen($corpo));
+    header('Cache-Control: no-store');
+    echo $corpo;
+    exit;
+}
+
+/** GET: tela de envio. POST: le o arquivo e mostra a previa (nada e gravado ainda). */
+function rota_importar(array $u, string $m): void
+{
+    if ($m !== 'POST') {
+        ver('importar', ['previa' => null, 'erros' => []], 'Importar planilha');
+    }
+
+    exigir_csrf();
+    $arq = $_FILES['arquivo'] ?? null;
+    $erro_envio = null;
+    if (!is_array($arq) || ($arq['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        $erro_envio = 'Escolha um arquivo .xlsx ou .csv.';
+    } elseif ($arq['error'] !== UPLOAD_ERR_OK) {
+        $erro_envio = 'O envio falhou (código ' . (int) $arq['error'] . '). Tente de novo.';
+    } elseif ($arq['size'] > PLANILHA_MAX_BYTES) {
+        $erro_envio = 'Arquivo grande demais (máximo 2 MB).';
+    }
+    if ($erro_envio !== null) {
+        flash('erro', $erro_envio);
+        redirecionar('/importar');
+    }
+
+    try {
+        $res = planilha_agrupar(planilha_ler($arq['tmp_name'], (string) $arq['name']));
+    } catch (Throwable $ex) {
+        flash('erro', $ex->getMessage());
+        redirecionar('/importar');
+    }
+
+    // Quais notas ja estao no app (mesma chave, ja processada)
+    foreach ($res['notas'] as &$nota) {
+        $nota['existente'] = null;
+        if ($nota['chave'] !== null) {
+            $ja = q1(
+                'SELECT id FROM notas WHERE usuario_id = ? AND chave = ? AND status = ?',
+                [(int) $u['id'], $nota['chave'], 'ok']
+            );
+            $nota['existente'] = $ja ? (int) $ja['id'] : null;
+        }
+    }
+    unset($nota);
+
+    iniciar_sessao();
+    $token = bin2hex(random_bytes(16));
+    if (!$res['erros'] && $res['notas']) {
+        $_SESSION['importacao'] = ['token' => $token, 'notas' => $res['notas']];
+    } else {
+        unset($_SESSION['importacao']);
+    }
+
+    ver('importar', [
+        'previa' => $res['notas'],
+        'erros'  => $res['erros'],
+        'token'  => $token,
+        'arquivo' => (string) $arq['name'],
+    ], 'Importar planilha');
+}
+
+/** POST: grava o que a previa mostrou. */
+function rota_importar_confirmar(array $u): void
+{
+    exigir_csrf();
+    iniciar_sessao();
+    $imp = $_SESSION['importacao'] ?? null;
+    $token = (string) ($_POST['token'] ?? '');
+    if (!is_array($imp) || $token === '' || !hash_equals((string) $imp['token'], $token)) {
+        flash('erro', 'A prévia expirou. Envie a planilha de novo.');
+        redirecionar('/importar');
+    }
+    unset($_SESSION['importacao']); // um clique duplo nao grava duas vezes
+
+    $importadas = $ignoradas = $falhas = 0;
+    $ultima = null;
+    $msgs = [];
+    foreach ($imp['notas'] as $nota) {
+        $r = planilha_gravar($nota, (int) $u['id']);
+        if ($r['status'] === 'importada') {
+            $importadas++;
+            $ultima = $r['nota_id'];
+        } elseif ($r['status'] === 'ignorada') {
+            $ignoradas++;
+        } else {
+            $falhas++;
+            $msgs[] = $nota['rotulo'] . ': ' . $r['mensagem'];
+        }
+    }
+
+    if ($importadas > 0) {
+        $txt = $importadas . ' nota(s) importada(s)';
+        if ($ignoradas > 0) {
+            $txt .= ', ' . $ignoradas . ' já existia(m)';
+        }
+        flash('ok', $txt . '.');
+    } elseif ($ignoradas > 0 && $falhas === 0) {
+        flash('info', 'Nenhuma nota nova: as ' . $ignoradas . ' da planilha já estavam no app.');
+    }
+    foreach ($msgs as $msg) {
+        flash('erro', 'Não gravei ' . $msg);
+    }
+
+    redirecionar($importadas === 1 && $ultima !== null && $falhas === 0 ? '/notas/' . $ultima : '/notas');
 }
 
 // =====================================================================

@@ -1727,6 +1727,33 @@ relatório nascia faltando venda. O último node do fluxo confere o status de ca
 no último deles, compara quantas transações a API prometeu na janela com quantas o banco
 tem — qualquer buraco vira execução com erro, que fica guardada.
 
+## Importar notas por planilha
+
+Notas sem QR (cupom de feira, QR recusado pela SEFAZ, lote de notas antigas) entram por
+`/importar`: *Notas → Importar planilha*. O app oferece o modelo para baixar
+(`/importar/modelo.xlsx` com uma aba *Itens* e uma *Instruções*, ou `/importar/modelo.csv`
+com `;` e BOM). O envio aceita `.xlsx` ou `.csv` (até 2 MB, 2000 itens).
+
+- **Uma linha por item.** Linhas com o mesmo valor em `nota` formam uma nota; sem a coluna,
+  agrupa pela `chave` e, sem ela, por loja + data + número. Loja, CNPJ, data etc. só
+  precisam estar na primeira linha da nota.
+- **Prévia antes de gravar.** O envio só lê e mostra as notas, itens e totais. Qualquer erro
+  de linha (sem descrição, sem valor, data inválida, chave com tamanho errado, loja que
+  diverge dentro da mesma nota) recusa o arquivo inteiro e aponta a linha: gravar metade de
+  uma nota seria pior do que não gravar. A confirmação usa um token de sessão, então
+  clicar duas vezes não grava duas vezes.
+- **Mesmo caminho do QR.** Cada nota vai para `nota_processar_callback()`
+  (`app/planilha.php`: `planilha_gravar`), então loja, produto (EAN, código da loja, nome),
+  desconto e preço líquido saem iguais aos de uma nota lida pela SEFAZ. A origem fica
+  `manual`.
+- **Sem duplicar.** Com `chave` de 44 dígitos, a nota que já existe como `ok` para o usuário
+  é ignorada (a prévia avisa); uma travada em `pendente`/`erro` é reaproveitada.
+- **Sem composer.** O XLSX é lido e escrito com `ZipArchive` + `DOMDocument`; o `setup.php`
+  passou a checar as extensões `zip` e `dom`. O modelo marca como texto as colunas que o
+  Excel estragaria (CNPJ, EAN, chave, data), e o leitor ainda aceita data como número serial
+  e EAN em notação científica. O CSV aceita `;`, `,` ou tab, com ou sem BOM, UTF-8 ou
+  Windows-1252.
+
 ## Testes
 
 ```bash
@@ -1742,6 +1769,7 @@ php testes/config.php       # a configuração sobrevive a um $cfg no escopo glo
 php testes/graficos.php     # série diária, altura/pico e as sete barras da semana
 php testes/mercado.php      # a chave do código de barras e o nome vindo da Open Food Facts
 php testes/planograma.php   # repor: o item bipado, o de/para, o JWT e o corpo da operacao
+php testes/planilha.php     # importar planilha: ler CSV/XLSX, agrupar notas, erros por linha, modelo
 #   (transações e paginação entram em testes/vendas.php)
 node testes/mercado.js      # a conta do Mercado: centavos, total e o veredito do caixa
 node testes/ean-nome.js     # o nome do código de barras: chave, memória do aparelho e servidor

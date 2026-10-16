@@ -23,6 +23,10 @@ function usuario_atual(): ?array
     return ['id' => 1, 'nome' => 'Teste'];
 }
 
+/** O "puxar para atualizar" do layout le a ultima sincronizacao no banco. */
+function sync_ultimo(): ?string { return null; }
+function sync_ultimo_texto(?string $quando): ?string { return null; }
+
 $_SESSION = [];
 
 $ok = 0; $falhou = 0;
@@ -64,6 +68,8 @@ $rotas = [
     '/dashboard'   => '/dashboard',
     '/escanear'    => '/notas',
     '/manual'      => '/notas',
+    '/importar'    => '/notas',
+    '/importar/confirmar' => '/notas',
     '/mercado'     => '/mercado',
     '/notas'       => '/notas',
     '/notas/12'    => '/notas',

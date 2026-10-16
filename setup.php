@@ -189,7 +189,7 @@ nano app/config.php</pre>
 <table>
 <?php
 linha('PHP ' . PHP_VERSION, version_compare(PHP_VERSION, '8.1.0', '>='), 'requer 8.1 ou superior');
-foreach (['pdo_mysql', 'curl', 'mbstring', 'json', 'zlib'] as $ext) {
+foreach (['pdo_mysql', 'curl', 'mbstring', 'json', 'zlib', 'zip', 'dom'] as $ext) {
     linha('Extensão ' . $ext, extension_loaded($ext));
 }
 $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')

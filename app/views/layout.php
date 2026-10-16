@@ -67,7 +67,7 @@ $flashes = flash_pegar();
         </svg></span>Dashboard
     </a>
     <?php // Escanear, bipar e vendas sao telas de dentro: acendem o item a que pertencem. ?>
-    <a href="/notas"     class="<?= str_starts_with($rota, '/notas') || in_array($rota, ['/escanear', '/manual'], true) ? 'ativo' : '' ?>">
+    <a href="/notas"     class="<?= str_starts_with($rota, '/notas') || in_array($rota, ['/escanear', '/manual'], true) || str_starts_with($rota, '/importar') ? 'ativo' : '' ?>">
         <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M6.5 3h7l4 4v13a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/>
             <path d="M13.5 3v4h4"/>
