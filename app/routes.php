@@ -28,6 +28,21 @@ function despachar(string $rota): void
     if ($rota === '/produtos')  { rota_produtos($u); return; }
     if ($rota === '/loja')      { rota_loja($u); return; }
     if ($rota === '/planograma') { rota_planograma($u); return; }
+    if ($rota === '/planograma/importar') { rota_repor_importar($u, $m); return; }
+    if ($rota === '/planograma/importar/modelo.xlsx') { rota_repor_modelo('xlsx'); return; }
+    if ($rota === '/planograma/importar/modelo.csv')  { rota_repor_modelo('csv'); return; }
+    if (preg_match('#^/planograma/lote/(\d+)$#', $rota, $mm)) {
+        rota_repor_lote($u, (int) $mm[1]);
+        return;
+    }
+    if (preg_match('#^/planograma/lote/(\d+)/sem-cadastro\.csv$#', $rota, $mm)) {
+        rota_repor_sem_cadastro($u, (int) $mm[1]);
+        return;
+    }
+    if (preg_match('#^/api/planograma/lote/(\d+)/(conferir|gravar)/(\d+)$#', $rota, $mm) && $m === 'POST') {
+        rota_api_repor_linha($u, (int) $mm[1], $mm[2], (int) $mm[3]);
+        return;
+    }
     if ($rota === '/promocoes') { rota_promocoes($u); return; }
     if ($rota === '/margens')   { rota_margens($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }
@@ -379,6 +394,139 @@ function rota_api_planograma_salvar(array $u): void
     } catch (TouchPayErro $e) {
         json_resposta(['ok' => false, 'erro' => $e->getMessage()], 502);
     }
+}
+
+// =====================================================================
+// Repor em lote (planilha)
+// =====================================================================
+
+function rota_repor_modelo(string $formato): never
+{
+    try {
+        $corpo = $formato === 'xlsx' ? planilha_modelo_xlsx(repor_spec()) : planilha_modelo_csv(repor_spec());
+    } catch (Throwable $ex) {
+        flash('erro', $ex->getMessage());
+        redirecionar('/planograma/importar');
+    }
+    header('Content-Type: ' . ($formato === 'xlsx'
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'text/csv; charset=utf-8'));
+    header('Content-Disposition: attachment; filename="modelo-repor.' . $formato . '"');
+    header('Content-Length: ' . strlen($corpo));
+    header('Cache-Control: no-store');
+    echo $corpo;
+    exit;
+}
+
+/** GET: tela de envio. POST: le a planilha e, sem erro, cria o lote. */
+function rota_repor_importar(array $u, string $m): void
+{
+    $pdvs = planograma_pdvs();
+    if ($m !== 'POST') {
+        ver('repor_importar', ['pdvs' => $pdvs, 'erros' => [], 'taxa' => '1,90', 'pdv_sel' => 0,
+            'lotes' => repor_lotes_recentes((int) $u['id'])], 'Repor em lote');
+    }
+
+    exigir_csrf();
+    $pdv_sel = (int) ($_POST['pdv'] ?? 0);
+    $taxa_txt = trim((string) ($_POST['taxa'] ?? '1,90'));
+    $taxa = pg_numero($taxa_txt);
+    $arq = $_FILES['arquivo'] ?? null;
+
+    $falha = null;
+    if (!is_array($arq) || ($arq['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        $falha = 'Escolha um arquivo .xlsx ou .csv.';
+    } elseif ($arq['error'] !== UPLOAD_ERR_OK) {
+        $falha = 'O envio falhou (código ' . (int) $arq['error'] . '). Tente de novo.';
+    } elseif ($arq['size'] > PLANILHA_MAX_BYTES) {
+        $falha = 'Arquivo grande demais (máximo 2 MB).';
+    } elseif ($taxa === null || $taxa <= 0) {
+        $falha = 'A taxa padrão precisa ser um número maior que zero (ex.: 1,90).';
+    }
+    if ($falha !== null) {
+        flash('erro', $falha);
+        redirecionar('/planograma/importar');
+    }
+
+    try {
+        $lido = planilha_linhas_assoc(
+            planilha_ler($arq['tmp_name'], (string) $arq['name']),
+            REPOR_COLUNAS, REPOR_SINONIMOS, ['codigo']
+        );
+    } catch (Throwable $ex) {
+        flash('erro', $ex->getMessage());
+        redirecionar('/planograma/importar');
+    }
+    $res = $lido['erros']
+        ? ['itens' => [], 'erros' => $lido['erros']]
+        : repor_ler_linhas($lido['linhas'], $pdv_sel > 0 ? $pdv_sel : null, $taxa, $pdvs);
+
+    if ($res['erros']) {
+        ver('repor_importar', ['pdvs' => $pdvs, 'erros' => $res['erros'], 'taxa' => $taxa_txt,
+            'pdv_sel' => $pdv_sel, 'lotes' => repor_lotes_recentes((int) $u['id']),
+            'arquivo' => (string) $arq['name']], 'Repor em lote');
+    }
+
+    $lote = repor_lote_criar((int) $u['id'], $pdv_sel > 0 ? $pdv_sel : null, (string) $arq['name'], $res['itens']);
+    redirecionar('/planograma/lote/' . $lote);
+}
+
+function rota_repor_lote(array $u, int $id): void
+{
+    $dados = repor_lote_carregar($id, (int) $u['id']);
+    if (!$dados) {
+        http_response_code(404);
+        ver('erro', ['codigo' => 404, 'mensagem' => 'Lote não encontrado'], 'Não encontrado');
+    }
+    // Uma vez por abertura, como o Repor: planograma nao troca no meio do lote.
+    $erro = null;
+    if (tp_configurado()) {
+        try {
+            planograma_sincronizar_pdvs();
+        } catch (TouchPayErro $e) {
+            $erro = $e->getMessage();
+        }
+    } else {
+        $erro = 'Falta touchpay_email e touchpay_senha no config.php.';
+    }
+    ver('repor_lote', [
+        'lote'   => $dados['lote'],
+        'linhas' => array_map('repor_linha_tela', $dados['linhas']),
+        'erro'   => $erro,
+    ], 'Repor em lote');
+}
+
+function rota_repor_sem_cadastro(array $u, int $id): void
+{
+    $dados = repor_lote_carregar($id, (int) $u['id']);
+    if (!$dados) {
+        http_response_code(404);
+        ver('erro', ['codigo' => 404, 'mensagem' => 'Lote não encontrado'], 'Não encontrado');
+    }
+    $sem = array_values(array_filter($dados['linhas'], static fn($l) => $l['status'] === 'sem_cadastro'));
+    $corpo = repor_sem_cadastro_csv($sem);
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="sem-cadastro-lote-' . $id . '.csv"');
+    header('Content-Length: ' . strlen($corpo));
+    echo $corpo;
+    exit;
+}
+
+/** Uma linha por chamada: o servidor corta em ~30s e o TouchPay so aceita uma por item. */
+function rota_api_repor_linha(array $u, int $lote, string $acao, int $linha): void
+{
+    exigir_csrf();
+    try {
+        $r = $acao === 'gravar'
+            ? repor_gravar_linha($u, $lote, $linha)
+            : repor_conferir_linha($lote, $linha, (int) $u['id']);
+    } catch (TouchPayErro $e) {
+        json_resposta(['erro' => $e->getMessage()], 502);
+    }
+    if ($r === null) {
+        json_resposta(['erro' => 'Linha não encontrada.'], 404);
+    }
+    json_resposta($r);
 }
 
 function rota_loja(array $u): void

@@ -402,3 +402,48 @@ CREATE TABLE IF NOT EXISTS promocoes (
     CONSTRAINT fk_promo_pdv FOREIGN KEY (pdv_id)
         REFERENCES loja_pdvs (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Repor em lote: planilha com varios produtos para o planograma.
+--
+-- O servidor corta requisicao em ~30s e o TouchPay so aceita uma chamada por
+-- item, entao a tela grava UMA linha por requisicao e o estado de cada linha
+-- vive aqui: e ele que torna a gravacao idempotente (linha gravada nunca roda
+-- de novo, F5 ou clique duplo nao soma o estoque duas vezes) e que deixa
+-- reenviar so as que falharam. O de/para de verdade continua no planograma_log.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS planograma_lotes (
+    id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    usuario_id    INT UNSIGNED NOT NULL,
+    pdv_padrao_id INT UNSIGNED NULL,
+    arquivo       VARCHAR(190) NULL,
+    criado_em     DATETIME     NOT NULL,
+    PRIMARY KEY (id),
+    KEY ix_pglote_usuario (usuario_id, criado_em),
+    CONSTRAINT fk_pglote_usuario FOREIGN KEY (usuario_id)
+        REFERENCES usuarios (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS planograma_lote_linhas (
+    id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    lote_id       INT UNSIGNED NOT NULL,
+    linha         SMALLINT UNSIGNED NOT NULL,
+    pdv_id        INT UNSIGNED NULL,
+    codigo        VARCHAR(14)  NOT NULL,
+    descricao     VARCHAR(255) NULL,
+    -- A linha da planilha ja lida e validada (JSON).
+    dados         TEXT         NOT NULL,
+    -- O que a conferencia viu e vai mudar (JSON).
+    plano         TEXT         NULL,
+    -- planograma/cadastro = pronta para gravar (atualiza / inclui);
+    -- sem_cadastro = nao existe no TouchPay; pendencia = falta preco;
+    -- sem_mudanca = ja esta como a planilha pede; gravando = reservada.
+    status        ENUM('pendente','planograma','cadastro','sem_cadastro','pendencia',
+                       'sem_mudanca','gravando','gravada','erro') NOT NULL DEFAULT 'pendente',
+    mensagem      VARCHAR(500) NULL,
+    atualizado_em TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY ux_pglinha (lote_id, linha),
+    CONSTRAINT fk_pglinha_lote FOREIGN KEY (lote_id)
+        REFERENCES planograma_lotes (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

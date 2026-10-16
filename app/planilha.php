@@ -276,18 +276,65 @@ function planilha_data($v): ?string
 }
 
 /** Mapa de cabecalho normalizado -> nome canonico da coluna. */
-function planilha_mapa_cabecalhos(): array
+function planilha_mapa_cabecalhos(array $colunas = PLANILHA_COLUNAS, array $sinonimos = PLANILHA_SINONIMOS): array
 {
     $mapa = [];
-    foreach (PLANILHA_COLUNAS as $canon) {
+    foreach ($colunas as $canon) {
         $mapa[normalizar_texto(str_replace('_', ' ', $canon))] = $canon;
     }
-    foreach (PLANILHA_SINONIMOS as $canon => $outros) {
+    foreach ($sinonimos as $canon => $outros) {
         foreach ($outros as $o) {
             $mapa[normalizar_texto($o)] ??= $canon;
         }
     }
     return $mapa;
+}
+
+/**
+ * Casa a primeira linha (cabecalho) com as colunas conhecidas e devolve cada
+ * linha de dados como array associativo, indexada pelo numero da linha.
+ * Serve a qualquer modelo (notas, repor): quem chama diz as colunas, os
+ * sinonimos e quais sao obrigatorias.
+ *
+ * @param array<int, list<string>> $linhas saida de planilha_ler()
+ * @return array{linhas:array<int,array<string,string>>, erros:list<array{linha:int,msg:string}>}
+ */
+function planilha_linhas_assoc(array $linhas, array $colunas, array $sinonimos, array $obrigatorias): array
+{
+    if (!$linhas) {
+        return ['linhas' => [], 'erros' => [['linha' => 1, 'msg' => 'A planilha está vazia.']]];
+    }
+
+    $num_cab = array_key_first($linhas);
+    $mapa = planilha_mapa_cabecalhos($colunas, $sinonimos);
+    $mapeadas = []; // indice -> canonico
+    foreach ($linhas[$num_cab] as $i => $titulo) {
+        $canon = $mapa[normalizar_texto($titulo)] ?? null;
+        if ($canon !== null && !in_array($canon, $mapeadas, true)) {
+            $mapeadas[$i] = $canon;
+        }
+    }
+
+    $erros = [];
+    foreach ($obrigatorias as $obrig) {
+        if (!in_array($obrig, $mapeadas, true)) {
+            $erros[] = ['linha' => $num_cab, 'msg' => 'Falta a coluna "' . $obrig . '" no cabeçalho.'];
+        }
+    }
+    if ($erros) {
+        return ['linhas' => [], 'erros' => $erros];
+    }
+    unset($linhas[$num_cab]);
+
+    $saida = [];
+    foreach ($linhas as $n => $celulas) {
+        $r = array_fill_keys($colunas, '');
+        foreach ($mapeadas as $i => $canon) {
+            $r[$canon] = trim((string) ($celulas[$i] ?? ''));
+        }
+        $saida[$n] = $r;
+    }
+    return ['linhas' => $saida, 'erros' => []];
 }
 
 /**
@@ -310,33 +357,15 @@ function planilha_agrupar(array $linhas): array
             'msg' => 'Máximo de ' . PLANILHA_MAX_LINHAS . ' itens por planilha.']]];
     }
 
-    // Cabecalho = primeira linha nao vazia
-    $num_cab = array_key_first($linhas);
-    $mapa = planilha_mapa_cabecalhos();
-    $colunas = []; // indice -> canonico
-    foreach ($linhas[$num_cab] as $i => $titulo) {
-        $canon = $mapa[normalizar_texto($titulo)] ?? null;
-        if ($canon !== null && !in_array($canon, $colunas, true)) {
-            $colunas[$i] = $canon;
-        }
+    $lido = planilha_linhas_assoc($linhas, PLANILHA_COLUNAS, PLANILHA_SINONIMOS,
+        ['loja', 'data_emissao', 'descricao', 'valor_unitario']);
+    if ($lido['erros']) {
+        return ['notas' => [], 'erros' => $lido['erros']];
     }
-    foreach (['loja', 'data_emissao', 'descricao', 'valor_unitario'] as $obrig) {
-        if (!in_array($obrig, $colunas, true)) {
-            $erros[] = ['linha' => $num_cab, 'msg' => 'Falta a coluna "' . $obrig . '" no cabeçalho.'];
-        }
-    }
-    if ($erros) {
-        return ['notas' => [], 'erros' => $erros];
-    }
-    unset($linhas[$num_cab]);
 
     // 1) agrupa as linhas
     $grupos = []; // chave do grupo => [rotulo, linhas: [n => assoc]]
-    foreach ($linhas as $n => $celulas) {
-        $r = array_fill_keys(PLANILHA_COLUNAS, '');
-        foreach ($colunas as $i => $canon) {
-            $r[$canon] = trim((string) ($celulas[$i] ?? ''));
-        }
+    foreach ($lido['linhas'] as $n => $r) {
         $chave44 = so_digitos($r['chave']);
         if ($r['nota'] !== '') {
             $gk = 'n:' . normalizar_texto($r['nota']);
@@ -568,11 +597,30 @@ function planilha_instrucoes(): array
     ];
 }
 
-function planilha_modelo_csv(): string
+/**
+ * O modelo das notas. Outros modelos (repor) passam o proprio spec com as
+ * mesmas chaves: colunas, texto (colunas que o Excel nao pode virar numero),
+ * larguras, exemplo, instrucoes, intro.
+ */
+function planilha_spec_notas(): array
 {
+    return [
+        'colunas'    => PLANILHA_COLUNAS,
+        'texto'      => PLANILHA_COLUNAS_TEXTO,
+        'larguras'   => ['descricao' => 34, 'loja' => 24, 'chave' => 24],
+        'exemplo'    => planilha_exemplo(),
+        'instrucoes' => planilha_instrucoes(),
+        'titulo'     => 'Como preencher a aba "Itens"',
+        'intro'      => 'Uma linha por item. Linhas com o mesmo número em "nota" formam uma nota; pode haver várias notas no arquivo. Apague as 2 linhas de exemplo antes de enviar.',
+    ];
+}
+
+function planilha_modelo_csv(?array $spec = null): string
+{
+    $spec ??= planilha_spec_notas();
     $fh = fopen('php://temp', 'r+');
-    fputcsv($fh, PLANILHA_COLUNAS, ';', '"', '');
-    foreach (planilha_exemplo() as $linha) {
+    fputcsv($fh, $spec['colunas'], ';', '"', '');
+    foreach ($spec['exemplo'] as $linha) {
         // Decimais com virgula, como o Excel brasileiro espera
         $linha = array_map(static fn($c) => is_float($c) ? str_replace('.', ',', (string) $c) : $c, $linha);
         fputcsv($fh, $linha, ';', '"', '');
@@ -609,26 +657,28 @@ function planilha_xml_linha(int $n, array $celulas, array $estilos = []): string
 }
 
 /** Monta o .xlsx (duas abas: Itens e Instrucoes) e devolve o binario. */
-function planilha_modelo_xlsx(): string
+function planilha_modelo_xlsx(?array $spec = null): string
 {
+    $spec ??= planilha_spec_notas();
+    $colunas = $spec['colunas'];
     $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
     $cab = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n";
 
     // Itens
     $estilos_col = [];
-    foreach (PLANILHA_COLUNAS as $i => $c) {
-        $estilos_col[$i] = in_array($c, PLANILHA_COLUNAS_TEXTO, true) ? 1 : 0;
+    foreach ($colunas as $i => $c) {
+        $estilos_col[$i] = in_array($c, $spec['texto'], true) ? 1 : 0;
     }
     $cols = '<cols>';
-    foreach (PLANILHA_COLUNAS as $i => $c) {
-        $larg = $c === 'descricao' ? 34 : (in_array($c, ['loja', 'chave'], true) ? 24 : 16);
+    foreach ($colunas as $i => $c) {
+        $larg = $spec['larguras'][$c] ?? 16;
         $cols .= '<col min="' . ($i + 1) . '" max="' . ($i + 1) . '" width="' . $larg . '" customWidth="1" style="'
             . $estilos_col[$i] . '"/>';
     }
     $cols .= '</cols>';
 
-    $dados = planilha_xml_linha(1, PLANILHA_COLUNAS, array_fill(0, count(PLANILHA_COLUNAS), 2));
-    foreach (planilha_exemplo() as $k => $linha) {
+    $dados = planilha_xml_linha(1, $colunas, array_fill(0, count($colunas), 2));
+    foreach ($spec['exemplo'] as $k => $linha) {
         $dados .= planilha_xml_linha($k + 2, $linha, $estilos_col);
     }
     $sheet1 = $cab . '<worksheet xmlns="' . $ns . '"><sheetViews><sheetView workbookViewId="0">'
@@ -636,10 +686,10 @@ function planilha_modelo_xlsx(): string
         . $cols . '<sheetData>' . $dados . '</sheetData></worksheet>';
 
     // Instrucoes
-    $linhas = [planilha_xml_linha(1, ['Como preencher a aba "Itens"'], [2])];
-    $linhas[] = planilha_xml_linha(2, ['Uma linha por item. Linhas com o mesmo número em "nota" formam uma nota; pode haver várias notas no arquivo. Apague as 2 linhas de exemplo antes de enviar.']);
+    $linhas = [planilha_xml_linha(1, [$spec['titulo']], [2])];
+    $linhas[] = planilha_xml_linha(2, [$spec['intro']]);
     $linhas[] = planilha_xml_linha(4, ['coluna', 'obrigatória', 'o que colocar'], [2, 2, 2]);
-    foreach (planilha_instrucoes() as $k => $l) {
+    foreach ($spec['instrucoes'] as $k => $l) {
         $linhas[] = planilha_xml_linha($k + 5, $l);
     }
     $sheet2 = $cab . '<worksheet xmlns="' . $ns . '"><cols>'

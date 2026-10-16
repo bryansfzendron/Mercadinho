@@ -38,6 +38,7 @@
     mostra a que já está no estoque antes de você trocar.
     <a href="/loja?ordem=validade">Ver o que vence primeiro</a>.
 </p>
+<p><a class="botao botao-alt" href="/planograma/importar">⇪ Repor em lote (planilha)</a></p>
 
 <div id="planograma"
      data-pdvs="<?= e(json_encode(array_map(static fn ($p) => [

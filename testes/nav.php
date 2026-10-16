@@ -80,6 +80,8 @@ $rotas = [
     // Repor a gondola e uma aba de dentro da Loja: acende Loja, e nao um
     // item proprio — a barra tem seis e nao cabe um setimo.
     '/planograma'  => '/loja',
+    '/planograma/importar' => '/loja',
+    '/planograma/lote/3'   => '/loja',
     '/promocoes'   => '/loja',
     // A sugestao de um item e uma tela de dentro de Promocoes.
     '/promocao/1/42' => '/loja',

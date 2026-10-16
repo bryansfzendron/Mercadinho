@@ -1754,6 +1754,37 @@ com `;` e BOM). O envio aceita `.xlsx` ou `.csv` (até 2 MB, 2000 itens).
   e EAN em notação científica. O CSV aceita `;`, `,` ou tab, com ou sem BOM, UTF-8 ou
   Windows-1252.
 
+## Repor em lote (planilha)
+
+O Repor (`/planograma`) trabalha um produto por bipe. Para abastecer várias máquinas de uma
+vez, *Repor → Repor em lote* (`/planograma/importar`) aceita uma planilha `.xlsx`/`.csv` com um
+produto por linha. O modelo baixa do próprio app (colunas: `codigo`, `descricao`, `entrada`,
+`validade`, `preco`, `custo`, `taxa`, `necessaria`, `critico`, `pdv`); campo vazio = o app não
+mexe naquele dado.
+
+- **`entrada` soma.** "Coloquei 12" vira `estoque lido agora + 12`, porque o PUT do TouchPay
+  *define* o estoque e a máquina vende o tempo todo. A prévia mostra o de → para.
+- **Achou onde?** Cada linha usa `planograma_procurar()`: no planograma → atualiza; só no
+  cadastro → inclui no planograma (precisa de `preco`, ou `custo` × `taxa`; sem isso fica
+  *falta preço*); em lugar nenhum → *sem cadastro*. O app **não cria produto** no TouchPay:
+  esses saem numa lista (CSV e texto para copiar) para pedir o cadastro, e *Conferir de novo*
+  reavalia depois.
+- **Duas fases, uma linha por requisição.** A hospedagem corta em ~30 s e o TouchPay só aceita
+  uma chamada por item, então `assets/repor-lote.js` confere (só lê) e, depois do clique em
+  *Gravar*, grava uma linha por vez. O estado de cada linha vive em `planograma_lote_linhas`.
+- **Idempotente.** `repor_gravar_linha()` reserva a linha com um `UPDATE ... WHERE status IN (...)`
+  antes de escrever: F5, duas abas ou clique duplo não somam duas vezes, e linha `gravada` nunca
+  roda de novo. Antes de gravar ela **relê** o produto e só então calcula o alvo. Se uma tentativa
+  parou no meio, o plano guarda `estoque_base`/`estoque_alvo`: se o estoque lido já é o alvo, a
+  entrada já entrou e não soma de novo. Linha presa em `gravando` por mais de 5 min vira `erro`
+  com o aviso de conferir no TouchPay. Limite conhecido: se alguém vender exatamente a entrada
+  entre a tentativa que falhou e a nova, o app não distingue.
+- **Mesmo caminho do Repor.** Quem escreve na loja continua sendo `planograma_salvar()` (relê,
+  detecta conflito, valida a validade, grava em `planograma_log`). A validade usa o modo `auto`:
+  mantém a que vence primeiro.
+- **Erro em qualquer linha da planilha recusa o arquivo** e aponta a linha. Máximo 500 produtos.
+- As tabelas novas (`planograma_lotes`, `planograma_lote_linhas`) entram pelo `setup.php`.
+
 ## Testes
 
 ```bash
@@ -1770,6 +1801,8 @@ php testes/graficos.php     # série diária, altura/pico e as sete barras da se
 php testes/mercado.php      # a chave do código de barras e o nome vindo da Open Food Facts
 php testes/planograma.php   # repor: o item bipado, o de/para, o JWT e o corpo da operacao
 php testes/planilha.php     # importar planilha: ler CSV/XLSX, agrupar notas, erros por linha, modelo
+php testes/planilha_repor.php # repor em lote: validação, o que muda, soma da entrada, retry sem duplicar
+node testes/repor-lote.js   # a fila do navegador: quem entra em cada fase, erro de rede para a fila
 #   (transações e paginação entram em testes/vendas.php)
 node testes/mercado.js      # a conta do Mercado: centavos, total e o veredito do caixa
 node testes/ean-nome.js     # o nome do código de barras: chave, memória do aparelho e servidor
