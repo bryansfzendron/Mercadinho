@@ -955,18 +955,35 @@ function vendas_filtro_sql(array $f): array
  * Cada container tem as suas taxas, o seu condominio e os seus fixos. Somar a
  * receita toda antes e aplicar uma media so daria o mesmo numero se todos os
  * PDVs fossem iguais — e nao sao.
+ *
+ * E cada taxa tem data (custos_vigencias): o periodo sai cortado nos dias em
+ * que alguma mudou, e cada linha diz em 'trecho' o dia a partir do qual a
+ * taxa dela vale. Venda de antes da troca de maquininha paga a taxa velha.
  */
 function vendas_por_pdv_forma(array $f): array
 {
     [$onde, $args] = vendas_filtro_sql($f);
+
+    $de = data_iso($f['de'] ?? null);
+    // Sem inicio, o primeiro trecho e "antes de qualquer mudanca".
+    $trecho = '?';
+    $args_trecho = [$de ?? '0001-01-01'];
+    // Do corte mais antigo para o mais novo, cada um embrulhando o anterior:
+    // o mais novo fica por fora e e testado primeiro.
+    foreach (custos_cortes(custos_vigencias(), $de, data_iso($f['ate'] ?? null)) as $corte) {
+        $trecho = 'CASE WHEN v.data_hora >= ? THEN ? ELSE ' . $trecho . ' END';
+        array_unshift($args_trecho, $corte . ' 00:00:00', $corte);
+    }
+
     return q(
         'SELECT COALESCE(v.pdv_id, 0) AS pdv_id,
                 COALESCE(v.forma_pagamento, ?) AS forma,
+                ' . $trecho . ' AS trecho,
                 COUNT(*) AS n, COALESCE(SUM(v.valor_pago), 0) AS total
            FROM vendas v WHERE ' . $onde . '
-       GROUP BY v.pdv_id, v.forma_pagamento
+       GROUP BY v.pdv_id, v.forma_pagamento, trecho
        ORDER BY total DESC',
-        array_merge(['desconhecida'], $args)
+        array_merge(['desconhecida'], $args_trecho, $args)
     );
 }
 
@@ -1149,7 +1166,7 @@ function vendas_relatorio(array $f): array
 
     $p = custos_parametros();
     $por_pdv_forma = vendas_por_pdv_forma($f);
-    $params_por_pdv = custos_params_dos_pdvs(array_column($por_pdv_forma, 'pdv_id'));
+    $params_por_pdv = custos_params_dos_pdvs($por_pdv_forma);
     // Imposto e por CNPJ (RBT12 da empresa inteira), nao por PDV filtrado —
     // por isso vem fora de custos_params_dos_pdvs.
     $imposto_pct = custos_imposto_pct();

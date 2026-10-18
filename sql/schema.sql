@@ -307,6 +307,24 @@ CREATE TABLE IF NOT EXISTS custos_pdv (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
+-- Taxa com data. Trocar de maquininha (ou renegociar condominio, franquia)
+-- muda a taxa dali para frente: a linha diz "a partir de `desde`, a chave
+-- vale `valor`" no padrao (pdv_id = 0) ou num PDV. O valor sem data, em
+-- custos_parametros e custos_pdv, e o que valia antes da primeira mudanca.
+-- Sem FK no pdv_id por causa do zero do padrao.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS custos_vigencias (
+    id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    pdv_id        INT UNSIGNED  NOT NULL DEFAULT 0,
+    chave         VARCHAR(40)   NOT NULL,
+    valor         DECIMAL(14,4) NOT NULL DEFAULT 0,
+    desde         DATE          NOT NULL,
+    criado_em     DATETIME      NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_vigencia (pdv_id, chave, desde)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
 -- Nome de um codigo de barras, para a tela Mercado (conferir a conta antes
 -- do caixa). NAO e catalogo: nao vira produto, nao entra no espelho da loja
 -- e nao aparece em relatorio nenhum — guarda nome, e so.

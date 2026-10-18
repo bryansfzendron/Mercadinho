@@ -43,8 +43,18 @@ function custos_padrao(): array
     ];
 }
 
-/** Parametros gravados, completados com os padroes. */
-function custos_parametros(): array
+/**
+ * Os parametros do padrao (sem PDV) valendo num dia — hoje, sem dia. As
+ * taxas e percentuais sobre a venda tem historico (custos_vigencias); o
+ * resto e um valor so.
+ */
+function custos_parametros(?string $dia = null): array
+{
+    return custos_montar(custos_parametros_base(), [], custos_vigencias(), 0, $dia ?? date('Y-m-d'));
+}
+
+/** Parametros gravados, completados com os padroes, sem olhar o historico. */
+function custos_parametros_base(): array
 {
     $valores = custos_padrao() + metas_padrao();
     foreach (q('SELECT chave, valor FROM custos_parametros') as $linha) {
@@ -128,7 +138,7 @@ function custos_variavel_atual(int $dias = 90): array
     return [
         'pct'        => custos_pct_variavel_pdvs(
             $por_pdv_forma,
-            custos_params_dos_pdvs(array_column($por_pdv_forma, 'pdv_id')),
+            custos_params_dos_pdvs($por_pdv_forma),
             $imposto_pct
         ),
         'condominio' => (float) $p['condominio_pct'],
@@ -449,6 +459,241 @@ function custos_imposto_pct(): float
 // Custos por ponto de venda
 // ---------------------------------------------------------------------
 
+// ---------------------------------------------------------------------
+// Taxas com data
+// ---------------------------------------------------------------------
+
+/**
+ * Os parametros que mudam com data: os que incidem venda a venda. Trocar de
+ * maquininha muda a taxa dali para frente — as vendas de antes pagaram a
+ * taxa velha, e regravar o valor sem data reescreveria o lucro de meses que
+ * ja fecharam. Fixos e CMV padrao seguem com um valor so.
+ */
+function custos_chaves_datadas(): array
+{
+    return ['condominio_pct', 'franquia_pct', 'taxa_debito', 'taxa_credito', 'taxa_pix', 'taxa_voucher'];
+}
+
+/**
+ * Todas as mudancas datadas, da mais antiga para a mais nova.
+ *
+ * Banco sem a tabela ainda (git pull feito, setup.php nao) segue como antes,
+ * sem historico, em vez de derrubar toda tela que mostra lucro.
+ */
+function custos_vigencias(bool $recarregar = false): array
+{
+    static $cache = null;
+    if ($cache === null || $recarregar) {
+        try {
+            $cache = q('SELECT id, pdv_id, chave, valor, desde FROM custos_vigencias ORDER BY desde, id');
+        } catch (PDOException $e) {
+            $cache = [];
+        }
+    }
+    return $cache;
+}
+
+/**
+ * A mudanca datada mais recente de uma chave num escopo (0 = padrao) ate o
+ * dia, ou null se nao houver nenhuma ate la. Funcao pura.
+ */
+function custos_vigencia_em(array $vigencias, int $pdv_id, string $chave, string $dia): ?array
+{
+    $achada = null;
+    foreach ($vigencias as $v) {
+        if ((int) $v['pdv_id'] === $pdv_id && $v['chave'] === $chave && (string) $v['desde'] <= $dia) {
+            if ($achada === null || (string) $v['desde'] >= (string) $achada['desde']) {
+                $achada = $v;
+            }
+        }
+    }
+    return $achada;
+}
+
+/**
+ * Os parametros de um PDV num dia. Funcao pura.
+ *
+ * Dentro de cada escopo, a mudanca datada mais recente ate o dia vence o
+ * valor sem data. Entre escopos, o PDV vence o padrao, como sempre foi: o
+ * container com taxa propria nao herda a troca de maquininha do padrao — se
+ * ele trocou tambem, a mudanca e registrada nele.
+ *
+ * @param array $base      o padrao sem historico (custos_parametros_base)
+ * @param array $do_pdv    a excecao sem data daquele PDV (custos_overrides_pdv)
+ * @param array $vigencias custos_vigencias()
+ */
+function custos_montar(array $base, array $do_pdv, array $vigencias, int $pdv_id, string $dia): array
+{
+    $valores = $base;
+    foreach (custos_chaves_datadas() as $chave) {
+        $v = custos_vigencia_em($vigencias, 0, $chave, $dia);
+        if ($v !== null) {
+            $valores[$chave] = (float) $v['valor'];
+        }
+    }
+    if ($pdv_id <= 0) {
+        return $valores;
+    }
+    foreach ($do_pdv as $chave => $valor) {
+        if (array_key_exists($chave, $valores)) {
+            $valores[$chave] = (float) $valor;
+        }
+    }
+    foreach (custos_chaves_datadas() as $chave) {
+        $v = custos_vigencia_em($vigencias, $pdv_id, $chave, $dia);
+        if ($v !== null) {
+            $valores[$chave] = (float) $v['valor'];
+        }
+    }
+    return $valores;
+}
+
+/**
+ * A chave do mapa de parametros para uma linha de vendas_por_pdv_forma():
+ * o PDV e o trecho de vigencia em que a venda caiu.
+ */
+function custos_chave_trecho(array $linha): string
+{
+    return (int) ($linha['pdv_id'] ?? 0) . '|' . (string) ($linha['trecho'] ?? '');
+}
+
+/**
+ * Os parametros daquela linha de venda, achados pelo PDV e pelo trecho.
+ * Linha sem trecho (os testes, quem nao corta por data) cai no PDV puro.
+ */
+function custos_params_da_linha(array $linha, array $params_por_pdv): array
+{
+    $pdv = (int) ($linha['pdv_id'] ?? 0);
+    return $params_por_pdv[custos_chave_trecho($linha)] ?? $params_por_pdv[$pdv] ?? custos_padrao();
+}
+
+/**
+ * Os dias em que alguma taxa mudou dentro de (de, ate] — onde o periodo
+ * precisa ser cortado. Mudanca ate o primeiro dia nao corta nada: o periodo
+ * inteiro ja nasce depois dela. Funcao pura.
+ *
+ * @return string[] em ordem crescente
+ */
+function custos_cortes(array $vigencias, ?string $de, ?string $ate): array
+{
+    $dias = [];
+    foreach ($vigencias as $v) {
+        $d = (string) $v['desde'];
+        if (($de === null || $d > $de) && ($ate === null || $d <= $ate)) {
+            $dias[$d] = true;
+        }
+    }
+    $dias = array_keys($dias);
+    sort($dias);
+    return $dias;
+}
+
+/**
+ * Grava as taxas datadas que chegaram do formulario e devolve o resto, para
+ * o salvamento de sempre cuidar das chaves sem data.
+ *
+ * Com $desde, cada taxa que mudou vira uma vigencia: vale daquele dia em
+ * diante, e o que veio antes continua com a taxa velha. Sem $desde e
+ * correcao: o valor que esta valendo hoje e reescrito onde ele mora (a
+ * vigencia de hoje, ou o valor sem data se nao houver nenhuma).
+ *
+ * Campo de PDV em branco desfaz a excecao inteira daquela taxa, com o
+ * historico dela: o PDV volta a seguir o padrao em todas as datas.
+ *
+ * @return array{0:int,1:array} quantas gravou e o $novos sem as chaves datadas
+ */
+function custos_salvar_datadas(int $pdv_id, array $novos, ?string $desde): array
+{
+    $desde = data_iso($desde);
+    $hoje  = date('Y-m-d');
+    $dia   = $desde ?? $hoje;
+    $atual = $pdv_id > 0 ? custos_parametros_pdv($pdv_id, $dia) : custos_parametros($dia);
+    $vig   = custos_vigencias();
+    $agora = date('Y-m-d H:i:s');
+    $n = 0;
+
+    foreach (custos_chaves_datadas() as $chave) {
+        if (!array_key_exists($chave, $novos)) {
+            continue;
+        }
+        $bruto = trim((string) $novos[$chave]);
+        unset($novos[$chave]);
+
+        if ($bruto === '') {
+            if ($pdv_id > 0 && custos_tem_excecao($pdv_id, $chave)) {
+                exec_sql('DELETE FROM custos_pdv WHERE pdv_id = ? AND chave = ?', [$pdv_id, $chave]);
+                exec_sql('DELETE FROM custos_vigencias WHERE pdv_id = ? AND chave = ?', [$pdv_id, $chave]);
+                $n++;
+            }
+            continue;
+        }
+
+        $valor = max(0.0, num_br($bruto));
+        // A tela mostra duas casas: sem arredondar, abrir e salvar sem mexer
+        // criaria uma mudanca de 1,234 para 1,23. No PDV, digitar o mesmo
+        // valor do padrao num campo que estava vazio e criar a excecao.
+        if (round($valor, 2) === round((float) $atual[$chave], 2)
+            && ($pdv_id === 0 || custos_tem_excecao($pdv_id, $chave))) {
+            continue;
+        }
+
+        if ($desde !== null) {
+            exec_sql(
+                'INSERT INTO custos_vigencias (pdv_id, chave, valor, desde, criado_em) VALUES (?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE valor = VALUES(valor), criado_em = VALUES(criado_em)',
+                [$pdv_id, $chave, $valor, $desde, $agora]
+            );
+        } elseif ($v = custos_vigencia_em($vig, $pdv_id, $chave, $hoje)) {
+            exec_sql('UPDATE custos_vigencias SET valor = ? WHERE id = ?', [$valor, (int) $v['id']]);
+        } elseif ($pdv_id > 0) {
+            exec_sql(
+                'INSERT INTO custos_pdv (pdv_id, chave, valor, atualizado_em) VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE valor = VALUES(valor), atualizado_em = VALUES(atualizado_em)',
+                [$pdv_id, $chave, $valor, $agora]
+            );
+        } else {
+            exec_sql(
+                'INSERT INTO custos_parametros (chave, valor, atualizado_em) VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE valor = VALUES(valor), atualizado_em = VALUES(atualizado_em)',
+                [$chave, $valor, $agora]
+            );
+        }
+        $n++;
+    }
+    custos_vigencias(true);
+    return [$n, $novos];
+}
+
+/** O PDV tem valor proprio para a chave (sem data ou datado)? */
+function custos_tem_excecao(int $pdv_id, string $chave): bool
+{
+    if (array_key_exists($chave, custos_overrides_pdv($pdv_id))) {
+        return true;
+    }
+    foreach (custos_vigencias() as $v) {
+        if ((int) $v['pdv_id'] === $pdv_id && $v['chave'] === $chave) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** As mudancas datadas de um escopo (0 = padrao), a mais nova primeiro. */
+function custos_vigencias_do(int $pdv_id): array
+{
+    return array_reverse(array_values(array_filter(
+        custos_vigencias(),
+        static fn (array $v): bool => (int) $v['pdv_id'] === $pdv_id
+    )));
+}
+
+/** Apaga uma mudanca datada: daquele dia em diante volta a valer a anterior. */
+function custos_excluir_vigencia(int $id): void
+{
+    exec_sql('DELETE FROM custos_vigencias WHERE id = ?', [$id]);
+    custos_vigencias(true);
+}
+
 /**
  * Os parametros de um PDV: o padrao global com o que aquele PDV sobrescreve.
  *
@@ -456,19 +701,15 @@ function custos_imposto_pct(): float
  * diferenca nao configura nada e continua no padrao — e por isso a tabela
  * guarda so a excecao, nao uma copia dos valores para cada PDV.
  */
-function custos_parametros_pdv(int $pdv_id): array
+function custos_parametros_pdv(int $pdv_id, ?string $dia = null): array
 {
-    $valores = custos_parametros();
-    if ($pdv_id <= 0) {
-        return $valores;
-    }
-    foreach (q('SELECT chave, valor FROM custos_pdv WHERE pdv_id = ?', [$pdv_id]) as $linha) {
-        $chave = (string) $linha['chave'];
-        if (array_key_exists($chave, $valores)) {
-            $valores[$chave] = (float) $linha['valor'];
-        }
-    }
-    return $valores;
+    return custos_montar(
+        custos_parametros_base(),
+        $pdv_id > 0 ? custos_overrides_pdv($pdv_id) : [],
+        custos_vigencias(),
+        $pdv_id,
+        $dia ?? date('Y-m-d')
+    );
 }
 
 /**
@@ -524,16 +765,21 @@ function custos_salvar_pdv(int $pdv_id, array $novos, ?array $conhecidos = null)
 }
 
 /**
- * Os parametros de cada PDV que aparece numa lista, mais o global na posicao 0
- * para venda sem PDV.
+ * Os parametros de cada linha de vendas_por_pdv_forma(): por PDV (os de hoje)
+ * e por PDV + trecho de vigencia (os que valiam quando aquela venda
+ * aconteceu). O padrao de hoje fica na posicao 0, para venda sem PDV.
  *
- * @param int[] $ids
+ * @param array $linhas de vendas_por_pdv_forma()
  */
-function custos_params_dos_pdvs(array $ids): array
+function custos_params_dos_pdvs(array $linhas): array
 {
     $mapa = [0 => custos_parametros()];
-    foreach (array_unique(array_filter(array_map('intval', $ids))) as $id) {
-        $mapa[$id] = custos_parametros_pdv($id);
+    foreach ($linhas as $l) {
+        $pdv = (int) ($l['pdv_id'] ?? 0);
+        $mapa[$pdv] ??= custos_parametros_pdv($pdv);
+        if (isset($l['trecho'])) {
+            $mapa[custos_chave_trecho($l)] ??= custos_parametros_pdv($pdv, (string) $l['trecho']);
+        }
     }
     return $mapa;
 }
@@ -606,8 +852,7 @@ function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, arra
     $vendas = 0;
 
     foreach ($por_pdv_forma as $linha) {
-        $pdv = (int) ($linha['pdv_id'] ?? 0);
-        $p   = $params_por_pdv[$pdv] ?? custos_padrao();
+        $p     = custos_params_da_linha($linha, $params_por_pdv);
         $total = (float) ($linha['total'] ?? 0);
 
         $receita    += $total;
@@ -658,8 +903,7 @@ function custos_pct_variavel_pdvs(array $por_pdv_forma, array $params_por_pdv, f
     $variavel = 0.0;
 
     foreach ($por_pdv_forma as $linha) {
-        $pdv = (int) ($linha['pdv_id'] ?? 0);
-        $p   = $params_por_pdv[$pdv] ?? custos_padrao();
+        $p     = custos_params_da_linha($linha, $params_por_pdv);
         $total = (float) ($linha['total'] ?? 0);
 
         $receita  += $total;

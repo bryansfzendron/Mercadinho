@@ -183,7 +183,7 @@ function rota_inicio(array $u): void
     ];
     $params         = custos_parametros();
     $por_pdv_forma  = vendas_por_pdv_forma($janela);
-    $params_por_pdv = custos_params_dos_pdvs(array_column($por_pdv_forma, 'pdv_id'));
+    $params_por_pdv = custos_params_dos_pdvs($por_pdv_forma);
     $pct_variavel   = custos_pct_variavel_pdvs($por_pdv_forma, $params_por_pdv, custos_imposto_pct());
     $custos         = vendas_custo_por_produto(array_column($cru, 'produto_id'));
 
@@ -1538,13 +1538,31 @@ function rota_config(array $u, string $metodo): void
             $n = metas_salvar_pdv($id, $_POST);
             flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Salvo.' : 'Nada para salvar.');
             redirecionar('/config/metas?pdv=' . $id);
-        } elseif ($aba === 'taxas' && (int) ($_POST['pdv_id'] ?? 0) > 0) {
-            // Custo de um container so. Campo em branco apaga a excecao e
-            // devolve aquele custo ao padrao.
-            $id = (int) $_POST['pdv_id'];
-            $n = custos_salvar_pdv($id, $_POST);
-            flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Salvo.' : 'Nada para salvar.');
-            redirecionar('/config/taxas?pdv=' . $id);
+        } elseif ($aba === 'taxas' && isset($_POST['excluir_vigencia'])) {
+            // Desfaz uma troca de taxa: daquele dia em diante volta a anterior.
+            custos_excluir_vigencia((int) $_POST['excluir_vigencia']);
+            flash('ok', 'Mudança apagada. As vendas daquele período voltam à taxa anterior.');
+            $id = (int) ($_POST['pdv_id'] ?? 0);
+            redirecionar('/config/taxas' . ($id > 0 ? '?pdv=' . $id : ''));
+        } elseif ($aba === 'taxas') {
+            // Taxas e percentuais sobre a venda tem data: com "valem a partir
+            // de", o que vendeu antes continua com a taxa velha. O resto
+            // (fixos, CMV) segue pelo caminho de sempre. No PDV, campo em
+            // branco apaga a excecao e devolve aquele custo ao padrao.
+            $id = (int) ($_POST['pdv_id'] ?? 0);
+            $desde = data_iso($_POST['desde'] ?? null);
+            try {
+                [$n, $resto] = custos_salvar_datadas($id, $_POST, $desde);
+            } catch (PDOException $e) {
+                // git pull feito e setup.php ainda nao: sem a tabela do historico.
+                flash('erro', 'Falta criar a tabela do histórico de taxas: rode o setup.php e tente de novo.');
+                redirecionar('/config/taxas' . ($id > 0 ? '?pdv=' . $id : ''));
+            }
+            $n += $id > 0 ? custos_salvar_pdv($id, $resto) : custos_salvar($resto);
+            flash($n > 0 ? 'ok' : 'erro', $n > 0
+                ? ($desde ? 'Salvo. As taxas novas valem a partir de ' . data_fmt($desde) . '.' : 'Salvo.')
+                : 'Nada para salvar.');
+            redirecionar('/config/taxas' . ($id > 0 ? '?pdv=' . $id : ''));
         } else {
             $n = custos_salvar($_POST);
             flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Salvo.' : 'Nada para salvar.');
@@ -1564,6 +1582,15 @@ function rota_config(array $u, string $metodo): void
     $pdv_taxas = (int) ($_GET['pdv'] ?? 0);
     $pdv_taxas = isset($ativos[$pdv_taxas]) ? $pdv_taxas : 0;
     $overrides = $pdv_taxas > 0 ? custos_overrides_pdv($pdv_taxas) : [];
+    // O campo do PDV mostra o que vale hoje nele, datado ou nao: a excecao
+    // sem data por baixo, a ultima mudanca datada ate hoje por cima.
+    foreach (custos_chaves_datadas() as $chave) {
+        $v = $pdv_taxas > 0 ? custos_vigencia_em(custos_vigencias(), $pdv_taxas, $chave, date('Y-m-d')) : null;
+        if ($v !== null) {
+            $overrides[$chave] = (float) $v['valor'];
+        }
+    }
+    $mudancas = $aba === 'taxas' ? custos_vigencias_do($pdv_taxas) : [];
     // A aba Metas usa o mesmo seletor e a mesma chave de URL: e o mesmo
     // gesto de "estou editando este container".
     $metas_pdv = metas_do_pdv($pdv_taxas);
@@ -1592,7 +1619,7 @@ function rota_config(array $u, string $metodo): void
     $sync   = ['loja' => sync_estado('loja'), 'vendas' => sync_estado('vendas')];
     $cron   = cron_formatar(q1('SELECT * FROM sync_estado WHERE fonte = ?', ['cron']));
 
-    ver('config', compact('aba', 'p', 'pdvs', 'unificados', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'metas_pdv', 'imposto'), 'Configuracoes');
+    ver('config', compact('aba', 'p', 'pdvs', 'unificados', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'mudancas', 'metas_pdv', 'imposto'), 'Configuracoes');
 }
 
 /**

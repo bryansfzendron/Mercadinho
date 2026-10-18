@@ -1134,6 +1134,30 @@ O custo fixo vem da **lista de PDVs ativos**, não das vendas: container parado 
 continua pagando energia, sistema e internet, e um mês ruim não pode ficar bonito por falta
 de venda. Filtrando um PDV no relatório, só o fixo dele entra.
 
+### Taxa com data (troca de maquininha)
+
+Taxa da maquininha, condomínio e franquia têm **histórico**: trocar de maquininha muda a taxa
+dali para frente, e as vendas de antes continuam pagando a taxa velha. Em Configurações →
+Taxas, o campo **"Taxas novas valem a partir de"** grava a mudança com data na tabela
+`custos_vigencias` ("a partir de `desde`, a chave vale `valor`", no padrão com `pdv_id = 0`
+ou num PDV). Em branco, salvar corrige o valor que está valendo hoje — e aí a conta antiga
+muda junto, como era antes. A lista "Mudanças de taxa" embaixo do formulário mostra cada
+troca e deixa apagar (o período volta à taxa anterior).
+
+Como a taxa de um dia é resolvida (`custos_montar()`):
+
+- dentro de cada escopo, a mudança datada mais recente até o dia vence o valor sem data
+  (`custos_parametros` / `custos_pdv`, que passam a ser "o que valia antes da primeira troca");
+- entre escopos, o PDV vence o padrão, como sempre: o container com taxa própria não herda a
+  troca do padrão — se ele trocou também, a troca é registrada nele.
+
+Na conta, `vendas_por_pdv_forma()` corta o período nos dias de troca (`custos_cortes()`) e
+cada linha sai com o `trecho` em que caiu; `custos_params_dos_pdvs()` resolve os parâmetros
+de cada (PDV, trecho). Fixos e CMV padrão continuam com um valor só.
+
+`custos_vigencias` é tabela nova: depois do `git pull`, rode `/setup.php?token=…` e crie as
+tabelas que faltam. Até lá o app segue sem histórico (como antes), e salvar com data avisa.
+
 ## Logo e cores
 
 A marca é a **Alpha Market**: os arquivos originais (completo e simplificado) estão em

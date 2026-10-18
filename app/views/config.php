@@ -8,6 +8,7 @@
  * @var array  $sync
  * @var array  $cron
  * @var ?array $imposto
+ * @var array  $mudancas as trocas de taxa com data do escopo aberto na aba Taxas
  */
 ?>
 <h1>Configurações</h1>
@@ -429,11 +430,55 @@
                 da promoção — confira no app da maquininha. A taxa entra por forma de
                 pagamento, venda a venda, e não por média.
             </p>
+            <label>Taxas novas valem a partir de
+                <input type="date" name="desde" value="">
+            </label>
+            <p class="ajuda">
+                Trocou de maquininha ou a taxa mudou? Ponha o dia da troca: as vendas de antes
+                continuam com a taxa antiga e só as daquele dia em diante usam a nova. Vale para
+                as taxas da maquininha, o condomínio e a franquia. <strong>Em branco</strong>
+                corrige o valor que está valendo hoje — e aí a conta antiga muda junto.
+            </p>
             <button type="submit" class="botao">
                 <?= $por_pdv ? 'Salvar custos deste PDV' : 'Salvar custos' ?>
             </button>
         </form>
     </div>
+
+    <?php if ($mudancas): ?>
+        <?php
+        $rotulos = array_merge(...$grupos);
+        $hoje = date('Y-m-d');
+        ?>
+        <div class="cartao">
+            <h2 class="sem-topo">Mudanças de taxa</h2>
+            <p class="ajuda">
+                Cada linha vale do dia dela até a próxima mudança da mesma taxa. Antes da
+                primeira, vale o valor sem data. Apagar uma mudança devolve aquele período à
+                taxa anterior.
+            </p>
+            <ul class="lista">
+                <?php foreach ($mudancas as $m): ?>
+                    <li><div class="linha-cartao">
+                        <div class="linha-topo">
+                            <span class="forte"><?= e(str_replace(' (%)', '', $rotulos[$m['chave']] ?? $m['chave'])) ?></span>
+                            <span class="valor"><?= e(number_format((float) $m['valor'], 2, ',', '.')) ?>%</span>
+                        </div>
+                        <div class="linha-baixo">
+                            <span>a partir de <?= e(data_fmt((string) $m['desde'])) ?><?= (string) $m['desde'] > $hoje ? ' · ainda não começou' : '' ?></span>
+                        </div>
+                    </div>
+                    <form method="post" action="/config/taxas" class="acao-linha"
+                          onsubmit="return confirm('Apagar esta mudança? As vendas do período voltam à taxa anterior.');">
+                        <?= csrf_campo() ?>
+                        <input type="hidden" name="excluir_vigencia" value="<?= (int) $m['id'] ?>">
+                        <?php if ($por_pdv): ?><input type="hidden" name="pdv_id" value="<?= (int) $pdv_taxas ?>"><?php endif; ?>
+                        <button type="submit" class="link-perigo">apagar</button>
+                    </form></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    <?php endif; ?>
 
     <?php if ($imposto): ?>
         <div class="cartao">

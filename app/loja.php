@@ -1018,7 +1018,7 @@ function margens_minimos(): array
     $por_pdv  = vendas_por_pdv_forma(['de' => date('Y-m-01'), 'ate' => date('Y-m-d')]);
     $mes      = custos_resultado_pdvs(
         $por_pdv,
-        custos_params_dos_pdvs(array_column($por_pdv, 'pdv_id')),
+        custos_params_dos_pdvs($por_pdv),
         custos_fixos_no_escopo(0, date('Y-m-01'), date('Y-m-d')),
         0.0,
         (int) date('j'),

@@ -400,6 +400,57 @@ checar('container novo nao empurra o comeco', custos_inicio_de(['2026-10-10', nu
 checar('todos com data: a mais antiga', custos_inicio_de(['2026-10-10', '2026-11-01']), '2026-10-10');
 checar('data invalida vira o padrao', custos_inicio_de(['2026-02-31']), '2026-09-01');
 
+// ------------------------------------------- taxas com data
+// Padrao: credito 2,92 sem data, troca de maquininha em 15/10 para 3,10.
+// PDV 7 tem pix proprio (0,50) e trocou o dele em 20/10 para 0,20.
+$base = custos_padrao();
+$vig = [
+    ['id' => 1, 'pdv_id' => 0, 'chave' => 'taxa_credito', 'valor' => '3.1000', 'desde' => '2026-10-15'],
+    ['id' => 2, 'pdv_id' => 7, 'chave' => 'taxa_pix',     'valor' => '0.2000', 'desde' => '2026-10-20'],
+    ['id' => 3, 'pdv_id' => 0, 'chave' => 'taxa_pix',     'valor' => '0.3000', 'desde' => '2026-10-01'],
+];
+quase('antes da troca vale o valor sem data',
+    custos_montar($base, [], $vig, 0, '2026-10-14')['taxa_credito'], 2.92);
+quase('no dia da troca ja vale a nova',
+    custos_montar($base, [], $vig, 0, '2026-10-15')['taxa_credito'], 3.10);
+quase('depois da troca segue a nova',
+    custos_montar($base, [], $vig, 0, '2026-12-01')['taxa_credito'], 3.10);
+quase('PDV sem excecao herda a troca do padrao',
+    custos_montar($base, [], $vig, 9, '2026-10-16')['taxa_credito'], 3.10);
+quase('excecao sem data do PDV vence a troca do padrao',
+    custos_montar($base, ['taxa_pix' => 0.5], $vig, 7, '2026-10-10')['taxa_pix'], 0.5);
+quase('troca datada do PDV vence a excecao sem data dele',
+    custos_montar($base, ['taxa_pix' => 0.5], $vig, 7, '2026-10-21')['taxa_pix'], 0.2);
+quase('troca do PDV nao vaza para outro PDV',
+    custos_montar($base, [], $vig, 9, '2026-10-21')['taxa_pix'], 0.3);
+quase('chave sem data nao olha o historico',
+    custos_montar($base, [], $vig, 0, '2026-10-21')['fixo_energia'], (float) $base['fixo_energia']);
+checar('mudanca mais nova ate o dia',
+    custos_vigencia_em($vig, 0, 'taxa_pix', '2026-10-30')['id'] ?? null, 3);
+checar('nada antes da primeira mudanca', custos_vigencia_em($vig, 0, 'taxa_pix', '2026-09-30'), null);
+
+// Onde o periodo e cortado: so mudanca DENTRO dele, depois do primeiro dia.
+checar('cortes dentro do periodo', custos_cortes($vig, '2026-10-01', '2026-10-31'), ['2026-10-15', '2026-10-20']);
+checar('mudanca no primeiro dia nao corta', custos_cortes($vig, '2026-10-15', '2026-10-31'), ['2026-10-20']);
+checar('mudanca depois do fim nao corta', custos_cortes($vig, '2026-09-01', '2026-10-14'), ['2026-10-01']);
+checar('sem inicio, todo dia de mudanca corta', custos_cortes($vig, null, null), ['2026-10-01', '2026-10-15', '2026-10-20']);
+
+// A conta usa a taxa do trecho de cada linha: R$ 100 no credito antes da
+// troca (2,92) e R$ 100 depois (3,10).
+$antes  = custos_montar($base, [], $vig, 0, '2026-10-01');
+$depois = custos_montar($base, [], $vig, 0, '2026-10-15');
+$trechos = [
+    ['pdv_id' => 0, 'forma' => 'credit', 'trecho' => '2026-10-01', 'n' => 1, 'total' => 100.0],
+    ['pdv_id' => 0, 'forma' => 'credit', 'trecho' => '2026-10-15', 'n' => 1, 'total' => 100.0],
+];
+$mapa = [0 => $depois, '0|2026-10-01' => $antes, '0|2026-10-15' => $depois];
+quase('cada trecho paga a taxa do seu tempo', custos_resultado_pdvs($trechos, $mapa, [], 0.0, 30)['taxa'], 6.02);
+quase('mix ponderado respeita os trechos',
+    custos_pct_variavel_pdvs($trechos, $mapa),
+    3.01 + (float) $base['condominio_pct'] + (float) $base['franquia_pct']);
+quase('linha sem trecho cai no PDV',
+    custos_params_da_linha(['pdv_id' => 0], $mapa)['taxa_credito'], 3.10);
+
 // ------------------------------------------- fixo so depois de inaugurar
 quase('sem data paga o periodo todo', custos_fracao_aberto(null, '2026-10-01', '2026-10-31'), 1.0);
 quase('inaugurou antes paga tudo', custos_fracao_aberto('2026-09-15', '2026-10-01', '2026-10-31'), 1.0);
