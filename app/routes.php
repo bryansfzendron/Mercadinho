@@ -1523,8 +1523,12 @@ function rota_config(array $u, string $metodo): void
             flash($r['ok'] ? 'ok' : 'erro', $r['msg']);
         } elseif ($aba === 'pdvs' && isset($_POST['pdvs_enviados'])) {
             $ligados = array_map('intval', (array) ($_POST['pdvs'] ?? []));
+            $datas   = (array) ($_POST['inauguracao'] ?? []);
             foreach (loja_pdvs_todos() as $pdv) {
                 loja_pdv_ativo((int) $pdv['id'], in_array((int) $pdv['id'], $ligados, true));
+                if (array_key_exists($pdv['id'], $datas)) {
+                    loja_pdv_inauguracao((int) $pdv['id'], (string) $datas[$pdv['id']]);
+                }
             }
             flash('ok', 'Pontos de venda atualizados.');
         } elseif ($aba === 'metas' && (int) ($_POST['pdv_id'] ?? 0) > 0) {

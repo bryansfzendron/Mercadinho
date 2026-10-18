@@ -391,7 +391,28 @@ quase('acima do teto do Simples, falta nao fica negativa', $acimaDoTeto['falta']
 quase('acima do teto do Simples, percentual nao passa de 100', $acimaDoTeto['pct'], 100.0);
 
 // ------------------------------------------- inicio de atividade (RBT12)
-checar('data em que assumiu a loja', custos_inicio_atividade(), '2026-09-01');
+checar('data padrao em que assumiu a loja', custos_inicio_padrao(), '2026-09-01');
+// A empresa comeca na inauguracao mais antiga; PDV sem data conta como o padrao.
+checar('sem PDV, vale o padrao', custos_inicio_de([]), '2026-09-01');
+checar('PDV sem data e o padrao', custos_inicio_de([null, '']), '2026-09-01');
+checar('inauguracao anterior puxa o comeco', custos_inicio_de(['2026-07-15', null]), '2026-07-15');
+checar('container novo nao empurra o comeco', custos_inicio_de(['2026-10-10', null]), '2026-09-01');
+checar('todos com data: a mais antiga', custos_inicio_de(['2026-10-10', '2026-11-01']), '2026-10-10');
+checar('data invalida vira o padrao', custos_inicio_de(['2026-02-31']), '2026-09-01');
+
+// ------------------------------------------- fixo so depois de inaugurar
+quase('sem data paga o periodo todo', custos_fracao_aberto(null, '2026-10-01', '2026-10-31'), 1.0);
+quase('inaugurou antes paga tudo', custos_fracao_aberto('2026-09-15', '2026-10-01', '2026-10-31'), 1.0);
+quase('inaugurou no primeiro dia paga tudo', custos_fracao_aberto('2026-10-01', '2026-10-01', '2026-10-31'), 1.0);
+quase('ainda nao abriu nao paga', custos_fracao_aberto('2026-11-05', '2026-10-01', '2026-10-31'), 0.0);
+// Abriu dia 22: 22..31 sao 10 dos 31 dias.
+quase('abriu no meio paga os dias abertos', custos_fracao_aberto('2026-10-22', '2026-10-01', '2026-10-31'), 10 / 31);
+quase('abriu no ultimo dia paga um dia', custos_fracao_aberto('2026-10-31', '2026-10-01', '2026-10-31'), 1 / 31);
+
+$fx = custos_padrao();
+$fx['fixo_energia'] = 300.0; $fx['fixo_sistema'] = 0.0; $fx['fixo_internet'] = 0.0;
+quase('fracao_fixo corta o fixo do PDV',
+    custos_resultado_pdvs([], [], [1 => $fx, 2 => $fx + ['fracao_fixo' => 0.5]], 0.0, 30)['fixos'], 450.0);
 
 // O mes de abertura ja conta como mes 1, mesmo com poucos dias nele.
 checar('primeiros dias contam como mes 1', custos_meses_atividade('2026-09-01', '2026-09-09'), 1);

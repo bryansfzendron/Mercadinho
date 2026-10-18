@@ -72,6 +72,7 @@ function migracoes(): array
             'unificado_para' => 'INT UNSIGNED NULL AFTER ativo',
             'planograma_id'  => 'INT UNSIGNED NULL AFTER unificado_para',
             'inventario_id'  => 'INT UNSIGNED NULL AFTER planograma_id',
+            'inauguracao'    => 'DATE NULL AFTER inventario_id',
         ],
         'loja_itens' => [
             'validade' => 'DATE NULL AFTER imagem',

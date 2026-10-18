@@ -1173,7 +1173,11 @@ function vendas_relatorio(array $f): array
             $params_por_pdv,
             // Fixo vem dos PDVs no escopo, e nao das vendas: container parado
             // continua pagando energia.
-            custos_fixos_no_escopo((int) ($f['pdv_id'] ?? 0)),
+            custos_fixos_no_escopo(
+                (int) ($f['pdv_id'] ?? 0),
+                data_iso($f['de'] ?? null),
+                data_iso($f['ate'] ?? null)
+            ),
             $agrupado['cmv'],
             vendas_dias_do_periodo($f),
             $imposto_pct

@@ -818,7 +818,7 @@ function loja_resumo(): array
 function loja_pdvs_todos(): array
 {
     return q(
-        'SELECT p.id, p.nome, p.ativo, p.externo_id, p.atualizado_em,
+        'SELECT p.id, p.nome, p.ativo, p.externo_id, p.atualizado_em, p.inauguracao,
                 (SELECT COUNT(*) FROM loja_itens li WHERE li.pdv_id = p.id) AS itens,
                 (SELECT COUNT(*) FROM vendas v WHERE v.pdv_id = p.id) AS vendas
            FROM loja_pdvs p
@@ -941,6 +941,15 @@ function loja_pdv_ativo(int $id, bool $ativo): void
 }
 
 /**
+ * Grava a data de inauguracao de um PDV. Vazio (ou data que nao existe) volta
+ * para NULL, que e a data padrao da empresa.
+ */
+function loja_pdv_inauguracao(int $id, ?string $data): void
+{
+    exec_sql('UPDATE loja_pdvs SET inauguracao = ? WHERE id = ?', [data_iso($data), $id]);
+}
+
+/**
  * O catalogo visto pela lente da margem: por quanto vende, quanto custou na
  * ultima nota e se o fator paga a conta.
  *
@@ -1010,7 +1019,7 @@ function margens_minimos(): array
     $mes      = custos_resultado_pdvs(
         $por_pdv,
         custos_params_dos_pdvs(array_column($por_pdv, 'pdv_id')),
-        custos_fixos_no_escopo(),
+        custos_fixos_no_escopo(0, date('Y-m-01'), date('Y-m-d')),
         0.0,
         (int) date('j'),
         // Mesmo numero que ja saiu em custos_variavel_atual(): imposto e por

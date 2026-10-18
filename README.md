@@ -1094,6 +1094,23 @@ empresa em início de atividade (o mês de abertura já conta como mês 1). Sem 
 apareceria artificialmente baixa nos primeiros meses e daria um salto de uma vez quando o
 primeiro ano fechasse — a tela de Configurações → Custos avisa enquanto isso durar.
 
+**Cada PDV tem a sua inauguração** (`loja_pdvs.inauguracao`, em Configurações → PDVs): o dia
+em que aquele ponto de venda passou a ser seu — abriu, ou você assumiu o container de outro
+dono. Em branco vale a data padrão (`custos_inicio_padrao()`, 01/09/2026). Ela entra em dois
+lugares:
+
+- **Imposto**: `custos_rbt12()` só soma a venda de cada PDV a partir da inauguração dele, e o
+  mês 1 da anualização é a inauguração mais antiga (`custos_inicio_atividade()`). Cadastrar
+  um container novo não empurra o começo da empresa para frente.
+- **Custo fixo**: energia, sistema e internet de um PDV só contam depois que ele abriu. Num
+  período em que ele inaugurou no meio, paga a fração dos dias abertos
+  (`custos_fracao_aberto()`); antes de abrir, nada.
+
+O faturamento dos relatórios continua mostrando a venda de antes da inauguração, se o TouchPay
+tiver — o corte é só do imposto e do fixo.
+
+`inauguracao` é migração: depois do `git pull`, rode `/setup.php?token=…` e crie a coluna.
+
 ### Cada container tem a sua conta
 
 As camadas 2 e 3 são **por ponto de venda** — com uma exceção. Um container tem a sua conta
@@ -1631,8 +1648,8 @@ estoque no dia da transferência.
 
 Uma consequência a lembrar: as vendas antigas **passam a contar nos relatórios**. Se parte
 delas for de antes de você assumir a loja, faturamento e lucro dos períodos antigos vão
-passar a mostrá-las. O imposto não muda — `custos_rbt12()` já ignora tudo que é anterior a
-`custos_inicio_atividade()`.
+passar a mostrá-las. O imposto não muda — `custos_rbt12()` já ignora o que é anterior à
+inauguração do PDV que fica.
 
 A coluna `unificado_para` é migração: quem já tem o banco criado roda `/setup.php?token=…` e
 clica em criar as colunas que faltam.

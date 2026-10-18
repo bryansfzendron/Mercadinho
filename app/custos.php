@@ -319,14 +319,64 @@ function custos_aliquota_efetiva_simples(float $rbt12): float
 }
 
 /**
- * Data em que a operacao atual assumiu a loja. Receita de antes disso era de
- * quem tinha o CNPJ antes e nao entra no RBT12, mesmo que o historico de
- * vendas do TouchPay va mais para tras — se um dia a loja trocar de dono de
- * novo, o lugar de ajustar e este.
+ * Data em que a operacao atual assumiu a loja, para o PDV que nao tem
+ * inauguracao cadastrada. Receita de antes disso era de quem tinha o CNPJ
+ * antes e nao entra no RBT12, mesmo que o historico de vendas do TouchPay va
+ * mais para tras.
+ */
+function custos_inicio_padrao(): string
+{
+    return '2026-09-01';
+}
+
+/**
+ * O inicio de atividade da empresa a partir das inauguracoes dos PDVs: a
+ * mais antiga. PDV sem data conta como a data padrao — assim cadastrar a
+ * inauguracao de um container novo nao empurra o comeco da empresa para
+ * frente e nao some com a receita dos outros. Funcao pura.
+ *
+ * @param array<int,?string> $inauguracoes uma por PDV ativo (null = sem data)
+ */
+function custos_inicio_de(array $inauguracoes): string
+{
+    $inicio = null;
+    foreach ($inauguracoes as $d) {
+        $d = data_iso($d) ?? custos_inicio_padrao();
+        $inicio = $inicio === null ? $d : min($inicio, $d);
+    }
+    return $inicio ?? custos_inicio_padrao();
+}
+
+/**
+ * Quando a empresa comecou: a inauguracao mais antiga dos PDVs ativos. E
+ * daqui que conta o mes 1 do Simples (a anualizacao do RBT12).
  */
 function custos_inicio_atividade(): string
 {
-    return '2026-09-01';
+    static $cache = null;
+    return $cache ??= custos_inicio_de(
+        array_column(q('SELECT inauguracao FROM loja_pdvs WHERE ativo = 1'), 'inauguracao')
+    );
+}
+
+/**
+ * Que fracao do periodo [de, ate] o PDV ja estava aberto: 1 para quem
+ * inaugurou antes, 0 para quem ainda nao abriu, e a proporcao de dias para
+ * quem abriu no meio. E o que faz o fixo (energia, sistema, internet) nao ser
+ * cobrado de um container antes de ele existir. Funcao pura.
+ */
+function custos_fracao_aberto(?string $inauguracao, string $de, string $ate): float
+{
+    $inauguracao = data_iso($inauguracao);
+    if ($inauguracao === null || $inauguracao <= $de) {
+        return 1.0;
+    }
+    if ($inauguracao > $ate) {
+        return 0.0;
+    }
+    $dias  = (new DateTimeImmutable($de))->diff(new DateTimeImmutable($ate))->days + 1;
+    $abriu = (new DateTimeImmutable($inauguracao))->diff(new DateTimeImmutable($ate))->days + 1;
+    return $abriu / $dias;
 }
 
 /**
@@ -368,6 +418,13 @@ function custos_rbt12(?string $ate = null): float
     $de = max($de_completo, $inicio);
 
     [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $ate]);
+    // Cada PDV so conta a partir da propria inauguracao: o container que voce
+    // assumiu em outubro nao traz para o seu RBT12 o que vendeu com o dono
+    // anterior em setembro.
+    $onde .= ' AND (v.pdv_id IS NULL OR NOT EXISTS (
+                    SELECT 1 FROM loja_pdvs li WHERE li.id = v.pdv_id
+                       AND v.data_hora < COALESCE(li.inauguracao, ?)))';
+    $args[] = custos_inicio_padrao();
     $receita = (float) qv("SELECT COALESCE(SUM(v.valor_pago), 0) FROM vendas v WHERE $onde", $args);
 
     if ($de_completo < $inicio) {
@@ -486,20 +543,32 @@ function custos_params_dos_pdvs(array $ids): array
  *
  * Vem da tabela de PDVs e nao das vendas de proposito — container parado o mes
  * inteiro continua pagando energia, sistema e internet.
+ *
+ * Mas so depois de inaugurar: cada PDV leva em 'fracao_fixo' a parte do
+ * periodo em que ja estava aberto (custos_fracao_aberto). Sem periodo, vale
+ * hoje: quem ainda nao abriu fica de fora, quem ja abriu paga o mes cheio.
  */
-function custos_fixos_no_escopo(int $pdv_id = 0): array
+function custos_fixos_no_escopo(int $pdv_id = 0, ?string $de = null, ?string $ate = null): array
 {
-    $ids = $pdv_id > 0
-        ? [$pdv_id]
-        : array_map('intval', array_column(q('SELECT id FROM loja_pdvs WHERE ativo = 1'), 'id'));
+    $linhas = $pdv_id > 0
+        ? q('SELECT id, inauguracao FROM loja_pdvs WHERE id = ?', [$pdv_id])
+        : q('SELECT id, inauguracao FROM loja_pdvs WHERE ativo = 1');
 
+    $hoje = date('Y-m-d');
     $mapa = [];
-    foreach ($ids as $id) {
-        $mapa[$id] = custos_parametros_pdv($id);
+    foreach ($linhas as $l) {
+        $fracao = $de !== null && $ate !== null
+            ? custos_fracao_aberto($l['inauguracao'], $de, $ate)
+            : ((data_iso($l['inauguracao']) ?? '') > $hoje ? 0.0 : 1.0);
+        if ($fracao <= 0) {
+            continue;
+        }
+        $mapa[(int) $l['id']] = custos_parametros_pdv((int) $l['id']) + ['fracao_fixo' => $fracao];
     }
     // Nenhum PDV cadastrado ainda: o padrao global conta como um, senao o custo
-    // fixo sumiria justamente na primeira semana de uso.
-    return $mapa ?: [0 => custos_parametros()];
+    // fixo sumiria justamente na primeira semana de uso. PDV que existe mas
+    // ainda nao abriu no periodo nao cai aqui: esse nao paga nada mesmo.
+    return $linhas ? $mapa : [0 => custos_parametros()];
 }
 
 /** O fixo mensal somado dos PDVs que pagam no escopo. */
@@ -552,7 +621,8 @@ function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, arra
     // energia. Por isso ele vem da lista de PDVs no escopo, e nao das vendas.
     $fixos = 0.0;
     foreach ($fixos_de as $p) {
-        $fixos += custos_fixos_mensais($p);
+        // PDV inaugurado no meio do periodo paga so os dias em que existiu.
+        $fixos += custos_fixos_mensais($p) * (float) ($p['fracao_fixo'] ?? 1);
     }
     $fixos = $fixos * max(1, $dias) / 30;
 

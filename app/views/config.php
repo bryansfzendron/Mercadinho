@@ -191,6 +191,12 @@
             continua trazendo, as telas é que ignoram. Ele continua listado aqui para você
             poder ligar de volta quando quiser.
         </p>
+        <p class="ajuda">
+            A <strong>inauguração</strong> é o dia em que o ponto de venda passou a ser seu —
+            abriu, ou você assumiu o container de outro dono. Venda de antes dela não entra no
+            faturamento do Simples (o RBT12 que define o imposto) e o PDV não paga custo fixo
+            antes de existir. Em branco vale <?= data_fmt(custos_inicio_padrao()) ?>.
+        </p>
         <?php if (!$pdvs): ?>
             <p class="vazio">Nenhum ponto de venda ainda. Sincronize preços e estoque primeiro.</p>
         <?php else: ?>
@@ -205,6 +211,10 @@
                         <span class="ajuda">
                             <?= (int) $pdv['itens'] ?> itens<?= (int) $pdv['ativo'] === 1 ? '' : ' · fora do app' ?>
                         </span>
+                    </label>
+                    <label class="pdv-inauguracao">Inauguração
+                        <input type="date" name="inauguracao[<?= (int) $pdv['id'] ?>]"
+                               value="<?= e((string) ($pdv['inauguracao'] ?? '')) ?>">
                     </label>
                 <?php endforeach; ?>
                 <button type="submit" class="botao">Salvar pontos de venda</button>
@@ -267,7 +277,7 @@
                     mudam de dono e ficam. E passam a contar nos relatórios: se parte delas
                     for de antes de você assumir a loja, o faturamento e o lucro dos períodos
                     antigos vão passar a mostrá-las (o imposto não muda — o RBT12 já ignora
-                    tudo que é anterior a <?= data_fmt(custos_inicio_atividade()) ?>).
+                    o que é anterior à inauguração do PDV que fica).
                 </p>
             </form>
         <?php endif; ?>
@@ -431,7 +441,8 @@
             <p class="ajuda">
                 CNAE 4712-1/00, Anexo I do Simples. Não dá para editar aqui porque não é um
                 palpite — é calculado do seu faturamento real desde <?= data_fmt(custos_inicio_atividade()) ?>
-                (quando a loja mudou de dono), e sobe sozinho se a loja crescer de faixa.
+                (a inauguração mais antiga dos seus pontos de venda; cada um conta a partir da
+                própria, em Configurações › PDVs), e sobe sozinho se a loja crescer de faixa.
             </p>
             <dl class="dados">
                 <div>

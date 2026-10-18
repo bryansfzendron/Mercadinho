@@ -151,6 +151,11 @@ CREATE TABLE IF NOT EXISTS loja_pdvs (
     -- guardados quando a tela de repor precisou escrever de volta la.
     planograma_id INT UNSIGNED NULL,
     inventario_id INT UNSIGNED NULL,
+    -- Quando este ponto de venda passou a ser seu (abriu, ou voce assumiu o
+    -- container de outro dono). Venda de antes nao entra no RBT12 do Simples e
+    -- o PDV nao paga custo fixo antes dela. NULL e a data padrao da empresa
+    -- (custos_inicio_padrao()).
+    inauguracao   DATE         NULL,
     atualizado_em DATETIME     NULL,
     criado_em     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),

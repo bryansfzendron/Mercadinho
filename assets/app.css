@@ -771,6 +771,13 @@ html, body { overscroll-behavior-y: none; }   /* sem o "elastico" do iOS competi
 }
 .caixa-marcar input { width: auto; margin: 0; width: 22px; height: 22px; accent-color: var(--marca-forte); }
 .caixa-marcar .ajuda { margin-left: auto; }
+/* A data mora logo abaixo da linha do PDV, recuada ate o nome. */
+.pdv-inauguracao {
+    display: flex; align-items: center; gap: .6rem;
+    margin: -.6rem 0 .9rem calc(22px + .55rem);
+    font-size: .85rem; color: var(--suave);
+}
+.pdv-inauguracao input { width: auto; flex: 1; max-width: 12rem; margin: 0; }
 
 /* ---------------------------------------------------------------
    Transacoes: cada compra abre e mostra o que saiu nela.
