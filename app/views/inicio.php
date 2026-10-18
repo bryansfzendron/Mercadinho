@@ -26,6 +26,8 @@
  * e quanto custou — a mesma conta e os mesmos numeros da aba de vendas.
  *
  * @var array $vendidos 'Y-m-d' => produtos daquele dia, mais 'semana'
+ * @var array $pdvs     os PDVs com venda, para o filtro
+ * @var int   $pdv_id   o PDV mostrado; 0 e todos
  */
 $h = $painel['hoje'];
 $m = $painel['mes'];
@@ -84,6 +86,22 @@ $lista_vendidos = static function (array $produtos, string $vazio): string {
 };
 ?>
 <p class="inicio-sub">Gestão do seu negócio</p>
+
+<?php // Com um PDV so, o filtro escolheria entre ele e ele mesmo. ?>
+<?php if (count($pdvs) > 1 || $pdv_id > 0): ?>
+<form method="get" action="/" class="filtro-pdv">
+    <label>Ponto de venda
+        <select name="pdv_id" onchange="this.form.submit()">
+            <option value="0">todos</option>
+            <?php foreach ($pdvs as $p): ?>
+                <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>>
+                    <?= e($p['nome']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </label>
+</form>
+<?php endif; ?>
 
 <section class="painel" data-painel>
     <div class="segmento" role="tablist" aria-label="Período" style="--itens:3">

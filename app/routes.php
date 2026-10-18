@@ -148,7 +148,10 @@ function rota_login(string $m): void
  */
 function rota_inicio(array $u): void
 {
-    $painel = vendas_painel();
+    $pdvs   = vendas_pdvs();
+    $pdv_id = inicio_pdv_escolhido($pdvs);
+
+    $painel = vendas_painel(null, $pdv_id);
     // A semana inteira de uma vez: o grafico deixa escolher qualquer dia, e a
     // lista embaixo tem que acompanhar sem voltar ao servidor. Sao os mesmos
     // dias que o cartao desenha (e nao date() de novo), senao a virada de
@@ -156,7 +159,8 @@ function rota_inicio(array $u): void
     // com o numero logo acima dela.
     $cru = vendas_produtos_por_dia(
         min($painel['mes']['de'], $painel['semana']['de']),
-        $painel['semana']['ate']
+        $painel['semana']['ate'],
+        $pdv_id
     );
     $vendidos = vendas_produtos_dobrar($cru) + [
         'semana' => vendas_produtos_juntar($cru, $painel['semana']['de'], $painel['semana']['ate']),
@@ -173,8 +177,9 @@ function rota_inicio(array $u): void
     // dia a dia custaria uma consulta por dia para mover a contribuicao na
     // terceira casa.
     $janela = [
-        'de'  => min($painel['mes']['de'], $painel['semana']['de']),
-        'ate' => $painel['semana']['ate'],
+        'de'     => min($painel['mes']['de'], $painel['semana']['de']),
+        'ate'    => $painel['semana']['ate'],
+        'pdv_id' => $pdv_id,
     ];
     $params         = custos_parametros();
     $por_pdv_forma  = vendas_por_pdv_forma($janela);
@@ -188,11 +193,34 @@ function rota_inicio(array $u): void
         );
     }
 
-    ver('inicio', compact('painel', 'vendidos', 'pct_variavel'), 'Inicio');
+    ver('inicio', compact('painel', 'vendidos', 'pct_variavel', 'pdvs', 'pdv_id'), 'Inicio');
 }
 
 /**
- * As transacoes de hoje, sem filtro nenhum.
+ * O PDV que a capa esta mostrando: 0 e todos.
+ *
+ * Fica na sessao, e nao so na URL como no dashboard: quem cuida de um
+ * mercadinho so abre o app querendo ver aquele, e voltar ao Inicio pela barra
+ * de baixo (que leva para "/", sem parametro) nao pode jogar de volta para a
+ * soma de todos. Escolher "todos" no filtro limpa.
+ *
+ * PDV que saiu da lista (desligado, sem venda) volta para todos: guardado na
+ * sessao, ele deixaria a capa zerada sem o filtro mostrar por que.
+ */
+function inicio_pdv_escolhido(array $pdvs): int
+{
+    if (isset($_GET['pdv_id'])) {
+        $_SESSION['inicio_pdv'] = (int) $_GET['pdv_id'];
+    }
+    $id = (int) ($_SESSION['inicio_pdv'] ?? 0);
+    if ($id > 0 && !in_array($id, array_map('intval', array_column($pdvs, 'id')), true)) {
+        $id = $_SESSION['inicio_pdv'] = 0;
+    }
+    return $id;
+}
+
+/**
+ * As transacoes de hoje, do mesmo PDV que a capa estiver mostrando.
  *
  * Hoje e so hoje: esta tela e o "Ver detalhes" do cartao da capa, que fala do
  * dia — abrir trinta dias aqui responderia outra pergunta e faria o total da
@@ -207,12 +235,26 @@ function rota_transacoes(array $u): void
     $hoje = date('Y-m-d');
     $f = ['de' => $hoje, 'ate' => $hoje];
 
+    // O cartao da capa pode estar mostrando um PDV so: a lista tem que ser a
+    // do numero de onde se clicou.
+    $pdvs   = vendas_pdvs();
+    $pdv_id = inicio_pdv_escolhido($pdvs);
+    $pdv_nome = '';
+    if ($pdv_id > 0) {
+        $f['pdv_id'] = $pdv_id;
+        foreach ($pdvs as $p) {
+            if ((int) $p['id'] === $pdv_id) {
+                $pdv_nome = (string) $p['nome'];
+            }
+        }
+    }
+
     $pag    = vendas_paginacao(vendas_transacoes_contar($f), (int) ($_GET['p'] ?? 1));
     $linhas = vendas_transacoes($f, $pag);
     $itens  = vendas_itens_das(array_column($linhas, 'id'));
     $formas = vendas_formas_rotulos();
 
-    ver('transacoes', compact('linhas', 'itens', 'pag', 'f', 'formas'), 'Transações');
+    ver('transacoes', compact('linhas', 'itens', 'pag', 'f', 'formas', 'pdv_nome'), 'Transações');
 }
 
 function rota_notas(array $u): void

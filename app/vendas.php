@@ -656,8 +656,9 @@ function vendas_semana(string $dia): array
  * desligado e brigaria com o resto das telas.
  *
  * @param string|null $hoje injetavel para teste; padrao e a data de hoje
+ * @param int $pdv_id so aquele ponto de venda; 0 e todos
  */
-function vendas_painel(?string $hoje = null): array
+function vendas_painel(?string $hoje = null, int $pdv_id = 0): array
 {
     $hoje = $hoje ?: date('Y-m-d');
     [$sem_de, $sem_ate] = vendas_semana($hoje);
@@ -669,7 +670,7 @@ function vendas_painel(?string $hoje = null): array
     // cair no mes passado) ate o fim da semana. Dela saem os tres numeros do
     // cartao: hoje e uma linha, a semana e uma fatia e o mes e outra.
     $de = min($mes_de, $sem_de);
-    [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $sem_ate]);
+    [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $sem_ate, 'pdv_id' => $pdv_id]);
     $linhas = q(
         'SELECT DATE(v.data_hora) AS dia, COUNT(*) AS n,
                 COALESCE(SUM(v.valor_pago), 0) AS total
@@ -738,9 +739,9 @@ function vendas_painel(?string $hoje = null): array
  * Agrupa pela mesma chave do relatorio (EAN, senao codigo interno, senao a
  * descricao): o mesmo refrigerante vendido em tres compras e uma linha so.
  */
-function vendas_produtos_por_dia(string $de, string $ate): array
+function vendas_produtos_por_dia(string $de, string $ate, int $pdv_id = 0): array
 {
-    [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $ate]);
+    [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $ate, 'pdv_id' => $pdv_id]);
 
     return q(
         'SELECT DATE(v.data_hora) AS dia,

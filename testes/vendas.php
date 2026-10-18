@@ -151,6 +151,9 @@ checar('datas viram inicio e fim do dia',
     [$args2[1], $args2[2]], ['2026-09-01 00:00:00', '2026-09-06 23:59:59']);
 checar('pdv e forma entram como parametro', [$args2[3], $args2[4]], [3, 'Pix']);
 checar('nada do filtro vai concatenado no SQL', strpos($onde2, '2026-09-01'), false);
+// A capa manda pdv_id = 0 quando o filtro esta em "todos": tem que ser igual
+// a nao filtrar, e nao "v.pdv_id = 0", que zeraria o cartao.
+checar('pdv 0 e todos os PDVs', vendas_filtro_sql(['pdv_id' => 0]), vendas_filtro_sql([]));
 
 // A transacao e no bolo, entao a categoria filtra pela compra que levou algo
 // dela — um EXISTS contra os itens, nao um join que multiplicaria a linha.

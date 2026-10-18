@@ -15,6 +15,7 @@
  * @var array $pag    a paginação já calculada
  * @var array $f      o dia mostrado (de = ate = hoje)
  * @var array $formas forma bruta => nome de gente
+ * @var string $pdv_nome o PDV escolhido na capa; vazio e todos
  */
 ?>
 <h1 class="titulo-icone">
@@ -26,7 +27,9 @@
     </svg>
     Transações de hoje
 </h1>
-<p class="meta">As compras dos seus pontos de venda hoje.</p>
+<p class="meta"><?= $pdv_nome !== ''
+    ? 'As compras de ' . e($pdv_nome) . ' hoje. <a href="/?pdv_id=0">Ver todos os PDVs</a>'
+    : 'As compras dos seus pontos de venda hoje.' ?></p>
 
 <p class="faixa-periodo"><span><?= data_fmt($f['de']) ?></span></p>
 
