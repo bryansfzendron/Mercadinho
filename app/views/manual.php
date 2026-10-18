@@ -64,11 +64,6 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
     <div id="itens"></div>
     <button type="button" id="add" class="botao botao-alt">+ Adicionar item</button>
 
-    <div class="camera-caixa oculto" id="camera-caixa">
-        <video id="video" muted playsinline></video>
-        <div class="mira mira-larga"></div>
-    </div>
-
     <p class="total-previa" id="previa">Total: R$ 0,00</p>
     <button type="submit" class="botao botao-grande">Salvar nota</button>
 </form>
@@ -79,12 +74,11 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
 (function () {
     const itens   = document.getElementById('itens');
     const previa  = document.getElementById('previa');
-    const caixa   = document.getElementById('camera-caixa');
-    const video   = document.getElementById('video');
     const eanInicial = <?= json_encode($ean_inicial) ?>;
     let n = 0;
     let leitor = null;
     let alvoEan = null;
+    let camera = null;
 
     function novaLinha(ean) {
         const i = n++;
@@ -112,7 +106,13 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
             '</div>' +
             '<button type="button" class="remover">remover item</button>';
 
-        div.querySelector('.remover').addEventListener('click', () => { div.remove(); recalcular(); });
+        div.querySelector('.remover').addEventListener('click', () => {
+            // A camera pode estar dentro desta linha: sem fechar, ela sairia
+            // junto do DOM com o LED aceso.
+            if (camera && div.contains(camera)) fecharCamera();
+            div.remove();
+            recalcular();
+        });
         div.querySelector('.bipar').addEventListener('click', () => ligarCamera(div.querySelector('.campo-ean')));
         div.querySelectorAll('.qtd, .vu').forEach(c => c.addEventListener('input', recalcular));
         procurarNome(div);
@@ -217,10 +217,26 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
     const OCIOSO_MS = 45000;
     let ocioso = null;
 
+    /*
+     * A caixa da camera mora dentro da linha que esta sendo bipada, como na
+     * tela da nota (nota_detalhe.php). Fixa no fim do formulario ela ficava
+     * abaixo do "+ Adicionar item", fora da tela de quem tocou no "Bipar" da
+     * primeira linha. E o video so aparece com .ligada: o CSS da camera nasce
+     * com opacidade zero para nao piscar preto enquanto o stream sobe.
+     */
+    function caixaCamera() {
+        if (camera) return camera;
+        camera = document.createElement('div');
+        camera.className = 'camera-caixa larga';
+        camera.innerHTML = '<video playsinline muted></video><div class="mira mira-larga"><b></b><i></i></div>';
+        return camera;
+    }
+
     function fecharCamera(opcoes) {
         const guardar = opcoes && opcoes.guardar;
         if (leitor) { leitor.parar({ liberar: !guardar }); leitor = null; }
-        caixa.classList.add('oculto');
+        if (camera) { camera.classList.remove('ligada'); camera.remove(); }
+        alvoEan = null;
         clearTimeout(ocioso);
         if (guardar) {
             ocioso = setTimeout(() => Scanner.liberar(), OCIOSO_MS);
@@ -228,16 +244,25 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
     }
 
     async function ligarCamera(campo) {
-        alvoEan = campo;
-        caixa.classList.remove('oculto');
+        // Tocar de novo no "Bipar" da mesma linha e desligar de proposito.
+        if (alvoEan === campo) { fecharCamera(); return; }
+
+        fecharCamera({ guardar: true });
+        // O fecharCamera() acima arma o ocioso; a camera vai reabrir agora.
         clearTimeout(ocioso);
-        if (leitor) return;
+        alvoEan = campo;
+        const cx = caixaCamera();
+        campo.closest('.duas').after(cx);
+        cx.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
         try {
-            leitor = await Scanner.iniciar(video, Scanner.BARRAS, (codigo) => {
-                if (alvoEan) { alvoEan.value = codigo; avisarCodigo(alvoEan); }
+            leitor = await Scanner.iniciar(cx.querySelector('video'), Scanner.BARRAS, (codigo) => {
+                campo.value = codigo;
+                avisarCodigo(campo);
                 if (navigator.vibrate) navigator.vibrate(60);
                 fecharCamera({ guardar: true });
             });
+            cx.classList.add('ligada');
         } catch (e) {
             fecharCamera();
             alert(e.message || 'Não consegui abrir a câmera.');

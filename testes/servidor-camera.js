@@ -39,6 +39,10 @@ http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         return res.end(vista('bipar.php'));
     }
+    if (url === '/manual') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        return res.end(vista('manual.php').replace('const eanInicial = teste;', "const eanInicial = '';"));
+    }
     // Tela da loja: HTML pre-renderizado pelo renderiza-loja.php (sem MySQL).
     if (url === '/notas') {
         const arq = path.join(__dirname, 'telas', 'notas-render.html');

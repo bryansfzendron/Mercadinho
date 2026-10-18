@@ -223,6 +223,39 @@ async function abrir(navegador, rota, opcoes = {}) {
         await ctx.close();
     }
 
+    // ---- 3d. /manual: o "Bipar" de cada linha abre a camera ali ----
+    {
+        const { ctx, pag, erros } = await abrir(navegador, '/manual');
+        await pag.locator('.item-linha .bipar').first().click();
+        await pag.waitForSelector('.camera-caixa.ligada', { timeout: 8000 }).catch(() => {});
+        checar('manual: bipar liga a camera',
+            await pag.locator('.camera-caixa').count() === 1
+            && await pag.locator('.camera-caixa').evaluate(el => el.classList.contains('ligada')));
+        checar('manual: camera dentro da linha',
+            await pag.locator('.item-linha .camera-caixa').count() === 1);
+        checar('manual: video tocando',
+            await pag.locator('.camera-caixa video').evaluate(
+                v => !!v.srcObject && v.readyState >= 2 && !v.paused && getComputedStyle(v).opacity === '1'));
+
+        // Segunda linha: a camera muda de lugar e reaproveita o stream.
+        await pag.locator('#add').click();
+        await pag.locator('.item-linha .bipar').nth(1).click();
+        await pag.waitForSelector('.item-linha:nth-child(2) .camera-caixa.ligada', { timeout: 8000 }).catch(() => {});
+        checar('manual: camera vai para a linha 2',
+            await pag.locator('.item-linha').nth(1).locator('.camera-caixa.ligada').count() === 1);
+        const chamadas = await pag.evaluate(() => window.__gum);
+        checar('manual: getUserMedia chamado 1 vez', chamadas === 1, 'chamadas=' + chamadas);
+
+        await pag.screenshot({ path: require('path').join(__dirname, 'telas', 'tela-manual.png') });
+
+        // Tocar de novo no mesmo "Bipar" desliga.
+        await pag.locator('.item-linha .bipar').nth(1).click();
+        checar('manual: segundo toque desliga', await pag.locator('.camera-caixa').count() === 0);
+
+        checar('manual: sem erro no console', erros.length === 0, erros.join(' | '));
+        await ctx.close();
+    }
+
     // ---- 3b. teclado: so sobe se o dedo pediu ----
     {
         const { ctx, pag, erros } = await abrir(navegador, '/bipar');

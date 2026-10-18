@@ -190,7 +190,7 @@ O HTML sintético do teste imita a estrutura real, conferida contra a nota 28048
 
 ### Testando a câmera sem servidor
 
-As telas `/escanear` e `/bipar` rodam fora do PHP e do MySQL: `testes/servidor-camera.js`
+As telas `/escanear`, `/bipar` e `/manual` rodam fora do PHP e do MySQL: `testes/servidor-camera.js`
 serve as views com as tags PHP trocadas por valores fixos, e `testes/camera.js` abre tudo
 num Chromium com **câmera falsa**. Ele confere que a câmera abre sozinha quando a permissão
 já está dada, que `getUserMedia` é chamado **uma única vez** (é o que evita o navegador
