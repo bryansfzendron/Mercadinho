@@ -37,8 +37,14 @@ $s = $painel['semana'];
 $longos  = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 $artigos = ['no', 'na', 'na', 'na', 'na', 'na', 'no'];
 
-/** Uma lista de produtos vendidos, ou o aviso de que nao houve nenhum. */
-$lista_vendidos = static function (array $produtos, string $vazio): string {
+/**
+ * Uma lista de produtos vendidos, ou o aviso de que nao houve nenhum.
+ *
+ * Cada produto abre e mostra em quais mercadinhos saiu naquele dia (ou na
+ * semana, ou no mes) — o miolo vem de /vendas/produto ao abrir, com o mesmo
+ * periodo e o mesmo PDV da lista, e a ficha do produto fica la dentro.
+ */
+$lista_vendidos = static function (array $produtos, string $vazio, string $de, string $ate) use ($pdv_id): string {
     if (!$produtos) {
         return '<p class="vazio">' . e($vazio) . '</p>';
     }
@@ -78,9 +84,13 @@ $lista_vendidos = static function (array $produtos, string $vazio): string {
                     . '</div>';
         }
 
-        $html .= '<li>' . ((int) $p['produto_id'] > 0
-            ? '<a href="/produtos/' . (int) $p['produto_id'] . '">' . $linha . '</a>'
-            : '<div class="linha-cartao">' . $linha . '</div>') . '</li>';
+        $detalhe = '/vendas/produto?' . http_build_query([
+            'grupo' => (string) $p['grupo'], 'de' => $de, 'ate' => $ate, 'pdv_id' => $pdv_id ?: null,
+        ]);
+        $html .= '<li><details class="compra" data-detalhe="' . e($detalhe) . '">'
+               . '<summary>' . $linha . '</summary>'
+               . '<div data-detalhe-corpo><p class="ajuda">Carregando…</p></div>'
+               . '</details></li>';
     }
     return $html . '</ul>';
 };
@@ -200,17 +210,17 @@ $lista_vendidos = static function (array $produtos, string $vazio): string {
         ?>
         <section data-lista="<?= e($b['data']) ?>" <?= $b['hoje'] ? '' : 'hidden' ?>>
             <h2><?= e($titulo) ?></h2>
-            <?= $lista_vendidos($vendidos[$b['data']] ?? [], $vazio) ?>
+            <?= $lista_vendidos($vendidos[$b['data']] ?? [], $vazio, $b['data'], $b['data']) ?>
         </section>
     <?php endforeach; ?>
 
     <section data-lista="semana" hidden>
         <h2>Vendidos na semana</h2>
-        <?= $lista_vendidos($vendidos['semana'] ?? [], 'Nenhum produto vendido nesta semana.') ?>
+        <?= $lista_vendidos($vendidos['semana'] ?? [], 'Nenhum produto vendido nesta semana.', $s['de'], $s['ate']) ?>
     </section>
 
     <section data-lista="mes" hidden>
         <h2>Vendidos no mês</h2>
-        <?= $lista_vendidos($vendidos['mes'] ?? [], 'Nenhum produto vendido neste mês.') ?>
+        <?= $lista_vendidos($vendidos['mes'] ?? [], 'Nenhum produto vendido neste mês.', $m['de'], $m['ate']) ?>
     </section>
 </div>

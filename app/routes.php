@@ -47,6 +47,7 @@ function despachar(string $rota): void
     if ($rota === '/margens')   { rota_margens($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }
     if ($rota === '/vendas/transacoes') { rota_vendas_transacoes($u); return; }
+    if ($rota === '/vendas/produto') { rota_vendas_produto($u); return; }
     if ($rota === '/metas')     { rota_metas($u); return; }
     if ($rota === '/config' || str_starts_with($rota, '/config/')) { rota_config($u, $m); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
@@ -1369,6 +1370,30 @@ function rota_vendas(array $u): void
     $categorias = vendas_categorias();
 
     ver('vendas_relatorio', compact('r', 'f', 'pdvs', 'formas', 'categorias'), 'Vendas');
+}
+
+/**
+ * O pedaco que abre ao tocar num produto vendido (capa e tela de vendas):
+ * em quais PDVs ele saiu e, com dias=1, em quais dias. Volta so o HTML do
+ * miolo, sem layout — quem pede e o produto-vendido.js, que o encaixa
+ * dentro da linha tocada.
+ */
+function rota_vendas_produto(array $u): void
+{
+    $grupo = (string) ($_GET['grupo'] ?? '');
+    $f = [
+        'de'     => data_iso($_GET['de'] ?? null),
+        'ate'    => data_iso($_GET['ate'] ?? null),
+        'pdv_id' => (int) ($_GET['pdv_id'] ?? 0),
+        'forma'  => (string) ($_GET['forma'] ?? ''),
+    ];
+    $d = $grupo !== '' ? vendas_produto_onde_dobrar(vendas_produto_onde($grupo, $f)) : null;
+    $com_dias = !empty($_GET['dias']);
+
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+    require APP . '/views/_produto_vendido.php';
+    exit;
 }
 
 /** Dashboard de vendas: KPIs principais + cards visuais. */

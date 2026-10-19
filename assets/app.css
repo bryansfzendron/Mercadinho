@@ -815,6 +815,16 @@ html, body { overscroll-behavior-y: none; }   /* sem o "elastico" do iOS competi
 .item-qtd { color: var(--suave); font-size: .8rem; margin-left: .2rem; }
 .item-valor { white-space: nowrap; color: var(--suave); }
 
+/* Produto vendido aberto (capa e tela de vendas): em quais PDVs e dias saiu.
+   Reusa a sanfona e a lista de itens da compra; so falta o titulo de cada
+   bloco e a margem do texto solto. */
+.vendido-titulo {
+    margin: .35rem .85rem .15rem; font-size: .72rem; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase; color: var(--suave);
+}
+[data-detalhe-corpo] > .ajuda { margin: .35rem .85rem .7rem; }
+[data-detalhe-corpo] .ajuda a { display: inline; padding: 0; background: none; }
+
 .paginacao {
     display: flex; align-items: center; justify-content: space-between;
     gap: .6rem; margin: 1rem 0;

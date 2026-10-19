@@ -894,6 +894,83 @@ function vendas_produtos_custear(array $lista, array $custos,
     return $lista;
 }
 
+/**
+ * Onde e quando um produto saiu: uma linha por (dia, PDV) do periodo.
+ *
+ * E o que abre ao tocar num produto da capa ou da tela de vendas. O produto e
+ * o mesmo grupo das duas listas (EAN, senao codigo, senao descricao), e os
+ * filtros sao os mesmos da tela de onde veio — o detalhe tem que somar
+ * exatamente o numero da linha que a pessoa tocou.
+ */
+function vendas_produto_onde(string $grupo, array $f): array
+{
+    [$onde, $args] = vendas_filtro_sql($f);
+    $args[] = $grupo;
+
+    return q(
+        "SELECT DATE(v.data_hora) AS dia,
+                COALESCE(v.pdv_id, 0) AS pdv_id,
+                COALESCE(MIN(p.nome), 'sem PDV') AS pdv,
+                MAX(vi.produto_id) AS produto_id,
+                MIN(vi.descricao) AS descricao,
+                SUM(vi.quantidade) AS quantidade,
+                SUM(vi.valor_total) AS total,
+                COUNT(DISTINCT v.id) AS vendas
+           FROM venda_itens vi
+           JOIN vendas v ON v.id = vi.venda_id
+      LEFT JOIN loja_pdvs p ON p.id = v.pdv_id
+          WHERE " . $onde . ' AND COALESCE(vi.ean, vi.codigo, vi.descricao) = ?
+       GROUP BY dia, v.pdv_id
+       ORDER BY dia DESC, total DESC
+          LIMIT 5000',
+        $args
+    );
+}
+
+/**
+ * Dobra as linhas de vendas_produto_onde() no que a tela mostra: o total por
+ * PDV (quem vendeu mais primeiro) e os dias, do mais novo para o mais antigo.
+ * Funcao pura.
+ */
+function vendas_produto_onde_dobrar(array $linhas): array
+{
+    $pdvs = [];
+    $produto_id = 0;
+    $descricao = '';
+    foreach ($linhas as $l) {
+        $id = (int) $l['pdv_id'];
+        if (!isset($pdvs[$id])) {
+            $pdvs[$id] = ['pdv_id' => $id, 'pdv' => (string) $l['pdv'],
+                          'quantidade' => 0.0, 'total' => 0.0, 'vendas' => 0, 'dias' => 0];
+        }
+        $pdvs[$id]['quantidade'] += (float) $l['quantidade'];
+        $pdvs[$id]['total']      += (float) $l['total'];
+        $pdvs[$id]['vendas']     += (int) $l['vendas'];
+        $pdvs[$id]['dias']++;
+        if ((int) $l['produto_id'] > 0) {
+            $produto_id = (int) $l['produto_id'];
+        }
+        if ($descricao === '') {
+            $descricao = (string) $l['descricao'];
+        }
+    }
+    usort($pdvs, static fn (array $a, array $b): int =>
+        $b['quantidade'] <=> $a['quantidade'] ?: $b['total'] <=> $a['total']);
+
+    $dias = array_values($linhas);
+    usort($dias, static fn (array $a, array $b): int =>
+        strcmp((string) $b['dia'], (string) $a['dia']) ?: (float) $b['total'] <=> (float) $a['total']);
+
+    return [
+        'pdvs'       => $pdvs,
+        'dias'       => $dias,
+        'quantidade' => array_sum(array_column($pdvs, 'quantidade')),
+        'total'      => array_sum(array_column($pdvs, 'total')),
+        'produto_id' => $produto_id,
+        'descricao'  => $descricao,
+    ];
+}
+
 // ---------------------------------------------------------------------
 // Relatorio
 // ---------------------------------------------------------------------

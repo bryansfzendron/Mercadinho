@@ -258,6 +258,25 @@ $so_sexta = vendas_produtos_juntar($cru, '2026-09-18', '2026-09-18');
 checar('dia fora da janela nao entra na soma', $linha_de($so_sexta, '790')['quantidade'], 2.0);
 checar('janela vazia devolve lista vazia', vendas_produtos_juntar($cru, '2026-08-01', '2026-08-31'), []);
 
+// ------------------------- onde e quando um produto saiu (ao tocar nele)
+$onde = vendas_produto_onde_dobrar([
+    ['dia' => '2026-10-16', 'pdv_id' => 5, 'pdv' => 'MIRANTE',  'produto_id' => 0,  'descricao' => 'KIT KAT',
+     'quantidade' => 1, 'total' => 2.00, 'vendas' => 1],
+    ['dia' => '2026-10-17', 'pdv_id' => 3, 'pdv' => 'ITALIA',   'produto_id' => 8,  'descricao' => 'KIT KAT',
+     'quantidade' => 2, 'total' => 4.00, 'vendas' => 2],
+    ['dia' => '2026-10-17', 'pdv_id' => 5, 'pdv' => 'MIRANTE',  'produto_id' => 8,  'descricao' => 'KIT KAT',
+     'quantidade' => 3, 'total' => 6.00, 'vendas' => 2],
+]);
+checar('um total por PDV, quem vendeu mais primeiro', array_column($onde['pdvs'], 'pdv'), ['MIRANTE', 'ITALIA']);
+checar('o PDV soma os seus dias', $onde['pdvs'][0]['quantidade'], 4.0);
+checar('o PDV conta em quantos dias vendeu', $onde['pdvs'][0]['dias'], 2);
+checar('os dias vem do mais novo para o mais antigo', array_column($onde['dias'], 'dia'),
+    ['2026-10-17', '2026-10-17', '2026-10-16']);
+checar('no mesmo dia, quem faturou mais primeiro', $onde['dias'][0]['pdv'], 'MIRANTE');
+checar('o total bate com a soma dos PDVs', $onde['quantidade'], 6.0);
+checar('o produto leva o id que existe, mesmo vindo zero no primeiro dia', $onde['produto_id'], 8);
+checar('sem venda nao ha PDV nem dia', vendas_produto_onde_dobrar([])['pdvs'], []);
+
 // --------------------------- custo e contribuicao na lista da capa
 // A capa passou a mostrar o mesmo que a aba de vendas: quanto custou e o
 // que sobrou. A conta nao e refeita aqui — vendas_produtos_custear() traduz

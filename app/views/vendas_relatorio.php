@@ -130,14 +130,28 @@ window.SYNC_JANELA = <?= json_encode(['de' => $f['de'], 'ate' => $f['ate']]) ?>;
     Contribuição = o que sobra depois da mercadoria e dos
     <?= number_format($r['pct_variavel'], 2, ',', '.') ?>% que acompanham o faturamento
     (maquininha, condomínio, franquia e imposto). Custo fixo fica fora — ele não se divide por produto.
+    <?php if ($r['agrupar'] === 'produto'): ?>
+        Toque num produto para ver em quais dias e pontos de venda ele saiu.
+    <?php endif; ?>
 </p>
 
+<?php
+// Por produto, cada linha abre com os dias e os PDVs dela, no mesmo periodo,
+// PDV e pagamento do filtro — o miolo vem de /vendas/produto ao abrir.
+$abre = $r['agrupar'] === 'produto';
+$filtro_detalhe = array_filter([
+    'de' => $f['de'], 'ate' => $f['ate'], 'pdv_id' => (int) $f['pdv_id'] ?: null,
+    'forma' => $f['forma'] !== '' ? $f['forma'] : null, 'dias' => 1,
+], static fn ($v): bool => $v !== null);
+?>
 <?php if (!$r['linhas']): ?>
     <p class="vazio">Nenhuma venda no período. Importe as vendas na tela inicial.</p>
 <?php else: ?>
     <ul class="lista">
         <?php foreach ($r['linhas'] as $l): ?>
-            <li><div class="linha-cartao">
+            <li><?php if ($abre): ?><details class="compra"
+                    data-detalhe="/vendas/produto?<?= e(http_build_query(['grupo' => (string) $l['grupo']] + $filtro_detalhe)) ?>">
+                <summary><?php else: ?><div class="linha-cartao"><?php endif; ?>
                 <div class="linha-topo">
                     <span class="forte"><?= e($l['descricao'] !== '' ? $l['descricao'] : $l['grupo']) ?></span>
                     <span class="valor"><?= moeda($l['receita']) ?></span>
@@ -155,7 +169,10 @@ window.SYNC_JANELA = <?= json_encode(['de' => $f['de'], 'ate' => $f['ate']]) ?>;
                         <?php endif; ?>
                     </span>
                 </div>
-            </div></li>
+            <?php if ($abre): ?>
+                </summary>
+                <div data-detalhe-corpo><p class="ajuda">Carregando…</p></div>
+            </details><?php else: ?></div><?php endif; ?></li>
         <?php endforeach; ?>
     </ul>
 <?php endif; ?>

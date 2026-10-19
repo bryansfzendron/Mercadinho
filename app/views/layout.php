@@ -20,7 +20,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=51">
+<link rel="stylesheet" href="/assets/app.css?v=52">
 </head>
 <body>
 
@@ -116,6 +116,7 @@ $flashes = flash_pegar();
 <script src="/assets/resposta.js?v=1" defer></script>
 <script src="/assets/sem-teclado.js?v=2" defer></script>
 <script src="/assets/movimento.js?v=1" defer></script>
+<script src="/assets/produto-vendido.js?v=1" defer></script>
 <?php // inicio.js so faz algo onde existe o cartao de vendas; nas outras telas sai fora. ?>
 <script src="/assets/inicio.js?v=3" defer></script>
 <script src="/assets/puxar-atualizar.js?v=6" defer></script>
