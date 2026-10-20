@@ -49,7 +49,6 @@ function despachar(string $rota): void
     if ($rota === '/vendas/transacoes') { rota_vendas_transacoes($u); return; }
     if ($rota === '/vendas/produto') { rota_vendas_produto($u); return; }
     if ($rota === '/metas')     { rota_metas($u); return; }
-    if ($rota === '/config/conferir') { rota_config_conferir($u); return; }
     if ($rota === '/config' || str_starts_with($rota, '/config/')) { rota_config($u, $m); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
     if ($rota === '/importar')  { rota_importar($u, $m); return; }
@@ -1646,47 +1645,6 @@ function rota_config(array $u, string $metodo): void
     $cron   = cron_formatar(q1('SELECT * FROM sync_estado WHERE fonte = ?', ['cron']));
 
     ver('config', compact('aba', 'p', 'pdvs', 'unificados', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'mudancas', 'metas_pdv', 'imposto'), 'Configuracoes');
-}
-
-/**
- * Confere um dia do Inicio contra o painel do TouchPay.
- *
- * Nasceu de "o TouchPay mostra mais transacoes do que o app": cada transacao
- * do dia cai num caso que diz por que ela esta (ou nao) no numero da capa.
- * So le dos dois lados. Para regravar o dia, o gesto de arrastar a tela para
- * baixo, com a janela deste dia — o mesmo da tela de Vendas, sem botao.
- */
-function rota_config_conferir(array $u): void
-{
-    $dia = data_iso($_GET['dia'] ?? null) ?? date('Y-m-d');
-
-    $c = null;
-    $erro = null;
-    if (!tp_configurado()) {
-        $erro = 'O TouchPay não está configurado (touchpay_email/touchpay_senha no config.php).';
-    } else {
-        try {
-            $c = vendas_conferir_dia($dia);
-        } catch (Throwable $e) {
-            $erro = 'O TouchPay não respondeu: ' . mb_substr($e->getMessage(), 0, 300);
-        }
-    }
-
-    // A capa pode estar mostrando um PDV so, e ai o numero dela e menor que o
-    // do painel por escolha, nao por falta de venda.
-    $pdv_capa = '';
-    $id_capa = (int) ($_SESSION['inicio_pdv'] ?? 0);
-    if ($id_capa > 0) {
-        foreach (vendas_pdvs() as $p) {
-            if ((int) $p['id'] === $id_capa) {
-                $pdv_capa = (string) $p['nome'];
-            }
-        }
-    }
-
-    $casos  = vendas_conferir_casos();
-    $formas = vendas_formas_rotulos();
-    ver('conferir', compact('dia', 'c', 'erro', 'casos', 'formas', 'pdv_capa'), 'Conferir vendas');
 }
 
 /**

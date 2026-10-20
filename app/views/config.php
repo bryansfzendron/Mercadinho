@@ -61,10 +61,6 @@
             corrigir um período mais antigo, use <a href="/vendas">Reconferir este período</a>
             na aba Vendas.
         </p>
-        <p class="ajuda">
-            O número do Início não bate com o painel do TouchPay?
-            <a href="/config/conferir">Conferir um dia transação por transação</a>.
-        </p>
     </div>
 
     <div class="cartao">
