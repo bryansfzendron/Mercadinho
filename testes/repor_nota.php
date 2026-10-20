@@ -136,5 +136,56 @@ $m = repor_nota_feitos_mapa([
 checar('mapa: item em dois PDVs', array_column($m[11], 'pdv'), ['MIRANTE', 'ITALIA']);
 checar('mapa: linha sem nota_item_id e ignorada', array_keys($m), [11]);
 
+// ---------- o lote segue a correcao feita na nota ----------
+$dados = ['codigo' => '17891234567895', 'descricao' => 'REFRI CX C/12', 'entrada' => 1.0,
+          'nota_qtd' => 1.0, 'nota_item_id' => 11];
+$caixa_aberta = ['produto_ean' => '7891234567898', 'ean_original' => '17891234567895',
+                 'quantidade' => 12.0, 'descricao_original' => 'REFRI LATA'];
+$s = repor_nota_linha_seguir($dados, '17891234567895', $caixa_aberta);
+checar('seguir: o codigo vira o da correcao', $s['codigo'], '7891234567898');
+checar('seguir: e vai para os dados tambem', $s['dados']['codigo'], '7891234567898');
+checar('seguir: a entrada sugerida acompanha a quantidade', $s['dados']['entrada'], 12.0);
+checar('seguir: a quantidade nova fica guardada', $s['dados']['nota_qtd'], 12.0);
+checar('seguir: a descricao e a do item agora', $s['descricao'], 'REFRI LATA');
+checar('seguir: o id do item continua', $s['dados']['nota_item_id'], 11);
+checar('seguir: avisa da troca de codigo', str_contains($s['dados']['corrigido'], '7891234567898'), true);
+
+// Entrada digitada na mao e da pessoa: so ganha aviso.
+$s = repor_nota_linha_seguir(['entrada' => 5.0, 'nota_qtd' => 1.0] + $dados, '17891234567895', $caixa_aberta);
+checar('seguir: entrada digitada nao muda', $s['dados']['entrada'], 5.0);
+checar('seguir: mas avisa para conferir', str_contains($s['dados']['corrigido'], 'confira a entrada'), true);
+
+// So o GTIN corrigido, mesma quantidade.
+$s = repor_nota_linha_seguir($dados, '17891234567895',
+    ['produto_ean' => '7890000000017', 'ean_original' => '17891234567895', 'quantidade' => 1.0]);
+checar('seguir: so o codigo', [$s['codigo'], $s['dados']['entrada']], ['7890000000017', 1.0]);
+
+// So a quantidade, mesmo codigo.
+$s = repor_nota_linha_seguir($dados, '17891234567895',
+    ['produto_ean' => '17891234567895', 'quantidade' => 6.0]);
+checar('seguir: so a quantidade', [$s['codigo'], $s['dados']['entrada']], ['17891234567895', 6.0]);
+
+// Nada mudou.
+checar('seguir: item igual nao mexe', repor_nota_linha_seguir($dados, '17891234567895',
+    ['produto_ean' => '17891234567895', 'quantidade' => 1.0]), null);
+// Quantidade fracionada nao vira entrada.
+$s = repor_nota_linha_seguir($dados, '17891234567895',
+    ['produto_ean' => '17891234567895', 'quantidade' => 2.5]);
+checar('seguir: fracionada mantem a entrada', $s['dados']['entrada'], 1.0);
+// Item que ficou sem GTIN: o codigo antigo continua.
+checar('seguir: sem GTIN nao apaga o codigo', repor_nota_linha_seguir($dados, '17891234567895',
+    ['produto_ean' => null, 'ean_original' => 'SEM GTIN', 'quantidade' => 1.0]), null);
+// Lote de antes desta versao (sem nota_qtd): troca o codigo e pede conferencia da entrada.
+$velho = $dados;
+unset($velho['nota_qtd']);
+$s = repor_nota_linha_seguir($velho, '17891234567895', $caixa_aberta);
+checar('seguir: lote antigo troca o codigo', $s['codigo'], '7891234567898');
+checar('seguir: lote antigo nao adivinha a entrada', $s['dados']['entrada'], 1.0);
+checar('seguir: lote antigo avisa', str_contains($s['dados']['corrigido'], 'Confira a entrada'), true);
+// O EAN do produto ganha do que a nota mandou, como no Repor da nota.
+checar('seguir: produto_ean manda', repor_nota_linha_seguir($dados, '17891234567895',
+    ['produto_ean' => '7891234567898', 'ean_original' => '17891234567895', 'quantidade' => 1.0])['codigo'],
+    '7891234567898');
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

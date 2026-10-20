@@ -527,8 +527,13 @@ function rota_repor_nota(array $u, int $id, string $m): void
                 $res = repor_ler_linhas($conv['linhas'], (int) $pdv['id'], $taxa, $pdvs);
                 $erros = $res['erros'];
                 if (!$erros) {
+                    // A quantidade da nota vai junto: se o item for corrigido
+                    // depois, a entrada sugerida acompanha (repor_nota_linha_seguir).
+                    $qtd_do_item = array_column($itens, 'qtd', 'id');
                     foreach ($res['itens'] as &$it) {
                         $it['nota_item_id'] = $conv['mapa'][$it['linha']] ?? null;
+                        $it['nota_qtd'] = $it['nota_item_id'] !== null
+                            ? ($qtd_do_item[$it['nota_item_id']] ?? null) : null;
                     }
                     unset($it);
                     $lote = repor_lote_criar((int) $u['id'], (int) $pdv['id'],

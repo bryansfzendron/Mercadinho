@@ -203,6 +203,69 @@ function repor_nota_feitos_mapa(array $rows): array
     return $mapa;
 }
 
+/**
+ * O que mudou num item da nota depois que o lote dele nasceu. Pura.
+ *
+ * O lote guarda o codigo e a entrada do momento em que foi criado. Corrigir o
+ * item na nota depois (o GTIN errado, a caixa aberta em unidades) nao chegava
+ * nele, e a conferencia seguia procurando o codigo antigo no planograma.
+ *
+ * A entrada so acompanha a quantidade quando ainda e a que a nota sugeriu:
+ * a que a pessoa digitou na mao e dela, e aqui so ganha um aviso.
+ *
+ * @param array  $dados  o JSON da linha do lote (entrada, nota_qtd)
+ * @param string $codigo o codigo gravado na linha
+ * @param array  $item   o item da nota agora: produto_ean, ean_original,
+ *                       quantidade, descricao_original
+ * @return ?array{codigo:string, descricao:string, dados:array} null quando nada mudou
+ */
+function repor_nota_linha_seguir(array $dados, string $codigo, array $item): ?array
+{
+    $ean = repor_nota_ean($item);
+    $qtd = (float) ($item['quantidade'] ?? 0);
+    $antes = isset($dados['nota_qtd']) ? (float) $dados['nota_qtd'] : null;
+
+    // Item que perdeu o GTIN na correcao nao tem com o que procurar: fica o
+    // codigo que a linha ja tinha.
+    $trocou_codigo = $ean !== '' && $ean !== $codigo;
+    $trocou_qtd = $antes !== null && $qtd > 0 && abs($qtd - $antes) > 0.0009;
+    if (!$trocou_codigo && !$trocou_qtd) {
+        return null;
+    }
+
+    $avisos = [];
+    if ($trocou_codigo) {
+        $avisos[] = 'Código trocado de ' . $codigo . ' para ' . $ean . ' pela correção na nota.';
+    }
+    $entrada = $dados['entrada'] ?? null;
+    if ($trocou_qtd) {
+        $sugerida = $entrada !== null && abs((float) $entrada - round($antes)) <= 0.0009;
+        $inteira  = abs($qtd - round($qtd)) <= 0.0009;
+        if ($sugerida && $inteira) {
+            $dados['entrada'] = round($qtd);
+            $avisos[] = 'Entrada ajustada para ' . qtd_fmt($qtd) . ', a quantidade nova da nota.';
+        } else {
+            $avisos[] = 'A quantidade na nota mudou para ' . qtd_fmt($qtd) . ': confira a entrada.';
+        }
+    } elseif ($antes === null && $entrada !== null) {
+        // Lote de antes desta correcao: nao da para saber se a entrada era a
+        // da nota ou digitada.
+        $avisos[] = 'Confira a entrada (' . qtd_fmt($entrada) . '): é a de antes da correção.';
+    }
+    if ($qtd > 0) {
+        $dados['nota_qtd'] = $qtd;
+    }
+
+    $codigo_novo = $trocou_codigo ? $ean : $codigo;
+    $descricao   = mb_substr(trim((string) ($item['descricao_original'] ?? '')), 0, 255)
+                   ?: (string) ($dados['descricao'] ?? '');
+    $dados['codigo']    = $codigo_novo;
+    $dados['descricao'] = $descricao;
+    $dados['corrigido'] = implode(' ', $avisos);
+
+    return ['codigo' => $codigo_novo, 'descricao' => $descricao, 'dados' => $dados];
+}
+
 // =====================================================================
 // Banco e TouchPay
 // =====================================================================
@@ -219,6 +282,52 @@ function repor_nota_feitos(int $nota_id, int $usuario_id): array
        ORDER BY l.atualizado_em',
         [$nota_id, $usuario_id, 'gravada']
     ));
+}
+
+/**
+ * Traz para a linha do lote a correcao feita no item da nota depois que o
+ * lote nasceu. Linha de planilha (sem item de nota), gravada ou no meio de
+ * uma gravacao fica como esta.
+ *
+ * Linha com marcador de gravacao tambem fica: uma tentativa pode ter somado
+ * a entrada no produto do codigo antigo, e trocar o codigo esconderia isso.
+ */
+function repor_linha_seguir_nota(array $l, int $usuario_id): array
+{
+    $item_id = (int) ($l['dados']['nota_item_id'] ?? 0);
+    if ($item_id <= 0 || in_array($l['status'], ['gravada', 'gravando'], true)
+        || isset($l['plano']['gravacao'])) {
+        return $l;
+    }
+    $item = q1(
+        'SELECT i.quantidade, i.descricao_original, i.ean_original, p.ean AS produto_ean
+           FROM itens i
+           JOIN notas n ON n.id = i.nota_id
+      LEFT JOIN produtos p ON p.id = i.produto_id
+          WHERE i.id = ? AND n.usuario_id = ?',
+        [$item_id, $usuario_id]
+    );
+    // Item removido da nota: a linha segue com o que tinha.
+    if (!$item) {
+        return $l;
+    }
+    $novo = repor_nota_linha_seguir($l['dados'], $l['codigo'], $item);
+    if ($novo === null) {
+        return $l;
+    }
+
+    // Volta a pendente e sem plano: o que foi conferido era de outro codigo.
+    exec_sql(
+        'UPDATE planograma_lote_linhas
+            SET codigo = ?, descricao = ?, dados = ?, status = ?, plano = NULL, mensagem = NULL
+          WHERE id = ? AND status NOT IN (?, ?)',
+        [$novo['codigo'], $novo['descricao'] !== '' ? $novo['descricao'] : null,
+         json_encode($novo['dados'], JSON_UNESCAPED_UNICODE), 'pendente', $l['id'], 'gravada', 'gravando']
+    );
+    return array_merge($l, [
+        'codigo' => $novo['codigo'], 'descricao' => $novo['descricao'], 'dados' => $novo['dados'],
+        'status' => 'pendente', 'plano' => null, 'mensagem' => '',
+    ]);
 }
 
 /**

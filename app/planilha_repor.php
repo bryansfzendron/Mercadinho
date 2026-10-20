@@ -531,7 +531,10 @@ function repor_linha_tela(array $l): array
         'mensagem'  => $l['mensagem'],
         'mudancas'  => $plano ? repor_mudancas_texto($plano['mudancas'] ?? []) : '',
         'pendencia' => $plano['pendencia'] ?? null,
-        'nota'      => $plano['nota'] ?? null,
+        // O aviso da correcao na nota vai junto do que a conferencia achou.
+        'nota'      => implode(' ', array_filter([
+            $l['dados']['corrigido'] ?? null, $plano['nota'] ?? null,
+        ])) ?: null,
     ];
 }
 
@@ -594,6 +597,8 @@ function repor_conferir_linha(int $lote_id, int $linha, int $usuario_id): ?array
     if (in_array($l['status'], ['gravada', 'gravando'], true)) {
         return repor_linha_tela($l);
     }
+    // O item pode ter sido corrigido na nota depois que o lote nasceu.
+    $l = repor_linha_seguir_nota($l, $usuario_id);
     try {
         $achado = planograma_procurar((int) $l['pdv_id'], $l['codigo']);
         $plano = repor_plano($achado, $l['dados']);
@@ -627,6 +632,12 @@ function repor_gravar_linha(array $u, int $lote_id, int $linha): ?array
     $l = repor_linha_carregar($lote_id, $linha, $usuario_id);
     if (!$l) {
         return null;
+    }
+
+    // Corrigido na nota depois da conferencia: o que a pessoa viu era de outro
+    // codigo. Confere de novo e devolve, sem gravar; o proximo clique grava.
+    if (repor_linha_seguir_nota($l, $usuario_id)['dados'] !== $l['dados']) {
+        return repor_conferir_linha($lote_id, $linha, $usuario_id);
     }
 
     $reservou = exec_sql(
