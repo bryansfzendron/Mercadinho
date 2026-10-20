@@ -972,6 +972,214 @@ function vendas_produto_onde_dobrar(array $linhas): array
 }
 
 // ---------------------------------------------------------------------
+// Conferencia contra o TouchPay
+// ---------------------------------------------------------------------
+
+/**
+ * Os casos da conferencia, na ordem em que a tela mostra: primeiro o que
+ * explica um numero menor no app, por ultimo o que bate.
+ */
+function vendas_conferir_casos(): array
+{
+    return [
+        'fora_do_banco'   => ['Nunca foi importada', 'O TouchPay tem, o banco não. É o sync que não trouxe.'],
+        'invalida'        => ['Veio sem id ou sem data', 'O sync joga fora: não tem como gravar.'],
+        'resultado'       => ['Resultado diferente de Ok', 'Gravada, mas o app só soma venda que valeu.'],
+        'pdv_desligado'   => ['Ponto de venda desligado', 'Gravada, mas o PDV está desligado na aba PDVs.'],
+        'outro_dia'       => ['Gravada em outro dia', 'A data do banco não é deste dia: fuso ou venda reconciliada.'],
+        'valor_diferente' => ['No Início com outro valor', 'Conta no Início, mas o valor pago no banco não é o de agora no TouchPay.'],
+        'na_tela'         => ['Bate', 'No TouchPay e no Início, com o mesmo valor.'],
+        'so_no_banco'     => ['Só no banco', 'Gravada neste dia, mas o TouchPay não devolveu agora.'],
+    ];
+}
+
+/**
+ * Cruza as transacoes de um dia no TouchPay com o que o banco tem. Funcao pura.
+ *
+ * Responde a pergunta "por que o Inicio mostra menos que o painel deles?":
+ * cada transacao do TouchPay cai num caso so, e o caso diz o motivo. As
+ * regras sao as mesmas de vendas_filtro_sql() — resultado Ok (ou vazio) e PDV
+ * ligado — mais as duas maneiras de a venda nem chegar la: o sync nao trazer,
+ * ou a data gravada cair em outro dia.
+ *
+ * @param array  $touchpay as transacoes ja passadas por vendas_venda_da_transacao()
+ * @param array  $banco    linhas de `vendas` com pdv_nome e pdv_ativo do loja_pdvs:
+ *                         as do dia e as de mesmo externo_id, de qualquer dia
+ * @param string $dia      'Y-m-d'
+ */
+function vendas_conferir(array $touchpay, array $banco, string $dia): array
+{
+    $casos = [];
+    foreach (array_keys(vendas_conferir_casos()) as $c) {
+        $casos[$c] = ['n' => 0, 'pago' => 0.0, 'total' => 0.0, 'linhas' => []];
+    }
+    $somar = static function (string $caso, array $linha) use (&$casos): void {
+        $casos[$caso]['n']++;
+        $casos[$caso]['pago']  += (float) $linha['valor_pago'];
+        $casos[$caso]['total'] += (float) $linha['valor_total'];
+        $casos[$caso]['linhas'][] = $linha;
+    };
+
+    $no_banco = [];
+    foreach ($banco as $b) {
+        $no_banco[(int) $b['externo_id']] = $b;
+    }
+
+    /** O mesmo corte do Inicio, linha a linha. */
+    $conta_no_inicio = static function (array $b): bool {
+        $resultado = $b['resultado'] ?? null;
+        $ok = $resultado === null || strcasecmp((string) $resultado, 'Ok') === 0;
+        $ligado = ($b['pdv_id'] ?? null) === null || (int) ($b['pdv_ativo'] ?? 0) === 1;
+        return $ok && $ligado;
+    };
+
+    $tp = ['n' => 0, 'pago' => 0.0, 'total' => 0.0, 'por_resultado' => [], 'por_pdv' => []];
+    $vistas = [];
+    $repetidas = 0;
+
+    foreach ($touchpay as $t) {
+        if (!is_array($t)) {
+            continue;
+        }
+        $id = (int) ($t['id'] ?? 0);
+        // A paginacao pode devolver a mesma transacao duas vezes se entrar
+        // venda nova no meio. O painel deles conta uma.
+        if ($id > 0 && isset($vistas[$id])) {
+            $repetidas++;
+            continue;
+        }
+        $vistas[$id] = true;
+
+        $n = venda_normalizar($t);
+        $linha = [
+            'externo_id'      => $id,
+            'data_hora'       => $n['venda']['data_hora'] ?? null,
+            'pdv'             => trim((string) ($t['pdv_nome'] ?? '')),
+            'resultado'       => $t['resultado'] ?? null,
+            'forma_pagamento' => $t['forma_pagamento'] ?? null,
+            'valor_pago'      => num_br($t['valor_pago'] ?? 0),
+            'valor_total'     => num_br($t['valor_total'] ?? 0),
+            'codigo'          => $t['codigo'] ?? null,
+            'banco'           => null,
+        ];
+
+        $tp['n']++;
+        $tp['pago']  += $linha['valor_pago'];
+        $tp['total'] += $linha['valor_total'];
+        $r = (string) ($linha['resultado'] ?? 'sem resultado');
+        $tp['por_resultado'][$r]['n']    = ($tp['por_resultado'][$r]['n'] ?? 0) + 1;
+        $tp['por_resultado'][$r]['pago'] = ($tp['por_resultado'][$r]['pago'] ?? 0.0) + $linha['valor_pago'];
+        $p = $linha['pdv'] !== '' ? $linha['pdv'] : 'sem PDV';
+        $tp['por_pdv'][$p]['n']    = ($tp['por_pdv'][$p]['n'] ?? 0) + 1;
+        $tp['por_pdv'][$p]['pago'] = ($tp['por_pdv'][$p]['pago'] ?? 0.0) + $linha['valor_pago'];
+
+        if ($n === null) {
+            $somar('invalida', $linha);
+            continue;
+        }
+
+        $b = $no_banco[$id] ?? null;
+        $linha['banco'] = $b;
+        if ($b === null) {
+            $somar('fora_do_banco', $linha);
+        } elseif (substr((string) $b['data_hora'], 0, 10) !== $dia) {
+            $somar('outro_dia', $linha);
+        } elseif (($b['pdv_id'] ?? null) !== null && (int) ($b['pdv_ativo'] ?? 0) !== 1) {
+            $somar('pdv_desligado', $linha);
+        } elseif (!$conta_no_inicio($b)) {
+            $somar('resultado', $linha);
+        } elseif (abs((float) $b['valor_pago'] - $linha['valor_pago']) >= 0.005) {
+            $somar('valor_diferente', $linha);
+        } else {
+            $somar('na_tela', $linha);
+        }
+    }
+
+    // O numero do Inicio sai do banco, nao do TouchPay: e a soma das linhas
+    // do dia que passam no corte, tenham ou nao voltado agora da API.
+    $inicio = ['n' => 0, 'pago' => 0.0];
+    foreach ($banco as $b) {
+        if (substr((string) $b['data_hora'], 0, 10) !== $dia) {
+            continue;
+        }
+        if ($conta_no_inicio($b)) {
+            $inicio['n']++;
+            $inicio['pago'] += (float) $b['valor_pago'];
+        }
+        if (!isset($vistas[(int) $b['externo_id']])) {
+            $somar('so_no_banco', [
+                'externo_id'      => (int) $b['externo_id'],
+                'data_hora'       => $b['data_hora'],
+                'pdv'             => (string) ($b['pdv_nome'] ?? 'sem PDV'),
+                'resultado'       => $b['resultado'] ?? null,
+                'forma_pagamento' => $b['forma_pagamento'] ?? null,
+                'valor_pago'      => (float) $b['valor_pago'],
+                'valor_total'     => (float) $b['valor_total'],
+                'codigo'          => $b['codigo'] ?? null,
+                'banco'           => $b,
+            ]);
+        }
+    }
+
+    $mais_primeiro = static fn (array $a, array $b): int => $b['n'] <=> $a['n'];
+    uasort($tp['por_resultado'], $mais_primeiro);
+    uasort($tp['por_pdv'], $mais_primeiro);
+
+    return ['dia' => $dia, 'touchpay' => $tp, 'inicio' => $inicio, 'casos' => $casos, 'repetidas' => $repetidas];
+}
+
+/**
+ * Busca no TouchPay as transacoes de um dia e no banco o que corresponde a
+ * elas, e devolve a conferencia. Leitura pura dos dois lados: nada e gravado.
+ *
+ * A URL e a mesma do sync (tp_transacoes_url), letra por letra — a conferencia
+ * tem de ver exatamente o que o sync ve.
+ */
+function vendas_conferir_dia(string $dia): array
+{
+    $touchpay = [];
+    $total = null;
+    for ($pagina = 1; $pagina <= 20; $pagina++) {
+        $pag = tp_transacoes_pagina($dia, $dia, $pagina, 1000);
+        $total = $pag['total'] ?? $total;
+        foreach ($pag['itens'] as $t) {
+            if (is_array($t)) {
+                $touchpay[] = vendas_venda_da_transacao($t);
+            }
+        }
+        if (!$pag['itens'] || ($total !== null ? count($touchpay) >= $total : count($pag['itens']) < 1000)) {
+            break;
+        }
+    }
+
+    $campos = 'SELECT v.externo_id, v.data_hora, v.resultado, v.pdv_id, v.forma_pagamento,
+                      v.valor_pago, v.valor_total, v.codigo, p.nome AS pdv_nome, p.ativo AS pdv_ativo
+                 FROM vendas v LEFT JOIN loja_pdvs p ON p.id = v.pdv_id
+                WHERE v.fonte = ? AND ';
+
+    $banco = [];
+    foreach (q($campos . 'v.data_hora BETWEEN ? AND ?', ['touchpay', $dia . ' 00:00:00', $dia . ' 23:59:59']) as $l) {
+        $banco[(int) $l['externo_id']] = $l;
+    }
+    // As que o TouchPay diz serem do dia mas o banco guardou em outro.
+    $faltam = [];
+    foreach ($touchpay as $t) {
+        $id = (int) ($t['id'] ?? 0);
+        if ($id > 0 && !isset($banco[$id])) {
+            $faltam[] = $id;
+        }
+    }
+    foreach (array_chunk(array_values(array_unique($faltam)), 500) as $parte) {
+        $marcas = implode(',', array_fill(0, count($parte), '?'));
+        foreach (q($campos . 'v.externo_id IN (' . $marcas . ')', array_merge(['touchpay'], $parte)) as $l) {
+            $banco[(int) $l['externo_id']] = $l;
+        }
+    }
+
+    return vendas_conferir($touchpay, array_values($banco), $dia) + ['total_api' => $total];
+}
+
+// ---------------------------------------------------------------------
 // Relatorio
 // ---------------------------------------------------------------------
 

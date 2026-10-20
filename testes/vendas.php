@@ -393,5 +393,76 @@ checar('sem nome, o PDV vira "PDV n"',
     vendas_venda_da_transacao(['pointOfSaleId' => 3])['pdv_nome'], 'PDV 3');
 checar('transacao sem itens nao quebra', vendas_venda_da_transacao(['id' => 1])['itens'], []);
 
+// ------------------------------------------------- conferencia contra o TouchPay
+// Uma transacao do TouchPay ja passada por vendas_venda_da_transacao().
+function tp_venda(int $id, array $extra = []): array
+{
+    return array_merge([
+        'id' => $id, 'data' => '2026-10-19T10:00:00-03:00', 'pdv_id' => 7, 'pdv_nome' => 'Italia',
+        'resultado' => 'Ok', 'forma_pagamento' => 'Pix', 'valor_total' => 10.0, 'valor_pago' => 10.0,
+        'codigo' => 'C' . $id, 'itens' => [],
+    ], $extra);
+}
+// Uma linha de `vendas` com o PDV junto, como vendas_conferir_dia() le.
+function banco(int $id, array $extra = []): array
+{
+    return array_merge([
+        'externo_id' => $id, 'data_hora' => '2026-10-19 10:00:00', 'resultado' => 'Ok', 'pdv_id' => 3,
+        'forma_pagamento' => 'Pix', 'valor_pago' => 10.0, 'valor_total' => 10.0, 'codigo' => 'C' . $id,
+        'pdv_nome' => 'Italia', 'pdv_ativo' => 1,
+    ], $extra);
+}
+function quase_conf(string $nome, float $obtido, float $esperado): void
+{
+    checar($nome, round($obtido, 2), round($esperado, 2));
+}
+
+$conf = vendas_conferir(
+    [
+        tp_venda(1),                                          // bate
+        tp_venda(2),                                          // nunca foi importada
+        tp_venda(3, ['resultado' => 'Denied']),               // gravada negada
+        tp_venda(4),                                          // PDV desligado
+        tp_venda(5, ['data' => '2026-10-19T22:30:00-03:00']), // banco guardou no dia seguinte
+        tp_venda(6, ['valor_pago' => 12.0]),                  // valor mudou depois do sync
+        tp_venda(7, ['data' => '']),                          // sem data: o sync joga fora
+        tp_venda(1),                                          // repetida na paginacao
+    ],
+    [
+        banco(1),
+        banco(3, ['resultado' => 'Denied']),
+        banco(4, ['pdv_ativo' => 0]),
+        banco(5, ['data_hora' => '2026-10-20 01:30:00']),
+        banco(6),
+        banco(8, ['valor_pago' => 4.0, 'valor_total' => 4.0]), // so no banco
+        banco(9, ['resultado' => 'ok']),                        // caixa diferente ainda vale
+    ],
+    '2026-10-19'
+);
+$ns = array_map(static fn (array $x): int => $x['n'], $conf['casos']);
+checar('conferir: bate', $ns['na_tela'], 1);
+checar('conferir: nunca importada', $ns['fora_do_banco'], 1);
+checar('conferir: resultado diferente de Ok', $ns['resultado'], 1);
+checar('conferir: PDV desligado', $ns['pdv_desligado'], 1);
+checar('conferir: gravada em outro dia', $ns['outro_dia'], 1);
+checar('conferir: valor diferente', $ns['valor_diferente'], 1);
+checar('conferir: sem data', $ns['invalida'], 1);
+checar('conferir: so no banco, inclusive o "ok" minusculo', $ns['so_no_banco'], 2);
+checar('conferir: repetida conta uma vez', $conf['repetidas'], 1);
+checar('conferir: TouchPay sem a repetida', $conf['touchpay']['n'], 7);
+quase_conf('conferir: valor do TouchPay', $conf['touchpay']['pago'], 72.0);
+// Inicio = 1, 6, 8 e 9: as do dia que passam no corte de vendas_filtro_sql().
+checar('conferir: quantas o Inicio soma', $conf['inicio']['n'], 4);
+quase_conf('conferir: quanto o Inicio soma', $conf['inicio']['pago'], 34.0);
+quase_conf('conferir: valor do que falta', $conf['casos']['fora_do_banco']['pago'], 10.0);
+checar('conferir: TouchPay por resultado', $conf['touchpay']['por_resultado']['Denied']['n'], 1);
+checar('conferir: PDV desligado ganha de resultado ruim',
+    vendas_conferir([tp_venda(1)], [banco(1, ['resultado' => 'Denied', 'pdv_ativo' => 0])], '2026-10-19')
+        ['casos']['pdv_desligado']['n'], 1);
+checar('conferir: venda sem PDV conta no Inicio',
+    vendas_conferir([tp_venda(1)], [banco(1, ['pdv_id' => null, 'pdv_ativo' => null])], '2026-10-19')
+        ['casos']['na_tela']['n'], 1);
+checar('conferir: lista vazia nao quebra', vendas_conferir([], [], '2026-10-19')['inicio']['n'], 0);
+
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);
