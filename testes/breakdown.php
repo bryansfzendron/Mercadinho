@@ -31,6 +31,7 @@ function vendas_relatorio(array $f): array
     return ['linhas' => $linhas];
 }
 
+require APP . '/custos.php';
 require APP . '/metas.php';
 
 $ok = 0; $falhou = 0;
@@ -173,6 +174,17 @@ checar('e o alvo dela e zero', metas_alvos(7, $empresa, $zerado)['faturamento'],
 
 // Empresa sem meta nenhuma nao quebra a tela.
 checar('empresa sem meta devolve zero', metas_alvos(0, [], $semNada)['faturamento'], 0.0);
+
+// ------------------------------------------------ PDV inaugurado no meio do mes
+$ab = metas_abertura('2026-09-16', '2026-09-20');
+quase('abriu dia 16 de 30: metade do mes', $ab['fracao'], 15 / 30);
+checar('15 dias no mes', $ab['no_mes'], 15);
+checar('5 dias corridos desde que abriu', $ab['corridos'], 5);
+quase('abriu antes: mes inteiro', metas_abertura('2026-08-01', '2026-09-20')['fracao'], 1.0);
+$b = metas_breakdown_diario(1500.0, 0.0, '2026-09-01', '2026-09-30', null, '2026-09-16');
+quase('antes de abrir nao ha meta do dia', $b['diario'][0]['meta_dia'], 0.0);
+quase('meta diaria so nos dias abertos', $b['resumo']['meta_diaria_base'], 100.0);
+quase('a linha reta fecha na meta proporcional', end($b['diario'])['acum_meta'], 1500.0);
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

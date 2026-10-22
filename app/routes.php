@@ -1499,7 +1499,17 @@ function rota_metas(array $u): void
     // escolhido vale a dele, e so a dele — comparar o faturamento de um
     // container com a meta do conjunto era medir contra um alvo que nunca foi
     // dele.
-    $alvos = metas_alvos($pdv_id, $p, metas_do_pdv($pdv_id), $pdv_id ? null : metas_de_todos_pdvs());
+    $alvos = metas_alvos($pdv_id, $p, metas_do_pdv($pdv_id), $pdv_id ? null : metas_de_todos_pdvs($ate));
+    // PDV aberto no meio do mes: a meta vale so dos dias em que ele existia.
+    $inaug = $pdv_id ? metas_inauguracao($pdv_id) : null;
+    if ($pdv_id) {
+        $ab = metas_abertura($inaug, $ate);
+        $alvos['faturamento'] *= $ab['fracao'];
+        $alvos['lucro']       *= $ab['fracao'];
+        if ($ab['no_mes'] > 0) {
+            [$dia, $no_mes] = [$ab['corridos'], $ab['no_mes']];
+        }
+    }
     $meta_propria = $alvos['propria'];
 
     $fat = meta_progresso($r['resultado']['receita'], $alvos['faturamento'], $dia, $no_mes)
@@ -1508,8 +1518,8 @@ function rota_metas(array $u): void
          + ['dia' => $dia, 'no_mes' => $no_mes];
 
     // Breakdown diario para faturamento e lucro
-    $breakdown_fat = metas_breakdown_diario($alvos['faturamento'], $r['resultado']['receita'], $de, $ate, $pdv_id ?: null);
-    $breakdown_luc = metas_breakdown_diario($alvos['lucro'], $r['resultado']['lucro'], $de, $ate, $pdv_id ?: null);
+    $breakdown_fat = metas_breakdown_diario($alvos['faturamento'], $r['resultado']['receita'], $de, $ate, $pdv_id ?: null, $inaug);
+    $breakdown_luc = metas_breakdown_diario($alvos['lucro'], $r['resultado']['lucro'], $de, $ate, $pdv_id ?: null, $inaug);
 
     $meses = [1 => 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
               'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];

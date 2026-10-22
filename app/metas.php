@@ -48,17 +48,43 @@ function metas_do_pdv(int $pdv_id): array
     return $proprias;
 }
 
-/** Metas de cada PDV ativo, para somar quando o filtro e "todos". */
-function metas_de_todos_pdvs(): array
+/** Inauguracao de um PDV (null = sem data, conta como aberto o mes todo). */
+function metas_inauguracao(int $pdv_id): ?string
+{
+    $l = q('SELECT inauguracao FROM loja_pdvs WHERE id = ?', [$pdv_id]);
+    return $l ? data_iso($l[0]['inauguracao']) : null;
+}
+
+/**
+ * Quanto do mes de `$ate` o PDV esta aberto: a fracao que multiplica a meta,
+ * os dias do mes em que ja existia e os que ja correram desde que abriu.
+ * Funcao pura.
+ *
+ * @return array{fracao:float, no_mes:int, corridos:int}
+ */
+function metas_abertura(?string $inauguracao, string $ate): array
+{
+    $ini = date('Y-m-01', strtotime($ate));
+    $fim = date('Y-m-t', strtotime($ate));
+    $total = (int) date('t', strtotime($ate));
+    $fracao = custos_fracao_aberto($inauguracao, $ini, $fim);
+    $no_mes = (int) round($fracao * $total);
+    $dia = (int) date('j', strtotime($ate));
+    return ['fracao' => $fracao, 'no_mes' => $no_mes, 'corridos' => max(0, $dia - ($total - $no_mes))];
+}
+
+/** Metas de cada PDV ativo no mes de `$ate`, proporcionais aos dias abertos. */
+function metas_de_todos_pdvs(string $ate): array
 {
     $fora = [];
     $linhas = q(
-        "SELECT c.pdv_id, c.chave, c.valor FROM custos_pdv c
+        "SELECT c.pdv_id, c.chave, c.valor, p.inauguracao FROM custos_pdv c
          JOIN loja_pdvs p ON p.id = c.pdv_id AND p.ativo = 1
          WHERE c.chave IN ('meta_faturamento', 'meta_lucro')"
     );
     foreach ($linhas as $l) {
-        $fora[(int) $l['pdv_id']][(string) $l['chave']] = (float) $l['valor'];
+        $f = metas_abertura(data_iso($l['inauguracao']), $ate)['fracao'];
+        $fora[(int) $l['pdv_id']][(string) $l['chave']] = (float) $l['valor'] * $f;
     }
     return array_values($fora);
 }
@@ -180,7 +206,7 @@ function metas_dias(?string $hoje = null): array
  * corrente termina hoje) em vez dos dias do MES, o que inflava a meta diaria
  * quanto mais cedo no mes voce olhasse.
  */
-function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $de, string $ate, ?int $pdv_id = null): array
+function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $de, string $ate, ?int $pdv_id = null, ?string $inauguracao = null): array
 {
     $inicio = new DateTimeImmutable($de);
     $hoje   = new DateTimeImmutable(date('Y-m-d'));
@@ -202,9 +228,18 @@ function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $d
     // mes voce abrisse a tela. Os dias que ainda nao chegaram entram como
     // plano, que e justamente o que da para agir em cima.
     $dias_do_mes = (int) $inicio->format('t');
-    $meta_diaria_base = $dias_do_mes > 0 ? $meta_mes / $dias_do_mes : 0.0;
+    // Antes da inauguracao o PDV nao tem meta: ela se reparte so pelos dias abertos.
+    $abre = data_iso($inauguracao) ?? '';
+    $dias_abertos = 0;
+    for ($i = 0; $i < $dias_do_mes; $i++) {
+        if ($inicio->modify('+' . $i . ' day')->format('Y-m-d') >= $abre) {
+            $dias_abertos++;
+        }
+    }
+    $meta_diaria_base = $dias_abertos > 0 ? $meta_mes / $dias_abertos : 0.0;
 
     $diario = [];
+    $abertos_antes = 0;
     $acum_meta = 0.0;
     $acum_real = 0.0;
 
@@ -215,12 +250,14 @@ function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $d
 
         // O que ainda falta, dividido pelos dias que ainda restam (contando
         // este). Sobrando, o que falta e negativo e a meta do dia zera.
-        $restam = $dias_do_mes - $i;
-        $meta_dia = $restam > 0 ? max(0.0, $meta_mes - $acum_real) / $restam : 0.0;
+        $aberto = $dia_str >= $abre;
+        $restam = $dias_abertos - $abertos_antes;
+        $abertos_antes += $aberto ? 1 : 0;
+        $meta_dia = $aberto && $restam > 0 ? max(0.0, $meta_mes - $acum_real) / $restam : 0.0;
 
         // A referencia acumulada e a linha reta, senao ela nunca fecharia na
         // meta do mes.
-        $acum_meta += $meta_diaria_base;
+        $acum_meta += $aberto ? $meta_diaria_base : 0.0;
         $acum_real += $realizado_dia;
 
         $diario[] = [
