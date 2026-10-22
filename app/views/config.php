@@ -353,7 +353,8 @@
                     não herda a da empresa, ao contrário das taxas: herdar faria este
                     container ter de bater sozinho o alvo do conjunto.
                 <?php else: ?>
-                    Vale para o total, com todos os pontos de venda somados. Zero desliga a
+                    Só vale para o total se nenhum ponto de venda tiver meta própria; havendo,
+                    o filtro "todos" soma as metas dos PDVs. Zero desliga a
                     meta e deixa só a projeção. Para medir um container isolado, escolha-o
                     acima.
                 <?php endif; ?>

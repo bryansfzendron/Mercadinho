@@ -1499,7 +1499,7 @@ function rota_metas(array $u): void
     // escolhido vale a dele, e so a dele — comparar o faturamento de um
     // container com a meta do conjunto era medir contra um alvo que nunca foi
     // dele.
-    $alvos = metas_alvos($pdv_id, $p, metas_do_pdv($pdv_id));
+    $alvos = metas_alvos($pdv_id, $p, metas_do_pdv($pdv_id), $pdv_id ? null : metas_de_todos_pdvs());
     $meta_propria = $alvos['propria'];
 
     $fat = meta_progresso($r['resultado']['receita'], $alvos['faturamento'], $dia, $no_mes)

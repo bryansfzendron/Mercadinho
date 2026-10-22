@@ -48,11 +48,26 @@ function metas_do_pdv(int $pdv_id): array
     return $proprias;
 }
 
+/** Metas de cada PDV ativo, para somar quando o filtro e "todos". */
+function metas_de_todos_pdvs(): array
+{
+    $fora = [];
+    $linhas = q(
+        "SELECT c.pdv_id, c.chave, c.valor FROM custos_pdv c
+         JOIN loja_pdvs p ON p.id = c.pdv_id AND p.ativo = 1
+         WHERE c.chave IN ('meta_faturamento', 'meta_lucro')"
+    );
+    foreach ($linhas as $l) {
+        $fora[(int) $l['pdv_id']][(string) $l['chave']] = (float) $l['valor'];
+    }
+    return array_values($fora);
+}
+
 /**
  * Qual meta vale para o filtro atual. Funcao pura.
  *
- * Sem PDV escolhido vale a da empresa, que e o total com todos os pontos de
- * venda somados. Com um escolhido vale a dele, e SO a dele: comparar o
+ * Sem PDV escolhido vale a soma das metas dos PDVs ativos (a da empresa so
+ * entra se nenhum PDV tiver meta). Com um escolhido vale a dele, e SO a dele: comparar o
  * faturamento de um container com a meta do conjunto e medir contra um alvo
  * que nunca foi dele — num mes em que a empresa bate exatamente o alvo, dois
  * containers apareceriam os dois em 50%, e nenhum dos dois estaria mal.
@@ -64,11 +79,21 @@ function metas_do_pdv(int $pdv_id): array
  *
  * @param array $globais  metas da empresa (custos_parametros())
  * @param array $proprias metas daquele PDV (metas_do_pdv()), com null onde nao ha
+ * @param ?array $todos metas de cada PDV ativo (metas_de_todos_pdvs()); somadas quando nao ha PDV escolhido
  * @return array{faturamento:float, lucro:float, propria:bool}
  */
-function metas_alvos(int $pdv_id, array $globais, array $proprias): array
+function metas_alvos(int $pdv_id, array $globais, array $proprias, ?array $todos = null): array
 {
     if ($pdv_id <= 0) {
+        // "Todos": soma as metas dos PDVs. Se nenhum tem meta, cai na da empresa.
+        $fat = $luc = 0.0;
+        foreach ($todos ?? [] as $m) {
+            $fat += (float) ($m['meta_faturamento'] ?? 0);
+            $luc += (float) ($m['meta_lucro'] ?? 0);
+        }
+        if ($fat > 0 || $luc > 0) {
+            return ['faturamento' => $fat, 'lucro' => $luc, 'propria' => false];
+        }
         return [
             'faturamento' => (float) ($globais['meta_faturamento'] ?? 0),
             'lucro'       => (float) ($globais['meta_lucro'] ?? 0),

@@ -140,6 +140,11 @@ checar('e o lucro tambem', metas_alvos(0, $empresa, $semNada)['lucro'], 6000.0);
 checar('a meta da empresa nao e "propria" de ninguem',
     metas_alvos(0, $empresa, $semNada)['propria'], false);
 
+// Sem PDV escolhido e com metas por PDV: elas se somam.
+$doisPdvs = [['meta_faturamento' => 12000.0, 'meta_lucro' => 2500.0], ['meta_faturamento' => 8000.0]];
+checar('todos soma o faturamento dos PDVs', metas_alvos(0, $empresa, $semNada, $doisPdvs)['faturamento'], 20000.0);
+checar('e o lucro', metas_alvos(0, $empresa, $semNada, $doisPdvs)['lucro'], 2500.0);
+
 // Com PDV escolhido: a meta dele, nunca a da empresa.
 checar('o PDV usa a meta dele',
     metas_alvos(7, $empresa, ['meta_faturamento' => 12000.0, 'meta_lucro' => 2500.0])['faturamento'],
