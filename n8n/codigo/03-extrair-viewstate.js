@@ -1,6 +1,7 @@
-// A Consulta Resumida responde 302, mas o corpo ja traz o formulario com os
-// tokens do ASP.NET. Por isso o node anterior nao segue o redirecionamento.
-const resposta = $input.first().json;
+// O /qrcode redireciona e a pagina final ja e a Consulta Resumida, com os
+// tokens do ASP.NET no formulario. Ate 2026-10-24 havia um GET a mais nela; o
+// firewall da SEFAZ passou a recusar esse GET, e ele nunca foi necessario.
+const resposta = $('Abrir Sessao na SEFAZ').first().json;
 // Os dados da viagem vem sempre do Normalizar Entrada, nunca do node anterior:
 // assim editar um node do meio nao derruba o callback_url la na frente.
 const entrada = $('Normalizar Entrada').first().json;

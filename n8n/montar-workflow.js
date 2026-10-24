@@ -17,6 +17,18 @@ const NAVEGADOR =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
     'Chrome/126.0.0.0 Safari/537.36';
 
+// Desde 2026-10-24 o firewall da SEFAZ (F5) responde "Request Rejected" a quem
+// nao manda o cabecalho de um navegador abrindo a pagina. Valores testados com
+// curl nessa data: manter letra por letra.
+const COMO_NAVEGADOR = [
+    ['Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'],
+    ['Accept-Language', 'pt-BR,pt;q=0.9'],
+    ['Sec-Fetch-Dest', 'document'],
+    ['Sec-Fetch-Mode', 'navigate'],
+    ['Sec-Fetch-Site', 'none'],
+    ['Upgrade-Insecure-Requests', '1'],
+];
+
 function codigo(arquivo) {
     return fs.readFileSync(path.join(RAIZ, 'codigo', arquivo), 'utf8');
 }
@@ -66,7 +78,7 @@ const nodes = [
             sendHeaders: true,
             headerParameters: cabecalhos([
                 ['User-Agent', NAVEGADOR],
-                ['Accept-Language', 'pt-BR,pt;q=0.9'],
+                ...COMO_NAVEGADOR,
             ]),
             options: RESPOSTA_COMPLETA,
         },
@@ -79,28 +91,7 @@ const nodes = [
 
     nodeCode('Extrair Cookies', '02-extrair-cookies.js', [-240, 0]),
 
-    {
-        parameters: {
-            url: CONSULTA_RESUMIDA,
-            sendHeaders: true,
-            headerParameters: cabecalhos([
-                ['Cookie', '={{ $json.cookies }}'],
-                ['User-Agent', NAVEGADOR],
-                ['Referer', '={{ $json.qrcode }}'],
-            ]),
-            options: {
-                // Responde 302, mas o corpo ja traz o formulario com o __VIEWSTATE.
-                redirect: { redirect: { followRedirects: false } },
-                ...RESPOSTA_COMPLETA,
-            },
-        },
-        id: 'abrir-consulta-resumida',
-        name: 'Abrir Consulta Resumida',
-        type: 'n8n-nodes-base.httpRequest',
-        typeVersion: 4.2,
-        position: [-20, 0],
-    },
-
+    // A Consulta Resumida ja vem no fim do redirecionamento do /qrcode.
     nodeCode('Extrair ViewState', '03-extrair-viewstate.js', [200, 0]),
 
     {
@@ -112,6 +103,7 @@ const nodes = [
                 ['Cookie', '={{ $json.cookies }}'],
                 ['User-Agent', NAVEGADOR],
                 ['Referer', CONSULTA_RESUMIDA],
+                ...COMO_NAVEGADOR,
             ]),
             sendBody: true,
             contentType: 'form-urlencoded',
