@@ -3,8 +3,10 @@
 const resposta = $input.first().json;
 const entrada = $('Normalizar Entrada').first().json;
 
-// O firewall da SEFAZ recusa com HTTP 200 e ainda grava um cookie TS..., entao
-// so a checagem de cookie vazio deixava passar e o erro estourava no node seguinte.
+// Desde 2026-10-24 o firewall da SEFAZ (F5) recusa cliente que nao e navegador,
+// mesmo do IP em que um navegador entra. A recusa vem com HTTP 200 e ainda grava
+// um cookie TS..., entao so a checagem de cookie vazio deixava passar e o erro
+// estourava no node seguinte, como "Nao achei o __VIEWSTATE".
 const corpo = String(resposta.data || resposta.body || '');
 const recusa = corpo.match(/support ID is:\s*<?(\d+)/i);
 if (/<title>\s*Request Rejected/i.test(corpo)) {
