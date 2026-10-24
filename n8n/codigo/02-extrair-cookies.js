@@ -3,6 +3,17 @@
 const resposta = $input.first().json;
 const entrada = $('Normalizar Entrada').first().json;
 
+// O firewall da SEFAZ recusa com HTTP 200 e ainda grava um cookie TS..., entao
+// so a checagem de cookie vazio deixava passar e o erro estourava no node seguinte.
+const corpo = String(resposta.data || resposta.body || '');
+const recusa = corpo.match(/support ID is:\s*<?(\d+)/i);
+if (/<title>\s*Request Rejected/i.test(corpo)) {
+    throw new Error(
+        'O firewall da SEFAZ recusou a abertura do QR Code (Request Rejected' +
+        (recusa ? ', support ID ' + recusa[1] : '') + ').'
+    );
+}
+
 const cabecalhos = resposta.headers || {};
 const bruto = cabecalhos['set-cookie'] || cabecalhos['Set-Cookie'] || [];
 const lista = Array.isArray(bruto) ? bruto : [bruto];

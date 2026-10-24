@@ -2,7 +2,10 @@
 const bruto = $input.first().json;
 const corpo = bruto.body && typeof bruto.body === 'object' ? bruto.body : bruto;
 
-const qrcode = String(corpo.qrcode || '').trim();
+// O firewall da SEFAZ (F5) responde "Request Rejected" quando o "|" do p= vai
+// cru, e o HTTP Request do n8n manda a URL como veio do QR. O navegador manda
+// %7C, entao o fluxo manda igual.
+const qrcode = String(corpo.qrcode || '').trim().replace(/\|/g, '%7C');
 
 // A chave de acesso ja vem dentro do parametro p= do QR Code.
 let chave = '';

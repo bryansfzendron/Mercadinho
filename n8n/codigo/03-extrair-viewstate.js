@@ -37,6 +37,9 @@ const gerador = campoOculto('__VIEWSTATEGENERATOR');
 const validacao = campoOculto('__EVENTVALIDATION');
 
 if (!viewstate) {
+    if (/<title>\s*Request Rejected/i.test(html)) {
+        throw new Error('O firewall da SEFAZ recusou a Consulta Resumida (Request Rejected).');
+    }
     const erro = html.match(/Erro\(s\)[\s\S]{0,200}/i);
     throw new Error(
         'Nao achei o __VIEWSTATE na Consulta Resumida' +
