@@ -10,8 +10,6 @@ const fs = require('fs');
 const path = require('path');
 
 const RAIZ = __dirname;
-const CONSULTA_RESUMIDA =
-    'https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaResponsiva/ConsultaResumidaRJFrame_v400.aspx';
 
 const NAVEGADOR =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
@@ -94,34 +92,9 @@ const nodes = [
     // A Consulta Resumida ja vem no fim do redirecionamento do /qrcode.
     nodeCode('Extrair ViewState', '03-extrair-viewstate.js', [200, 0]),
 
-    {
-        parameters: {
-            method: 'POST',
-            url: CONSULTA_RESUMIDA,
-            sendHeaders: true,
-            headerParameters: cabecalhos([
-                ['Cookie', '={{ $json.cookies }}'],
-                ['User-Agent', NAVEGADOR],
-                ['Referer', CONSULTA_RESUMIDA],
-                ...COMO_NAVEGADOR,
-            ]),
-            sendBody: true,
-            contentType: 'form-urlencoded',
-            bodyParameters: cabecalhos([
-                ['__EVENTTARGET', 'btnVisualizarAbas'],
-                ['__EVENTARGUMENT', ''],
-                ['__VIEWSTATE', '={{ $json.viewstate }}'],
-                ['__VIEWSTATEGENERATOR', '={{ $json.gerador }}'],
-                ['__EVENTVALIDATION', '={{ $json.validacao }}'],
-            ]),
-            options: RESPOSTA_COMPLETA,
-        },
-        id: 'abrir-abas-detalhadas',
-        name: 'Abrir Abas Detalhadas',
-        type: 'n8n-nodes-base.httpRequest',
-        typeVersion: 4.2,
-        position: [420, 0],
-    },
+    // Code e nao HTTP Request: o firewall da SEFAZ recusa este POST quando ele
+    // sai do node HTTP Request (ver o comentario em 03b-abrir-abas.js).
+    nodeCode('Abrir Abas Detalhadas', '03b-abrir-abas.js', [420, 0]),
 
     nodeCode('Extrair Itens do Cupom', '04-extrair-itens.js', [640, 0]),
 

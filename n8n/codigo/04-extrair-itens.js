@@ -133,6 +133,16 @@ function municipioPartes(valor) {
 }
 
 try {
+    if (resposta && resposta.erro) {
+        throw new Error('Falha ao abrir as abas na SEFAZ: ' + resposta.erro);
+    }
+    if (/<title>\s*Request Rejected/i.test(html)) {
+        const recusa = html.match(/support ID is:\s*<?(\d+)/i);
+        throw new Error(
+            'O firewall da SEFAZ recusou a Consulta Completa (Request Rejected' +
+            (recusa ? ', support ID ' + recusa[1] : '') + ').'
+        );
+    }
     if (!html || html.length < 2000) {
         throw new Error('A Consulta Completa voltou vazia ou curta demais (' + html.length + ' bytes).');
     }
