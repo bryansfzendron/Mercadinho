@@ -11,7 +11,7 @@ Notas sem QR Code entram pelo lançamento manual.
 
 - Produção: <https://mercadinho.bryanzendron.com.br>
 - Hospedagem: Hostinger (compartilhada, só PHP — sem Node)
-- Raspagem da SEFAZ: workflow n8n `5jtmXgsBWN7tdbMW` na instância `biomega-n8n`
+- Raspagem da SEFAZ: workflow n8n `tGc2JDdNS9IOSo8y` na instância `biomega-n8n`
 
 ## Como funciona
 
@@ -27,8 +27,10 @@ Celular (PWA)  --scan QR-->  POST /api/notas       (nota entra como "pendente")
 Frontend faz polling em /api/notas/{id}/status  ->  "109 itens gravados"
 ```
 
-O trabalho pesado (3 requisições à SEFAZ + parse de ~1,7 MB de HTML) fica no n8n, fora
-da hospedagem compartilhada — por isso o limite de 30s do PHP não atrapalha.
+Esse é o modo `n8n`, o padrão. Com `nfce_modo = 'local'` o próprio PHP consulta a SEFAZ
+e grava na mesma requisição, sem webhook nem callback (veja *A nota fiscal sem o n8n*).
+O "trabalho pesado" que justificava o n8n mede 0,5 s: duas viagens à SEFAZ e o parse
+de uma nota de 1,7 MB em ~100 ms.
 
 ### Identificação de produtos
 
@@ -57,7 +59,8 @@ app/
   helpers.php      número BR, data, normalização, EAN, CSRF, views
   auth.php         login por sessão
   produtos.php     casamento de produtos e histórico de preços
-  notas.php        criação, disparo ao n8n e ingestão do callback
+  notas.php        criação, nfce_modo (n8n ou local) e ingestão do callback
+  sefaz.php        consulta da NFC-e na SEFAZ em cURL e o parser (porte do n8n)
   loja.php         espelho de preço e estoque do TouchPay
   vendas.php       vendas do TouchPay: disparo, callback e gravação em lote
   graficos.php     gráficos em HTML/CSS: série diária, semana e barra de pagamento
@@ -130,19 +133,36 @@ git pull
 O workflow pronto para importar está em **`n8n/nfce-sp-mercadinho.workflow.json`**.
 No n8n: *Workflows → Import from File*.
 
-Ele é uma cadeia linear de 9 nodes, sem IF:
+Ele é uma cadeia linear de 8 nodes, sem IF:
 
 ```
 Receber do Mercadinho (webhook, responde na hora)
   → Normalizar Entrada
-  → Abrir Sessao na SEFAZ        (GET do QR, colhe cookies)
+  → Abrir Sessao na SEFAZ        (GET do QR com cabeçalho de navegador, colhe cookies)
   → Extrair Cookies
-  → Abrir Consulta Resumida      (GET sem seguir redirect, pega __VIEWSTATE)
-  → Extrair ViewState
-  → Abrir Abas Detalhadas        (POST __EVENTTARGET=btnVisualizarAbas)
+  → Extrair ViewState            (a página do QR já traz __VIEWSTATE)
+  → Abrir Abas Detalhadas        (Code: POST __EVENTTARGET=btnVisualizarAbas)
   → Extrair Itens do Cupom       (parser; decide status ok/erro no try/catch)
   → Devolver ao Mercadinho       (POST no callback_url)
 ```
+
+### O firewall da SEFAZ (desde 2026-10-24)
+
+A SEFAZ pôs um F5 na frente da consulta (o `<script src="/TSPD/...">` no topo da
+página). Duas regras que já derrubaram o fluxo:
+
+- **O GET do QR precisa de cabeçalho de navegador** (`Accept`, `Accept-Language`,
+  `Sec-Fetch-*`, `Upgrade-Insecure-Requests`). Só com `User-Agent` volta
+  "Request Rejected" com HTTP 200.
+- **O POST das abas não pode sair do node HTTP Request.** Dele, o POST era recusado
+  em 100% das execuções. Do mesmo servidor, com os mesmos cookies e cabeçalhos,
+  o POST feito num Code node com `this.helpers.httpRequest` passa. Por isso
+  `Abrir Abas Detalhadas` é Code (`n8n/codigo/03b-abrir-abas.js`). A causa exata
+  dentro do node HTTP não foi isolada; não volte esse node para HTTP Request.
+
+O F5 também **bloqueia o IP por uns 10 minutos** quando ele abre muitas sessões em
+sequência (cerca de 15 consultas seguidas). Nesse estado, até um Chrome headless
+leva "Request Rejected". Ao testar à mão, espace as consultas.
 
 Não há ramo de erro porque o parser **sempre** produz um payload — com
 `status: "ok"` ou `status: "erro"`. Assim nenhuma nota fica presa em
@@ -155,8 +175,8 @@ Não há ramo de erro porque o parser **sempre** produz um payload — com
    `n8n_webhook` no `app/config.php` para
    `https://biomega-n8n.bryanzendron.com.br/webhook/nfce-sp-mercadinho`.
 2. Ative o workflow (webhook de produção só responde com o workflow ativo).
-3. Confira a URL da Consulta Resumida nos nodes `Abrir Consulta Resumida` e
-   `Abrir Abas Detalhadas` se a SEFAZ mudar o caminho.
+3. Se a SEFAZ mudar o caminho da Consulta Resumida, ajuste `URL_CONSULTA` em
+   `n8n/codigo/03b-abrir-abas.js`.
 
 ### Editando o código dos nodes
 
@@ -875,10 +895,10 @@ Preço, estoque e vendas **não passam mais pelo n8n**. O PHP colhe direto do To
 o cron da Hostinger — que já existia e já agendava tudo — passou a fazer o trabalho em
 vez de só disparar webhook.
 
-O n8n continua, com **um** workflow: a **nota fiscal**. Esse fica, e é ele que justifica
-o n8n existir — três viagens à SEFAZ e ~1,7 MB de HTML por cupom, com `__VIEWSTATE` de
-ASP.NET que muda sem aviso. Ali o isolamento vale o incômodo: quando a SEFAZ quebra,
-quebra só a importação de nota, e não as telas que o cliente usa.
+O n8n continua com **um** workflow: a **nota fiscal**. Ele ficou porque parecia pesado
+(viagens à SEFAZ, ~1,7 MB de HTML por cupom, `__VIEWSTATE` que muda sem aviso). Medido,
+não é — e desde 2026-10-26 a nota também tem caminho local, atrás da chave `nfce_modo`
+(veja *A nota fiscal sem o n8n*, abaixo).
 
 ### Por que dava para sair
 
@@ -912,11 +932,56 @@ por elas que o modo antigo volta.
 `sync_modo` no `config.php`: `'local'` (padrão) ou `'n8n'`. Enquanto os workflows
 estiverem apenas **desligados** lá — e não apagados —, trocar essa linha devolve o
 comportamento antigo sem mexer em código. Desligar é reversível; apagar não. A nota
-fiscal **não** entra nessa chave: ela é sempre pelo n8n.
+fiscal **não** entra nessa chave: ela tem a sua, o `nfce_modo`.
 
 `sync_coletar_loja()` e `sync_coletar_vendas()` são os dois pontos onde a chave é lida, e
 tanto o cron quanto os botões das telas passam por eles — senão o botão continuaria
 disparando webhook enquanto o cron já colhia local.
+
+### A nota fiscal sem o n8n
+
+`nfce_modo` no `config.php`: `'n8n'` (padrão) ou `'local'`. O padrão é o n8n **de
+propósito**: sem a linha no config, publicar o código não muda nada.
+
+| `'n8n'` | `'local'` |
+|---|---|
+| `nota_disparar_n8n()` → webhook → n8n consulta → POST `/api/callback` | `nota_coletar_local()` consulta e grava na mesma requisição |
+| a tela acompanha por polling até o callback chegar | a resposta já volta com a nota gravada (ou com o erro) |
+
+`nota_coletar()` é o único ponto onde a chave é lida; a rota `/api/notas` chama só ele.
+
+**O contrato não mudou aqui também.** `app/sefaz.php` monta o mesmo payload que o Code
+node `Extrair Itens do Cupom` montava, e a gravação passa pelas mesmas
+`callback_normalizar()` e `nota_processar_callback()`. Conferido em 2026-10-26 num MySQL
+de teste: a mesma nota gravada pelos dois caminhos deu **zero diferenças** em `notas` e
+`itens`, e caiu nos mesmos produtos.
+
+O parser PHP é porte linha a linha do `n8n/codigo/04-extrair-itens.js`, com os mesmos
+nomes. Os dois dão saída idêntica no HTML sintético e numa nota real. Quem mexer em um,
+mexe no outro, enquanto o n8n existir: `node n8n/teste-parser.js` e `php testes/sefaz.php`
+usam o mesmo HTML sintético.
+
+O que o porte trata a mais que o JS:
+
+- **`pcre.backtrack_limit`.** O PCRE do PHP desiste calado e devolve `null`, que viraria
+  "nenhum item". `sefaz_checar_regex()` transforma isso em erro. Medido numa nota de
+  1,76 MB (114 itens): ~100 ms, sem erro mesmo com o limite 10× menor e sem JIT.
+- **O cookie jar é do cURL** (`CURLOPT_COOKIEFILE => ''`). Os cookies `TS...` do firewall
+  e a sessão ASP.NET passam sozinhos entre as viagens, inclusive os que chegam no meio
+  de um redirecionamento — o que no n8n exigia o node `Extrair Cookies`.
+- **Só aceita endereço da SEFAZ-SP.** O servidor passou a abrir a URL que vem do campo do
+  QR Code; `sefaz_url_valida()` recusa outro host, outro esquema e host que só *começa*
+  igual (`...sp.gov.br.evil.com`).
+
+**Antes de ligar o modo local:** abra o `setup.php`, seção *Conectividade*, e rode
+**Testar consulta à SEFAZ**. Ele consulta e extrai uma nota a partir do servidor da
+Hostinger, sem gravar nada. O que decide é o firewall da SEFAZ aceitar o IP da
+hospedagem (compartilhado com outros sites) — e isso só se sabe testando de lá. Se
+recusar, espere uns 10 minutos (o bloqueio por volume) e tente **uma** vez. Se continuar
+recusando, fique no `'n8n'`.
+
+Ligado o local, desative o workflow `tGc2JDdNS9IOSo8y` no n8n, mas não apague: é ele
+que faz o `'n8n'` voltar a funcionar.
 
 ### Vendas grava conforme colhe
 
@@ -1856,6 +1921,7 @@ php testes/loja.php         # callback do TouchPay, o prefixo OM e a validade na
 php testes/vendas.php       # o periodo, a lista por produto e o custo na capa
 php testes/custos.php       # taxa por forma de pagamento, resultado do período e CMV
 php testes/sync.php         # a conta da barra de progresso e o fluxo dado por perdido
+php testes/sefaz.php        # o parser da NFC-e em PHP, o firewall e a URL do QR (sem rede)
 php testes/breakdown.php    # o plano diário da meta: linha reta e meta recalculada
 php testes/nav.php          # o menu de baixo acende um item por rota
 php testes/config.php       # a configuração sobrevive a um $cfg no escopo global
@@ -1889,7 +1955,10 @@ node testes/puxar.js        # o gesto de puxar para atualizar no app instalado
 - **Só NFC-e de São Paulo.** Cada estado tem portal próprio.
 - **Consulta por chave de acesso não funciona** — tem captcha. Só o QR Code, que já vem
   assinado com o CSC do emitente. Ou seja: precisa do cupom em mãos.
-- **Depende do HTML da SEFAZ.** Se mudarem o layout, o parser do n8n quebra.
+- **Depende do HTML da SEFAZ.** Se mudarem o layout, o parser quebra — o do n8n e o de
+  `app/sefaz.php`, que são o mesmo.
+- **Depende do firewall da SEFAZ.** Desde 2026-10-24 ele recusa cliente sem cabeçalho de
+  navegador e bloqueia o IP por ~10 minutos depois de muitas consultas seguidas.
 - **Leitura de EAN-13 pela câmera** é menos confiável que QR. Há campo para digitar.
 - **Corrigir item não se repete sozinho quando a nota traz o GTIN da caixa.** O alias
   reapontado só entra em cena quando o emitente manda `SEM GTIN`; vindo o código da

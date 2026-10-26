@@ -1086,7 +1086,7 @@ function rota_api_nota_nova(array $u): void
         // uma nova tentativa: reabre e dispara de novo.
         if ($existente && $existente['status'] !== 'ok') {
             nota_reabrir($r['nota_id'], (int) $u['id']);
-            $d = nota_disparar_n8n($r['nota_id'], $qr);
+            $d = nota_coletar($r['nota_id'], $qr);
             json_resposta([
                 'nota_id'    => $r['nota_id'],
                 'duplicada'  => false,
@@ -1103,7 +1103,7 @@ function rota_api_nota_nova(array $u): void
         ]);
     }
 
-    $d = nota_disparar_n8n($r['nota_id'], $qr);
+    $d = nota_coletar($r['nota_id'], $qr);
     json_resposta([
         'nota_id'   => $r['nota_id'],
         'duplicada' => false,

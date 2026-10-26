@@ -33,6 +33,15 @@ return [
     // ou:  openssl rand -hex 32
     'n8n_token' => 'TROQUE-ME',
 
+    // Por onde passa a NOTA FISCAL:
+    //  'n8n' (padrao): dispara o webhook acima e espera o /api/callback.
+    //  'local': este servidor consulta a SEFAZ e grava na mesma requisicao,
+    //           sem n8n (app/sefaz.php). Antes de ligar, rode "Testar
+    //           consulta a SEFAZ" no setup.php: o firewall da SEFAZ precisa
+    //           aceitar o IP da hospedagem.
+    // Voltar para 'n8n' e so trocar esta linha, enquanto o workflow existir.
+    'nfce_modo' => 'n8n',
+
     // Guardar o HTML bruto da consulta (comprimido) para reprocessar sem
     // precisar bipar a nota de novo. ~150 KB por nota depois do gzip.
     'guardar_html' => true,
@@ -52,7 +61,7 @@ return [
     // 'local' (padrao): o PHP colhe preco, estoque e vendas direto do
     // TouchPay. 'n8n': volta a disparar os webhooks antigos — util so
     // enquanto os workflows continuarem existindo, desligados, la.
-    // A NOTA FISCAL nao entra nesta chave: ela e sempre pelo n8n.
+    // A NOTA FISCAL nao entra nesta chave: ela tem a sua, o nfce_modo.
     'sync_modo' => 'local',
 
     'touchpay_email' => '',

@@ -89,6 +89,7 @@ require APP . '/graficos.php';
 require APP . '/sync.php';
 require APP . '/mercado.php';
 require APP . '/touchpay.php';
+require APP . '/sefaz.php';
 require APP . '/planograma.php';
 require APP . '/planilha_repor.php';
 require APP . '/repor_nota.php';

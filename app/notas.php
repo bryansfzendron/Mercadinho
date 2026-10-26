@@ -33,6 +33,61 @@ function nota_criar_pendente(int $usuario_id, string $qr_url): array
 }
 
 /**
+ * Por onde a nota fiscal passa: 'n8n' (padrao) ou 'local'.
+ *
+ * O padrao continua 'n8n' de proposito: o modo local depende de o firewall
+ * da SEFAZ aceitar o IP da hospedagem, e isso so se sabe testando de la
+ * (setup.php, "Testar consulta a SEFAZ"). Sem a linha no config.php, nada muda.
+ */
+function nfce_modo(): string
+{
+    return (string) cfg('nfce_modo', 'n8n') === 'local' ? 'local' : 'n8n';
+}
+
+/** Leva a nota ate a SEFAZ pelo caminho que estiver valendo. */
+function nota_coletar(int $nota_id, string $qr_url): array
+{
+    return nfce_modo() === 'local'
+        ? nota_coletar_local($nota_id, $qr_url)
+        : nota_disparar_n8n($nota_id, $qr_url);
+}
+
+/**
+ * Consulta a SEFAZ e grava na mesma requisicao, sem n8n e sem callback.
+ *
+ * Monta o mesmo payload que o n8n postava em /api/callback e passa pelas
+ * mesmas callback_normalizar() e nota_processar_callback(): loja, produto,
+ * desconto e preco liquido saem iguais nos dois modos.
+ *
+ * Leva de 1 a 3 segundos (a viagem inteira no n8n media 0,5 s); os timeouts
+ * do sefaz_consultar() seguram o pior caso abaixo do teto de 30 s da web.
+ */
+function nota_coletar_local(int $nota_id, string $qr_url): array
+{
+    exec_sql('UPDATE notas SET status = ? WHERE id = ?', ['processando', $nota_id]);
+
+    try {
+        $html  = sefaz_consultar($qr_url);
+        $dados = sefaz_extrair($html, chave_do_qrcode($qr_url) ?? '', $qr_url);
+    } catch (Throwable $e) {
+        // Qualquer falha vira nota com erro: nunca fica presa em "processando".
+        nota_erro($nota_id, $e->getMessage());
+        return ['ok' => false, 'erro' => $e->getMessage()];
+    }
+
+    $r = nota_processar_callback(callback_normalizar([
+        'nota_id' => $nota_id,
+        'status'  => 'ok',
+        'nota'    => $dados['nota'],
+        'itens'   => $dados['itens'],
+        // nota_processar_callback() so guarda se guardar_html estiver ligado.
+        'html'    => $html,
+    ]));
+
+    return $r['ok'] ? ['ok' => true, 'erro' => null] : ['ok' => false, 'erro' => $r['mensagem']];
+}
+
+/**
  * Dispara o workflow do n8n e volta na hora (fire-and-forget).
  * O n8n devolve o resultado depois, via POST em /api/callback.
  */

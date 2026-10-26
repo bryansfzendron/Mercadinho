@@ -196,7 +196,9 @@
                 return;
             }
             if (d.erro) {
-                msg('Erro ao acionar o n8n: ' + d.erro, 'erro');
+                // O texto do erro ja diz onde foi (n8n, firewall da SEFAZ...).
+                msg('Não deu para ler a nota: ' + d.erro +
+                    ' <a href="/notas/' + d.nota_id + '">Ver nota</a>', 'erro');
                 liberado();
                 return;
             }

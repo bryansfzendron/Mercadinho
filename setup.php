@@ -206,7 +206,7 @@ $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 linha('HTTPS ativo', $https, 'a câmera do navegador só funciona em https', !$https);
 linha('Tempo máximo de execução: ' . ini_get('max_execution_time') . 's',
       (int) ini_get('max_execution_time') === 0 || (int) ini_get('max_execution_time') >= 30,
-      'o disparo ao n8n é assíncrono, 30s bastam');
+      'o disparo ao n8n é assíncrono e a consulta local leva poucos segundos: 30s bastam');
 ?>
 </table>
 
@@ -217,6 +217,9 @@ linha('base_url: ' . cfg('base_url'), (string) cfg('base_url') !== '');
 linha('n8n_webhook: ' . cfg('n8n_webhook'), (string) cfg('n8n_webhook') !== '');
 $tok = (string) cfg('n8n_token');
 linha('n8n_token definido', $tok !== '' && $tok !== 'TROQUE-ME', 'segredo compartilhado com o n8n');
+linha('nfce_modo: ' . nfce_modo(), true, nfce_modo() === 'local'
+    ? 'a nota fiscal é consultada na SEFAZ por este servidor'
+    : 'a nota fiscal passa pelo n8n — teste a SEFAZ abaixo antes de trocar para local');
 $stok = (string) cfg('setup_token');
 linha('setup_token trocado', $stok !== '' && $stok !== 'TROQUE-ME-TAMBEM');
 linha('debug', (bool) cfg('debug'), cfg('debug') ? 'ligado — desligue quando estabilizar' : 'desligado', (bool) cfg('debug'));
@@ -364,12 +367,58 @@ if (($_POST['acao'] ?? '') === 'n8n') {
     echo '<p class="det">HTTP 200 ou 404 "webhook not registered" já provam que o servidor '
        . 'alcança o n8n. 404 costuma significar que o workflow está inativo ou em modo de teste.</p>';
 }
+
+// ---- teste da SEFAZ ----
+// Responde a unica pergunta que decide o nfce_modo: o firewall da SEFAZ aceita
+// o IP desta hospedagem? Consulta e extrai, mas nao grava nada.
+if (($_POST['acao'] ?? '') === 'sefaz') {
+    $qr = trim((string) ($_POST['qrcode'] ?? ''));
+    $inicio = microtime(true);
+    try {
+        $html  = sefaz_consultar($qr);
+        $dados = sefaz_extrair($html, chave_do_qrcode($qr) ?? '', $qr);
+        $ms = (int) round((microtime(true) - $inicio) * 1000);
+        $primeiro = $dados['itens'][0];
+        echo '<h2>Teste da SEFAZ</h2><pre class="bom">OK em ' . $ms . ' ms — '
+           . number_format(strlen($html), 0, ',', '.') . " bytes\n"
+           . htmlspecialchars($dados['nota']['emitente'] . ' · total ' . $dados['nota']['valor_total_nota']) . "\n"
+           . count($dados['itens']) . " itens; o 1º: "
+           . htmlspecialchars($primeiro['descricao'] . ' · EAN ' . ($primeiro['ean'] ?: '—')) . '</pre>';
+        echo '<p class="det">Este servidor passa pelo firewall da SEFAZ. Pode pôr '
+           . '<code>\'nfce_modo\' => \'local\'</code> no <code>app/config.php</code>.</p>';
+    } catch (Throwable $e) {
+        $ms = (int) round((microtime(true) - $inicio) * 1000);
+        echo '<h2>Teste da SEFAZ</h2><pre class="erro">FALHOU em ' . $ms . " ms\n"
+           . htmlspecialchars($e->getMessage()) . '</pre>';
+        echo '<p class="det">"Request Rejected" é o firewall da SEFAZ. Ele também bloqueia o IP '
+           . 'por uns 10 minutos depois de muitas consultas seguidas: espere e tente uma vez. '
+           . 'Se continuar recusando, mantenha <code>nfce_modo</code> em <code>n8n</code>.</p>';
+    }
+}
+
+// Sugere o QR Code da ultima nota, para o teste nao exigir um cupom em maos.
+$qr_sugerido = '';
+try {
+    $qr_sugerido = (string) (q1('SELECT qr_url FROM notas WHERE qr_url IS NOT NULL ORDER BY id DESC LIMIT 1')['qr_url'] ?? '');
+} catch (Throwable $e) {
+    // Banco ainda nao instalado: o campo fica vazio.
+}
 ?>
 
 <h2>Conectividade</h2>
 <form method="post">
     <input type="hidden" name="acao" value="n8n">
     <button type="submit">Testar chamada ao n8n</button>
+</form>
+
+<form method="post" class="caixa">
+    <input type="hidden" name="acao" value="sefaz">
+    <label>QR Code de uma NFC-e de SP
+        <input name="qrcode" required value="<?= htmlspecialchars($qr_sugerido) ?>"
+               placeholder="https://www.nfce.fazenda.sp.gov.br/qrcode?p=...">
+    </label>
+    <button type="submit">Testar consulta à SEFAZ</button>
+    <p class="det">Consulta a nota direto deste servidor, sem o n8n, e não grava nada.</p>
 </form>
 
 <h2>Quando terminar</h2>
