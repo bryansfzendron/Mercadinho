@@ -465,6 +465,15 @@ $fx['fixo_energia'] = 300.0; $fx['fixo_sistema'] = 0.0; $fx['fixo_internet'] = 0
 quase('fracao_fixo corta o fixo do PDV',
     custos_resultado_pdvs([], [], [1 => $fx, 2 => $fx + ['fracao_fixo' => 0.5]], 0.0, 30)['fixos'], 450.0);
 
+// ------------------------------------------- fixo pelo tamanho do mes
+// O rateio era dias / 30: outubro inteiro cobrava 31/30 do fixo e fevereiro 28/30.
+quase('outubro inteiro e um mes', custos_meses_no_periodo('2026-10-01', '2026-10-31'), 1.0);
+quase('fevereiro inteiro e um mes', custos_meses_no_periodo('2026-02-01', '2026-02-28'), 1.0);
+quase('meio setembro e meio mes', custos_meses_no_periodo('2026-09-01', '2026-09-15'), 0.5);
+quase('virada de mes soma as duas pontas', custos_meses_no_periodo('2026-09-16', '2026-10-31'), 1.5);
+quase('dia 31 cobra o fixo do mes, e nao 31/30',
+    custos_resultado_pdvs([], [], [0 => $fx], 0.0, 31, 0.0, custos_meses_no_periodo('2026-10-01', '2026-10-31'))['fixos'], 300.0);
+
 // O mes de abertura ja conta como mes 1, mesmo com poucos dias nele.
 checar('primeiros dias contam como mes 1', custos_meses_atividade('2026-09-01', '2026-09-09'), 1);
 checar('fim do mesmo mes ainda e mes 1', custos_meses_atividade('2026-09-01', '2026-09-30'), 1);

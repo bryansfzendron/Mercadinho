@@ -21,14 +21,22 @@ require APP . '/helpers.php';
 
 date_default_timezone_set('America/Sao_Paulo');
 
-/** Stub do relatorio: devolve a receita por dia que cada caso montar. */
+/**
+ * Stub do relatorio: devolve a receita por dia que cada caso montar. A
+ * contribuicao e uma fatia fixa da receita e o fixo da janela vem pronto,
+ * que e o que a tabela de lucro precisa.
+ */
 function vendas_relatorio(array $f): array
 {
     $linhas = [];
     foreach ($GLOBALS['por_dia'] ?? [] as $dia => $valor) {
-        $linhas[] = ['grupo' => $dia, 'receita' => $valor];
+        if ($dia > $f['ate']) {
+            continue;
+        }
+        $linhas[] = ['grupo' => $dia, 'receita' => $valor,
+                     'contribuicao' => $valor * ($GLOBALS['contribui'] ?? 1.0)];
     }
-    return ['linhas' => $linhas];
+    return ['linhas' => $linhas, 'resultado' => ['fixos' => $GLOBALS['fixos'] ?? 0.0]];
 }
 
 require APP . '/custos.php';
@@ -185,6 +193,29 @@ $b = metas_breakdown_diario(1500.0, 0.0, '2026-09-01', '2026-09-30', null, '2026
 quase('antes de abrir nao ha meta do dia', $b['diario'][0]['meta_dia'], 0.0);
 quase('meta diaria so nos dias abertos', $b['resumo']['meta_diaria_base'], 100.0);
 quase('a linha reta fecha na meta proporcional', end($b['diario'])['acum_meta'], 1500.0);
+
+// ------------------------------------------------ a tabela de lucro e de lucro
+// Antes ela somava a receita: com R$ 1.000 por dia, o "real acumulado" do
+// lucro chegava a R$ 31.000 no dia 31, longe do lucro do cartao.
+$GLOBALS['por_dia'] = [];
+for ($d = 1; $d <= 31; $d++) {
+    $GLOBALS['por_dia'][sprintf('2026-10-%02d', $d)] = 1000.0;
+}
+$GLOBALS['contribui'] = 0.30;
+$GLOBALS['fixos'] = 449.0;
+$b = metas_breakdown_diario(12000.0, 8851.0, '2026-10-01', '2026-10-31', null, null, true);
+quase('lucro do dia e contribuicao menos o fixo do dia', $b['diario'][0]['realizado_dia'], 300.0 - 449.0 / 31);
+quase('no dia 31 o lucro acumulado bate com o cartao', end($b['diario'])['acum_real'], 9300.0 - 449.0);
+quase('a meta do dia de lucro segue o que falta de lucro',
+    $b['diario'][9]['meta_dia'], (12000.0 - 9 * (300.0 - 449.0 / 31)) / 22);
+// Faturamento continua contando a receita.
+$b = metas_breakdown_diario(31000.0, 31000.0, '2026-10-01', '2026-10-31');
+quase('a tabela de faturamento segue na receita', end($b['diario'])['acum_real'], 31000.0);
+// Meio do mes: o fixo da janela se reparte so pelos dias que ja correram.
+$b = metas_breakdown_diario(12000.0, 0.0, '2026-10-01', '2026-10-15', null, null, true);
+quase('no meio do mes o fixo fica nos dias corridos', $b['diario'][14]['acum_real'], 15 * 300.0 - 449.0);
+quase('dia que nao chegou nao paga fixo', $b['diario'][20]['realizado_dia'], 0.0);
+unset($GLOBALS['contribui'], $GLOBALS['fixos']);
 
 printf("\n%d passaram, %d falharam\n", $ok, $falhou);
 exit($falhou > 0 ? 1 : 0);

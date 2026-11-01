@@ -205,8 +205,13 @@ function metas_dias(?string $hoje = null): array
  * pedia R$ 23.300. Tambem dividia a meta pelos dias da JANELA (que para o mes
  * corrente termina hoje) em vez dos dias do MES, o que inflava a meta diaria
  * quanto mais cedo no mes voce olhasse.
+ *
+ * Com `$lucro`, o realizado de cada dia e o lucro dele, e nao a receita: a
+ * contribuicao do dia (receita menos mercadoria, taxas e imposto) menos a
+ * parte do fixo do periodo. Antes a tabela de lucro somava a receita, e no
+ * fim do mes o "real acumulado" passava longe do lucro do cartao.
  */
-function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $de, string $ate, ?int $pdv_id = null, ?string $inauguracao = null): array
+function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $de, string $ate, ?int $pdv_id = null, ?string $inauguracao = null, bool $lucro = false): array
 {
     $inicio = new DateTimeImmutable($de);
     $hoje   = new DateTimeImmutable(date('Y-m-d'));
@@ -220,7 +225,7 @@ function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $d
 
     $por_dia = [];
     foreach ($r['linhas'] as $l) {
-        $por_dia[(string) $l['grupo']] = (float) $l['receita'];
+        $por_dia[(string) $l['grupo']] = (float) ($lucro ? $l['contribuicao'] : $l['receita']);
     }
 
     // O mes inteiro, nao a janela: a janela do mes corrente termina hoje, e
@@ -238,6 +243,17 @@ function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $d
     }
     $meta_diaria_base = $dias_abertos > 0 ? $meta_mes / $dias_abertos : 0.0;
 
+    // O fixo da janela, repartido igual pelos dias abertos dela: assim o
+    // lucro acumulado do ultimo dia bate com o lucro do cartao.
+    $fixo_por_dia = 0.0;
+    if ($lucro) {
+        $na_janela = 0;
+        for ($d = $inicio; $d->format('Y-m-d') <= $ate; $d = $d->modify('+1 day')) {
+            $na_janela += $d->format('Y-m-d') >= $abre ? 1 : 0;
+        }
+        $fixo_por_dia = $na_janela > 0 ? (float) ($r['resultado']['fixos'] ?? 0) / $na_janela : 0.0;
+    }
+
     $diario = [];
     $abertos_antes = 0;
     $acum_meta = 0.0;
@@ -251,6 +267,9 @@ function metas_breakdown_diario(float $meta_mes, float $realizado_mes, string $d
         // O que ainda falta, dividido pelos dias que ainda restam (contando
         // este). Sobrando, o que falta e negativo e a meta do dia zera.
         $aberto = $dia_str >= $abre;
+        if ($aberto && $dia_str <= $ate) {
+            $realizado_dia -= $fixo_por_dia;
+        }
         $restam = $dias_abertos - $abertos_antes;
         $abertos_antes += $aberto ? 1 : 0;
         $meta_dia = $aberto && $restam > 0 ? max(0.0, $meta_mes - $acum_real) / $restam : 0.0;

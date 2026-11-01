@@ -1256,6 +1256,13 @@ function vendas_relatorio(array $f): array
         $pct_variavel
     );
 
+    // O fixo e mensal: cada dia paga 1/dias do mes dele, e nao 1/30.
+    $de_iso  = data_iso($f['de'] ?? null);
+    $ate_iso = data_iso($f['ate'] ?? null);
+    $meses_fixo = $de_iso && $ate_iso && $ate_iso >= $de_iso
+        ? custos_meses_no_periodo($de_iso, $ate_iso)
+        : null;
+
     return [
         'rotulo'       => $rotulo,
         'agrupar'      => $chave,
@@ -1274,7 +1281,8 @@ function vendas_relatorio(array $f): array
             ),
             $agrupado['cmv'],
             vendas_dias_do_periodo($f),
-            $imposto_pct
+            $imposto_pct,
+            $meses_fixo
         ),
         'pct_variavel' => $pct_variavel,
         'parametros'   => $p,

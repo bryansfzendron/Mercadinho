@@ -390,6 +390,26 @@ function custos_fracao_aberto(?string $inauguracao, string $de, string $ate): fl
 }
 
 /**
+ * Quantos meses de fixo cabem no periodo [de, ate]: cada dia vale 1/dias do
+ * mes dele. Outubro inteiro da 1, fevereiro inteiro da 1, e meio mes da 0,5.
+ * Funcao pura.
+ *
+ * A conta antiga era dias / 30, que fecha so nos meses de 30 dias: no dia 31
+ * o mes cobrava 31/30 do fixo configurado, e fevereiro fechava com 28/30.
+ */
+function custos_meses_no_periodo(string $de, string $ate): float
+{
+    $dia = new DateTimeImmutable($de);
+    $fim = new DateTimeImmutable($ate);
+    $meses = 0.0;
+    while ($dia <= $fim) {
+        $meses += 1 / (int) $dia->format('t');
+        $dia = $dia->modify('+1 day');
+    }
+    return $meses;
+}
+
+/**
  * Quantos meses de atividade ha desde o inicio, contando o mes corrente como
  * um mes inteiro mesmo que tenha comecado no meio dele — e a mesma contagem
  * que o Simples usa pra empresa em inicio de atividade (o PA de abertura ja
@@ -842,8 +862,10 @@ function custos_fixo_mensal_total(int $pdv_id = 0): float
  * @param float $imposto_pct    aliquota efetiva do Simples sobre o periodo,
  *                              de custos_imposto_pct() — e por CNPJ, nao por
  *                              PDV, entao entra fora do loop dos parametros.
+ * @param ?float $meses         meses de fixo no periodo (custos_meses_no_periodo);
+ *                              sem ele, vale o rateio aproximado dias / 30.
  */
-function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, array $fixos_de, float $cmv, int $dias, float $imposto_pct = 0.0): array
+function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, array $fixos_de, float $cmv, int $dias, float $imposto_pct = 0.0, ?float $meses = null): array
 {
     $receita = 0.0;
     $taxa = 0.0;
@@ -869,7 +891,7 @@ function custos_resultado_pdvs(array $por_pdv_forma, array $params_por_pdv, arra
         // PDV inaugurado no meio do periodo paga so os dias em que existiu.
         $fixos += custos_fixos_mensais($p) * (float) ($p['fracao_fixo'] ?? 1);
     }
-    $fixos = $fixos * max(1, $dias) / 30;
+    $fixos = $fixos * ($meses ?? max(1, $dias) / 30);
 
     $imposto = $receita * $imposto_pct / 100;
     $lucro = $receita - $cmv - $taxa - $condominio - $franquia - $imposto - $fixos;

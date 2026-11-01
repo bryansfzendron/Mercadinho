@@ -1519,7 +1519,7 @@ function rota_metas(array $u): void
 
     // Breakdown diario para faturamento e lucro
     $breakdown_fat = metas_breakdown_diario($alvos['faturamento'], $r['resultado']['receita'], $de, $ate, $pdv_id ?: null, $inaug);
-    $breakdown_luc = metas_breakdown_diario($alvos['lucro'], $r['resultado']['lucro'], $de, $ate, $pdv_id ?: null, $inaug);
+    $breakdown_luc = metas_breakdown_diario($alvos['lucro'], $r['resultado']['lucro'], $de, $ate, $pdv_id ?: null, $inaug, true);
 
     $meses = [1 => 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
               'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -1529,7 +1529,9 @@ function rota_metas(array $u): void
     // Meses disponiveis para o select (ultimos 12 meses)
     $meses_disponiveis = [];
     for ($i = 0; $i < 12; $i++) {
-        $d = date('Y-m', strtotime("-$i months"));
+        // "first day of": no dia 31, "-1 month" cai em 31/09 = 01/10 e o
+        // select mostrava outubro duas vezes e nenhum setembro.
+        $d = date('Y-m', strtotime("first day of -$i months"));
         $meses_disponiveis[$d] = $meses[(int) date('n', strtotime($d . '-01'))] . ' de ' . date('Y', strtotime($d . '-01'));
     }
 
