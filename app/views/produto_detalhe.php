@@ -37,6 +37,65 @@ foreach ($historico as $h) {
     </div>
     <p class="ajuda">Valores por <?= e($produto['unidade'] ?: 'unidade') ?>, já com os descontos da nota abatidos.</p>
 
+    <?php if ($pago > 0): ?>
+        <!-- Preco de venda sugerido: o ultimo valor pago vezes o fator. Serve
+             sobretudo para o produto que ainda nao tem preco na loja. O fator
+             comeca em 2x e pode ser trocado; a tela lembra o ultimo usado. -->
+        <div class="sugerido" id="sugerido" data-pago="<?= e(number_format($pago, 4, '.', '')) ?>">
+            <div class="sugerido-linha">
+                <span>Na loja</span>
+                <strong><?= $venda !== null ? moeda($venda) : '<span class="ajuda">sem preço</span>' ?></strong>
+            </div>
+            <div class="sugerido-linha">
+                <label class="sugerido-fator">
+                    Vender com
+                    <input type="text" id="sugerido-fator" inputmode="decimal" value="2,00" aria-label="fator sobre o último valor pago">
+                    x
+                </label>
+                <strong id="sugerido-preco"><?= moeda($pago * 2) ?></strong>
+            </div>
+            <p class="ajuda" id="sugerido-conta">pagou <?= moeda($pago) ?> · lucro de <?= moeda($pago) ?> por unidade</p>
+        </div>
+        <script>
+        (function () {
+            const caixa = document.getElementById('sugerido');
+            const campo = document.getElementById('sugerido-fator');
+            const preco = document.getElementById('sugerido-preco');
+            const conta = document.getElementById('sugerido-conta');
+            const pago = Number(caixa.dataset.pago);
+            const CHAVE = 'mercadinho.fator_sugerido';
+
+            const moeda = (v) => 'R$ ' + v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            // "1,8" e "1.8" valem o mesmo; vazio vira 0 e cai no aviso.
+            const lerFator = (t) => Number(String(t).trim().replace(',', '.') || 0);
+
+            function desenhar() {
+                const f = lerFator(campo.value);
+                if (!isFinite(f) || f <= 0) {
+                    preco.textContent = '—';
+                    conta.textContent = 'Informe um fator maior que zero (ex.: 2 ou 1,8).';
+                    return;
+                }
+                const venda = pago * f;
+                const lucro = venda - pago;
+                preco.textContent = moeda(venda);
+                conta.textContent = 'pagou ' + moeda(pago) + ' · '
+                    + (lucro >= 0 ? 'lucro de ' : 'prejuízo de ') + moeda(Math.abs(lucro)) + ' por unidade';
+                try { localStorage.setItem(CHAVE, campo.value.trim()); } catch (e) {}
+            }
+
+            try {
+                const salvo = localStorage.getItem(CHAVE);
+                if (salvo && lerFator(salvo) > 0) campo.value = salvo;
+            } catch (e) {}
+
+            campo.addEventListener('input', desenhar);
+            campo.addEventListener('focus', () => campo.select());
+            desenhar();
+        })();
+        </script>
+    <?php endif; ?>
+
     <?php if ($par): ?>
         <p class="ajuda">
             <?php if ($par['como_caixa']): ?>
