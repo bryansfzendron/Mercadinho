@@ -50,6 +50,7 @@ function despachar(string $rota): void
     if ($rota === '/vendas/transacoes') { rota_vendas_transacoes($u); return; }
     if ($rota === '/vendas/produto') { rota_vendas_produto($u); return; }
     if ($rota === '/metas')     { rota_metas($u); return; }
+    if ($rota === '/config/touchpay') { rota_config_touchpay($u, $m); return; }
     if ($rota === '/config' || str_starts_with($rota, '/config/')) { rota_config($u, $m); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
     if ($rota === '/importar')  { rota_importar($u, $m); return; }
@@ -1802,4 +1803,83 @@ function rota_callback(): void
 
     $r = nota_processar_callback($p);
     json_resposta($r, $r['ok'] ? 200 : 422);
+}
+
+/**
+ * Configuracoes > TouchPay: cada usuario conecta a propria conta.
+ *
+ * O e-mail e a senha vao para um cookie cifrado neste aparelho; o banco so
+ * guarda o vinculo usuario -> conta (app/touchpay_conta.php). Conectar testa o
+ * login na hora: senha errada nao chega a ser guardada em lugar nenhum.
+ */
+function rota_config_touchpay(array $u, string $m): void
+{
+    $uid = (int) $u['id'];
+    $tabelas_ok = tp_conta_tabelas_ok();
+    $erro = null;
+    $email_digitado = '';
+
+    if ($m === 'POST') {
+        exigir_csrf();
+        $acao = (string) ($_POST['acao'] ?? '');
+
+        if (!$tabelas_ok) {
+            flash('erro', 'Falta criar as tabelas da conta TouchPay: rode o setup.php e tente de novo.');
+            redirecionar('/config/touchpay');
+        }
+
+        if ($acao === 'conectar') {
+            $email_digitado = trim((string) ($_POST['tp_email'] ?? ''));
+            $senha = (string) ($_POST['tp_senha'] ?? '');
+            try {
+                tp_entrar($email_digitado, $senha);
+                $antes = tp_conta_do_usuario($uid);
+                $conta_id = tp_conta_vincular($uid, $email_digitado);
+                tp_cofre_gravar($email_digitado, $senha, $uid);
+                flash('ok', $antes && $antes['conta_id'] !== $conta_id
+                    ? 'Conta TouchPay trocada. O login funcionou e ficou guardado só neste aparelho.'
+                    : 'Conectado. O login funcionou e ficou guardado só neste aparelho.');
+                redirecionar('/config/touchpay');
+            } catch (TouchPayErro $e) {
+                $erro = $e->getMessage();
+            } catch (RuntimeException $e) {
+                $erro = $e->getMessage();
+            }
+            unset($senha);
+        } elseif ($acao === 'testar') {
+            $cofre = tp_cofre_ler($uid);
+            if (!$cofre) {
+                flash('erro', 'Este aparelho não tem a senha do TouchPay. Conecte de novo.');
+            } else {
+                try {
+                    tp_entrar($cofre['email'], $cofre['senha']);
+                    flash('ok', 'O TouchPay aceitou o login.');
+                } catch (TouchPayErro $e) {
+                    flash('erro', $e->getMessage());
+                }
+            }
+            redirecionar('/config/touchpay');
+        } elseif ($acao === 'desconectar') {
+            tp_cofre_apagar();
+            tp_conta_desvincular($uid);
+            flash('ok', 'Desconectado. A senha foi apagada deste aparelho.');
+            redirecionar('/config/touchpay');
+        }
+    }
+
+    $conta = $tabelas_ok ? tp_conta_do_usuario($uid) : null;
+    $cofre = tp_cofre_ler($uid);
+    // Cookie de uma conta e vinculo de outra (trocou de conta em outro
+    // aparelho): este aparelho precisa da senha nova.
+    $neste_aparelho = $conta && $cofre && tp_conta_confere($conta, $cofre['email']);
+
+    ver('config_touchpay', [
+        'tabelas_ok'     => $tabelas_ok,
+        'conta'          => $conta,
+        'neste_aparelho' => $neste_aparelho,
+        'email'          => $neste_aparelho ? tp_email_mascarado($cofre['email']) : null,
+        'outros'         => $conta ? max(0, tp_conta_usuarios($conta['conta_id']) - 1) : 0,
+        'erro'           => $erro,
+        'email_digitado' => $email_digitado,
+    ], 'TouchPay');
 }

@@ -677,6 +677,7 @@ function abas_config(string $atual): string
         '/config/pdvs'    => 'PDVs',
         '/config/metas'   => 'Metas',
         '/config/taxas'   => 'Taxas',
+        '/config/touchpay' => 'TouchPay',
     ], $atual);
 }
 

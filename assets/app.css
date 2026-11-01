@@ -1378,3 +1378,8 @@ details.animando { overflow: hidden; }
 .folha-pdv .desligado { opacity: .5; }
 .folha-pdv form { margin: 0; }
 .folha-pdv h2:focus { outline: none; }
+
+/* Configuracoes > TouchPay */
+.tp-promessas { margin: 0; padding-left: 1.1rem; }
+.tp-promessas li { margin-bottom: .5rem; }
+.acoes form + form { margin-top: .5rem; }

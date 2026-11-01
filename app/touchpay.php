@@ -89,12 +89,17 @@ function tp_jwt_exp(string $jwt): ?int
  * `authorization`. Procurar no body devolve nada — foi o que o n8n descobriu
  * primeiro (n8n/codigo/tp-02-pegar-token.js) e vale o mesmo aqui.
  */
-function tp_entrar(): string
+function tp_entrar(?string $email = null, ?string $senha = null): string
 {
-    $email = (string) cfg('touchpay_email');
-    $senha = (string) cfg('touchpay_senha');
+    // Sem argumentos, a conta do config.php (o app inteiro, ate a fase 3).
+    // Com eles, a conta que a pessoa digitou na tela Configuracoes > TouchPay.
+    $do_config = $email === null;
+    $email = $do_config ? (string) cfg('touchpay_email') : trim($email);
+    $senha = $do_config ? (string) cfg('touchpay_senha') : (string) $senha;
     if ($email === '' || $senha === '') {
-        throw new TouchPayErro('touchpay_email/touchpay_senha nao configurados no config.php');
+        throw new TouchPayErro($do_config
+            ? 'touchpay_email/touchpay_senha nao configurados no config.php'
+            : 'Informe o e-mail e a senha do TouchPay.');
     }
 
     $cabecalhos = [];
@@ -128,7 +133,9 @@ function tp_entrar(): string
         throw new TouchPayErro('Nao consegui falar com o TouchPay: ' . curl_strerror($errno));
     }
     if ($http === 401 || $http === 400) {
-        throw new TouchPayErro('O TouchPay recusou o login. Confira touchpay_email e touchpay_senha.');
+        throw new TouchPayErro($do_config
+            ? 'O TouchPay recusou o login. Confira touchpay_email e touchpay_senha.'
+            : 'O TouchPay recusou o login. Confira o e-mail e a senha.');
     }
 
     $jwt = trim(preg_replace('/^Bearer\s+/i', '', $cabecalhos['authorization'] ?? ''));

@@ -477,3 +477,30 @@ CREATE TABLE IF NOT EXISTS planograma_lote_linhas (
     CONSTRAINT fk_pglinha_lote FOREIGN KEY (lote_id)
         REFERENCES planograma_lotes (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Conta TouchPay de cada usuario (Configuracoes > TouchPay).
+--
+-- Aqui NAO mora e-mail nem senha do TouchPay: os dois ficam num cookie
+-- cifrado no aparelho de quem conectou (app/touchpay_conta.php). A conta e
+-- identificada pelo HMAC do e-mail, com chave que so o servidor tem — da
+-- para saber que dois usuarios usam a mesma conta (a mesma loja) sem que o
+-- e-mail esteja no banco.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS touchpay_contas (
+    id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    chave      CHAR(64)     NOT NULL,
+    criado_em  DATETIME     NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_tpconta_chave (chave)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS usuario_touchpay (
+    usuario_id    INT UNSIGNED NOT NULL,
+    conta_id      INT UNSIGNED NOT NULL,
+    conectado_em  DATETIME     NOT NULL,
+    PRIMARY KEY (usuario_id),
+    KEY ix_utp_conta (conta_id),
+    CONSTRAINT fk_utp_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE,
+    CONSTRAINT fk_utp_conta FOREIGN KEY (conta_id) REFERENCES touchpay_contas (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
