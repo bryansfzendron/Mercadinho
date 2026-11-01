@@ -86,6 +86,12 @@ checar('mesmo EAN de outro item: travado com aviso', [$por[14]['travado'], str_c
 checar('EAN so na nota (ean_original) tambem casa', $por[15]['situacao'], 'planograma');
 checar('quantidade fracionada avisa', [$por[15]['fracionada'], $por[15]['entrada']], [true, 1.5]);
 
+// O filtro da tela procura no nome da nota, no do TouchPay e nos codigos.
+checar('busca leva nome, codigo e numero do item', $por[11]['busca'], 'ARROZ 5KG ARROZ 5KG 7891000100103 1');
+checar('busca leva o nome do TouchPay, que a nota abrevia', str_contains($por[15]['busca'], 'QUEIJO KG QUEIJO'), true);
+checar('busca leva o EAN que so a nota tem', str_contains($por[15]['busca'], '7896007811021'), true);
+checar('item sem planograma busca so pelo da nota', $por[12]['busca'], 'FEIJAO 1KG 7891000100110 2');
+
 $sem_tp = array_column(repor_nota_itens($nota, [], [], [], 2.0, false), null, 'id');
 checar('TouchPay nao leu: nao diz "fora do planograma"', $sem_tp[11]['situacao'], 'desconhecida');
 checar('TouchPay nao leu: sem EAN continua sem EAN', $sem_tp[13]['situacao'], 'sem_ean');

@@ -60,8 +60,22 @@
         return { marcados: pode.filter(function (c) { return c.marcado; }).length, total: pode.length };
     }
 
+    /** Mesma normalizacao do normalizar_texto() que gerou o data-busca. */
+    function normal(s) {
+        return String(s || '').toUpperCase()
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/[^A-Z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    /** O item bate com a busca? Termos somam (E): "coca lata" acha a lata de coca. */
+    function bate(chave, busca) {
+        const termos = normal(busca).split(' ').filter(Boolean);
+        return termos.every(function (t) { return String(chave || '').indexOf(t) >= 0; });
+    }
+
     const api = { numero: numero, sugerido: sugerido, variacao: variacao, margem: margem,
-                  estoqueDepois: estoqueDepois, dinheiro: dinheiro, pct: pct, contar: contar };
+                  estoqueDepois: estoqueDepois, dinheiro: dinheiro, pct: pct, contar: contar,
+                  normal: normal, bate: bate };
 
     // ----------------------------------------------------------------- tela
     function iniciar() {
@@ -124,7 +138,33 @@
             doc.getElementById('rn-continuar').disabled = r.marcados === 0;
         }
 
-        function todos(fn) { cartoes.forEach(function (c) { if (c.getAttribute('data-travado') !== '1') fn(c); }); }
+        // Com filtro, os botoes "todos" valem so para o que esta na tela: filtrar
+        // "nissin" e marcar todos marca os Nissin, e nao a nota inteira.
+        function todos(fn) {
+            cartoes.forEach(function (c) { if (c.getAttribute('data-travado') !== '1' && !c.hidden) fn(c); });
+        }
+
+        const busca = doc.getElementById('rn-busca');
+        const buscaConta = doc.getElementById('rn-busca-conta');
+        function filtrar() {
+            const termo = busca.value;
+            let vistos = 0;
+            cartoes.forEach(function (c) {
+                const ok = bate(c.getAttribute('data-busca'), termo);
+                c.hidden = !ok;
+                if (ok) vistos++;
+            });
+            // O item marcado que sai do filtro continua marcado e vai no Continuar.
+            buscaConta.hidden = normal(termo) === '';
+            buscaConta.textContent = vistos
+                ? 'Mostrando ' + vistos + ' de ' + cartoes.length + ' itens. Os botões abaixo valem só para eles.'
+                : 'Nenhum item bate com essa busca.';
+        }
+        busca.addEventListener('input', filtrar);
+        // Enter no campo de busca enviaria o formulario inteiro.
+        busca.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); busca.blur(); }
+        });
 
         campoTaxa.addEventListener('input', function () {
             try { global.localStorage.setItem(CHAVE, campoTaxa.value); } catch (e) { /* tudo bem */ }

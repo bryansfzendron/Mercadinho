@@ -50,5 +50,15 @@ checar('contagem ignora travados', R.contar([
     { travado: false, marcado: true }, { travado: false, marcado: false }, { travado: true, marcado: false },
 ]), { marcados: 1, total: 2 });
 
+// ------------------------------------------------------------- filtro
+const chave = 'MAC NISSIN LAMEN MACARRAO INSTANTANEO NISSIN GALINHA 7891079000212 12';
+checar('busca normaliza acento e caixa', R.normal(' Macarrão  instantâneo! '), 'MACARRAO INSTANTANEO');
+checar('acha pelo nome da nota', R.bate(chave, 'nissin'), true);
+checar('acha pelo nome do TouchPay', R.bate(chave, 'galinha'), true);
+checar('termos somam', R.bate(chave, 'nissin galinha'), true);
+checar('um termo que nao bate esconde', R.bate(chave, 'nissin carne'), false);
+checar('acha pelo codigo de barras', R.bate(chave, '7891079'), true);
+checar('busca vazia mostra tudo', R.bate(chave, '  '), true);
+
 console.log(`\n${ok} passaram, ${falhou} falharam`);
 process.exit(falhou ? 1 : 0);

@@ -73,6 +73,9 @@ $reenvio = $post !== [];
         <label>Taxa (preço sugerido = custo × taxa)
             <input type="text" name="taxa" id="rn-taxa" inputmode="decimal" value="<?= e($taxa) ?>">
         </label>
+        <input type="search" id="rn-busca" class="busca-itens" placeholder="buscar item por nome ou código"
+               aria-controls="rn" autocomplete="off" autocorrect="off" spellcheck="false">
+        <p class="ajuda" id="rn-busca-conta" aria-live="polite" hidden></p>
         <div class="rn-atalhos">
             <button type="button" class="botao botao-alt" data-acao="marcar">Marcar todos</button>
             <button type="button" class="botao botao-alt" data-acao="desmarcar">Nenhum</button>
@@ -96,6 +99,7 @@ $reenvio = $post !== [];
         $val = $p['validade'] ?? '';
     ?>
     <div class="cartao rn-item<?= $i['travado'] ? ' rn-travado' : '' ?>"
+         data-busca="<?= e($i['busca']) ?>"
          data-custo="<?= e($ponto($i['custo'])) ?>"
          data-atual="<?= $a ? e($ponto($a['preco'])) : '' ?>"
          data-estoque="<?= $a ? e($ponto($a['estoque'])) : '' ?>"
@@ -201,5 +205,5 @@ $reenvio = $post !== [];
 
     <button type="submit" class="botao botao-grande" id="rn-continuar">Continuar para a conferência</button>
 </form>
-<script src="/assets/repor-nota.js?v=1"></script>
+<script src="/assets/repor-nota.js?v=2"></script>
 <?php endif; ?>

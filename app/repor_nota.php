@@ -126,6 +126,17 @@ function repor_nota_itens(array $itens, array $planograma, array $inventario, ar
             // resto da nota para o outro PDV sem refazer os primeiros.
             'marcado'     => !$travado && !$f,
             'aviso'       => $aviso,
+            // O que o filtro da tela procura: o nome da nota, o do TouchPay
+            // (a nota abrevia, "MAC.NISSIN"), os codigos e o numero do item.
+            // Mesma normalizacao do filtro da nota (normalizar_texto).
+            'busca'       => trim(preg_replace('/\s+/', ' ', implode(' ', array_filter([
+                normalizar_texto($it['descricao_original']),
+                normalizar_texto($atual['descricao'] ?? ''),
+                $ean,
+                (string) ($it['ean_original'] ?? ''),
+                normalizar_texto($it['cod_interno'] ?? ''),
+                (string) $num,
+            ])))),
         ];
     }
     return $saida;
