@@ -278,7 +278,7 @@ function sync_coletar_loja(array $pos_ids = [], ?int $teto_segundos = null): arr
     }
     // O n8n recebe e-mail e senha no corpo e guarda a execucao: so a conta
     // legada, cuja senha ja mora no config.php, pode ir por la.
-    return sync_modo() === 'n8n' && conta_legada()
+    return sync_modo() === 'n8n' && conta_legada() && tp_configurado()
         ? loja_disparar_sync($pos_ids)
         : loja_sincronizar_local($pos_ids, $teto_segundos);
 }
@@ -290,7 +290,7 @@ function sync_coletar_vendas(?string $de = null, ?string $ate = null,
     if (!conta_pode_touchpay()) {
         return ['ok' => false, 'erro' => conta_aviso_sem_touchpay()];
     }
-    return sync_modo() === 'n8n' && conta_legada()
+    return sync_modo() === 'n8n' && conta_legada() && tp_configurado()
         ? vendas_disparar_sync($de, $ate)
         : vendas_sincronizar_local($de, $ate, $teto_segundos);
 }
