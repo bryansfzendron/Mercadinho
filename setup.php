@@ -86,6 +86,8 @@ function migracoes(): array
                                       . ' ADD KEY ix_itens_caixa (caixa_produto_id)',
             'por_caixa'              => 'DECIMAL(14,4) NULL AFTER caixa_produto_id',
             'caixa_unidade'          => 'VARCHAR(10) NULL AFTER por_caixa',
+            // "Esta certo" na tela de discrepancias: o item para de aparecer.
+            'discrepancia_ok'        => 'DATETIME NULL AFTER caixa_unidade',
         ],
         // De que nota veio o lote ("Repor itens" da nota). Indice e FK vem junto
         // com a coluna pelo mesmo motivo da caixa acima.

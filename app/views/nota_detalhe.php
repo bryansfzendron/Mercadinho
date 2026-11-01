@@ -1,5 +1,5 @@
 <?php
-/** @var array $nota */
+/** @var array $nota @var int $discrepancias itens desta nota que parecem caixa como unidade */
 
 /**
  * Quantidade num <input> de correcao: vírgula decimal e SEM separador de
@@ -100,6 +100,13 @@ $vale_filtrar = count($nota['itens']) >= 8;
         <button type="submit" class="botao botao-perigo">Remover nota</button>
     </form>
 </div>
+
+<?php if ($discrepancias > 0): ?>
+    <div class="aviso aviso-info">
+        <?= (int) $discrepancias ?> item(ns) desta nota parece(m) caixa lançada como unidade.
+        <a href="/notas/discrepancias?nota=<?= (int) $nota['id'] ?>">Conferir</a>
+    </div>
+<?php endif; ?>
 
 <h2><?= count($nota['itens']) ?> itens</h2>
 <?php if ($nota['itens']): ?>

@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS itens (
     caixa_produto_id   INT UNSIGNED  NULL,
     por_caixa          DECIMAL(14,4) NULL,
     caixa_unidade      VARCHAR(10)   NULL,
+    -- "Esta certo" na tela de discrepancias: o item para de aparecer la.
+    discrepancia_ok    DATETIME      NULL,
     PRIMARY KEY (id),
     KEY ix_itens_nota (nota_id),
     KEY ix_itens_produto (produto_id),

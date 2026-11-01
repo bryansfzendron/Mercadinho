@@ -93,4 +93,5 @@ require APP . '/sefaz.php';
 require APP . '/planograma.php';
 require APP . '/planilha_repor.php';
 require APP . '/repor_nota.php';
+require APP . '/discrepancias.php';
 require APP . '/promocao.php';

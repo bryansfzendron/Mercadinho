@@ -24,6 +24,7 @@ function despachar(string $rota): void
     // Conferir a conta do supermercado: tela de rascunho, sem banco.
     if ($rota === '/mercado')   { ver('mercado', [], 'Mercado'); }
     if ($rota === '/notas')     { rota_notas($u); return; }
+    if ($rota === '/notas/discrepancias') { rota_discrepancias($u, $m); return; }
     if ($rota === '/transacoes') { rota_transacoes($u); return; }
     if ($rota === '/produtos')  { rota_produtos($u); return; }
     if ($rota === '/loja')      { rota_loja($u); return; }
@@ -290,9 +291,10 @@ function rota_notas(array $u): void
           LIMIT 200',
         [$u['id']]
     );
+    $discrepancias = discrepancias_contar((int) $u['id']);
     ver(
         'notas_lista',
-        compact('notas', 'resumo', 'itens_total', 'pendentes', 'loja', 'vendas'),
+        compact('notas', 'resumo', 'itens_total', 'pendentes', 'loja', 'vendas', 'discrepancias'),
         'Minhas notas'
     );
 }
@@ -304,7 +306,8 @@ function rota_nota_detalhe(array $u, int $id): void
         http_response_code(404);
         ver('erro', ['codigo' => 404, 'mensagem' => 'Nota nao encontrada'], 'Nao encontrado');
     }
-    ver('nota_detalhe', compact('nota'), 'Nota');
+    $discrepancias = discrepancias_contar((int) $u['id'], $id);
+    ver('nota_detalhe', compact('nota', 'discrepancias'), 'Nota');
 }
 
 function rota_nota_excluir(array $u, int $id): void
@@ -329,6 +332,50 @@ function rota_nota_item_editar(array $u, int $nota_id, int $item_id): void
     // vizinho costuma ser o proximo a corrigir. Deu errado: volta ao topo,
     // que e onde o aviso aparece.
     redirecionar('/notas/' . $nota_id . ($r['ok'] ? '#item-' . $item_id : ''));
+}
+
+/**
+ * Discrepancias: itens que parecem caixa lancada como unidade. O POST abre a
+ * caixa (ou marca o item como certo) e volta para a mesma lista, que e onde
+ * esta o proximo a corrigir.
+ */
+function rota_discrepancias(array $u, string $m): void
+{
+    $nota_id = (int) ($_GET['nota'] ?? 0) ?: null;
+    $volta = '/notas/discrepancias' . ($nota_id ? '?nota=' . $nota_id : '');
+
+    if ($m === 'POST') {
+        exigir_csrf();
+        $item_id = (int) ($_POST['item'] ?? 0);
+        if (($_POST['acao'] ?? '') === 'ok') {
+            $ok = discrepancia_dispensar($item_id, (int) $u['id']);
+            flash($ok ? 'ok' : 'erro', $ok ? 'Item marcado como certo.' : 'Não encontrei esse item.');
+        } elseif (($_POST['acao'] ?? '') === 'conhecidas') {
+            [$n, $falhas] = discrepancias_abrir_conhecidas((int) $u['id'], $nota_id);
+            flash($falhas ? 'erro' : 'ok', $n . ' caixa(s) aberta(s).'
+                . ($falhas ? ' Não deu em ' . count($falhas) . ': ' . implode(' · ', array_slice($falhas, 0, 3)) : ''));
+        } else {
+            $r = discrepancia_abrir($item_id, (int) $u['id'], (string) ($_POST['ean_unidade'] ?? ''),
+                (string) ($_POST['por_caixa'] ?? ''));
+            flash($r['ok'] ? 'ok' : 'erro', $r['msg']);
+        }
+        redirecionar($volta);
+    }
+
+    try {
+        $itens = discrepancias_itens((int) $u['id'], $nota_id);
+    } catch (PDOException $e) {
+        ver('erro', ['codigo' => 500, 'mensagem' => 'Falta a coluna nova das notas: rode o setup.php e tente de novo.'], 'Discrepâncias');
+    }
+    [$por_ean] = discrepancia_precos();
+    foreach ($itens as &$i) {
+        $i['candidatos'] = discrepancia_candidatos($i, $por_ean);
+        $i['palpites'] = discrepancia_por_caixa((float) $i['valor_unitario_liquido'], $i['ref'],
+            (string) $i['descricao_original'], $i['conhecida']['por_caixa'] ?? null);
+    }
+    unset($i);
+
+    ver('discrepancias', compact('itens', 'nota_id'), 'Discrepâncias');
 }
 
 function rota_nota_item_excluir(array $u, int $nota_id, int $item_id): void

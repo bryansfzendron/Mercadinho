@@ -1308,3 +1308,20 @@ details.animando { overflow: hidden; }
 .rn-escolha label { display: flex; gap: .5rem; align-items: center; margin: 0; color: var(--texto); font-size: .92rem; }
 .rn-escolha input { width: 1.1rem; height: 1.1rem; margin: 0; }
 .rn-mais { margin-top: .6rem; }
+
+/* Discrepancias: caixa lancada como unidade (/notas/discrepancias). */
+.disc-motivo { margin: .2rem 0 .7rem; padding: .45rem .6rem; border-radius: 10px;
+               color: var(--ambar); background: var(--tinta-ambar); font-size: .86rem; }
+.disc-unidades { border: 0; padding: 0; margin: 0 0 .7rem; min-width: 0; }
+.disc-unidades legend { padding: 0; margin-bottom: .2rem; font-weight: 600; font-size: .92rem; }
+.disc-opcao { display: flex; gap: .55rem; align-items: flex-start; margin: 0; padding: .5rem 0;
+              border-top: 1px solid var(--borda); color: var(--texto); font-size: .9rem; }
+.disc-opcao > input { width: 1.15rem; height: 1.15rem; margin: .15rem 0 0; flex: none; }
+.disc-opcao .selo { display: inline-block; margin-top: .25rem; }
+.disc-conhecida { padding: .55rem 0; border-bottom: 1px solid var(--borda); }
+.disc-conhecida p { margin: .15rem 0 0; }
+.disc-conhecida + form { margin-top: .8rem; }
+.disc-outro { flex: 1; min-width: 0; }
+.disc-outro .duas { margin-top: .35rem; }
+.disc-previa { min-height: 1.2rem; color: var(--texto); }
+.disc-certo { margin-top: .5rem; }

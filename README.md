@@ -1520,6 +1520,45 @@ A regra é: **tela de número não tem botão de ajuste**. Antes disso os dois s
 tela inicial, as metas num formulário embaixo do progresso e as taxas num `<details>` no pé
 do relatório — cada coisa num canto, e o dono do app não achava.
 
+## Discrepâncias: a caixa que ficou como unidade
+
+Quando ninguém abre a caixa, o app acha que cada pacote custou o preço da caixa: em
+outubro de 2026 uma caixa de lamen (1 CXA a R$ 114,50) caiu no cadastro do pacote que
+vende a R$ 5,70, e o lucro do mês despencou no dia 31. **Notas → Discrepâncias**
+(`/notas/discrepancias`) acha esses itens. A lista de notas e a tela de cada nota avisam
+quando há algum.
+
+Um item entra na lista quando (`discrepancia_motivo()`):
+
+- o custo da unidade passa do **preço de venda** do produto na máquina; ou
+- custa **3 vezes ou mais** o que o mesmo produto costuma custar nas outras compras; ou
+- o produto **já foi aberto como caixa** noutra nota, mas aqui ficou fechado.
+
+Para cada um, a tela sugere **qual é a unidade** (`discrepancia_candidatos()`):
+
+1. a unidade da caixa aberta antes;
+2. o código **tirado do GTIN-14 da caixa**: `1 789107900022 6` é a caixa do
+   `789107900022 9` (tira o indicador da frente e refaz o dígito verificador);
+3. o cadastro vinculado hoje, quando o código dele é outro que o da nota;
+4. nomes parecidos entre o que a máquina vende ("MAC.NISSIN" acha "MACARRAO … NISSIN").
+
+E **quantas vêm na caixa** (`discrepancia_por_caixa()`): a da caixa aberta antes, o que a
+descrição diz (`C/12`, `12X350ML`) e a conta custo da caixa / custo de sempre,
+arredondada para tamanhos de caixa que existem. A prévia mostra o custo por unidade e a
+margem antes de aplicar. **Abrir a caixa** é o mesmo **Corrigir item** da nota, já
+preenchido: a caixa ganha cadastro próprio pelo código dela, e o código interno da loja
+passa a apontar para a caixa, então a próxima nota já cai no lugar. As caixas já
+conhecidas abrem todas de uma vez. **Está certo, não é caixa** tira o item da lista.
+
+`itens.discrepancia_ok` é migração: depois do `git pull`, rode `/setup.php?token=…` e
+aplique as migrações. Sem ela, a tela pede o setup e os avisos ficam desligados; o resto
+do app segue normal.
+
+```bash
+php testes/discrepancias.php   # motivo, GTIN-14 -> EAN-13, palpites, nome parecido
+node testes/discrepancias.js   # prévia do custo por unidade
+```
+
 ## Mercado: conferir a conta antes do caixa
 
 `/mercado` é uma lista de rascunho para usar **dentro do supermercado**: bipa o produto na

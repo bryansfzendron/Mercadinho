@@ -10,6 +10,7 @@
  * @var array $resumo      notas e total gasto
  * @var int   $itens_total
  * @var int   $pendentes
+ * @var int   $discrepancias itens que parecem caixa lancada como unidade
  * @var array $loja        espelho do TouchPay
  * @var array $vendas      resumo das vendas importadas
  */
@@ -26,6 +27,13 @@
 <?php if ($pendentes > 0): ?>
     <div class="aviso aviso-info">
         <?= (int) $pendentes ?> nota(s) ainda em processamento.
+    </div>
+<?php endif; ?>
+
+<?php if ($discrepancias > 0): ?>
+    <div class="aviso aviso-info">
+        <?= (int) $discrepancias ?> item(ns) parece(m) caixa lançada como unidade, e isso distorce o custo das vendas.
+        <a href="/notas/discrepancias">Conferir</a>
     </div>
 <?php endif; ?>
 
