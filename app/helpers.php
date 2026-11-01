@@ -630,6 +630,11 @@ function conta_aviso_loja(): string
     if (!function_exists('conta_separada') || !conta_separada()) {
         return '';
     }
+    // Conta nova: os primeiros passos ja dizem tudo, inclusive conectar.
+    $passos = function_exists('primeiros_passos') ? primeiros_passos() : null;
+    if ($passos) {
+        return primeiros_passos_html($passos);
+    }
     if (conta_atual() === null) {
         return '<div class="aviso aviso-info">Conecte sua conta TouchPay para ver a sua loja. '
              . '<a href="/config/touchpay">Conectar</a></div>';
@@ -692,6 +697,37 @@ function folha_pedir_pdv(): string
          . '<ul class="lista escolher-pdv">' . $itens . '</ul>'
          . '<form method="dialog"><button class="botao botao-alt">Cancelar</button></form>'
          . '</div></dialog>';
+}
+
+/**
+ * O cartao dos primeiros passos. O proximo a fazer fica em destaque; os
+ * feitos ganham o tique e saem do caminho.
+ *
+ * @param array $passos de primeiros_passos()
+ */
+function primeiros_passos_html(array $passos): string
+{
+    $feitos = count(array_filter($passos, static fn (array $p): bool => $p['feito']));
+    $proximo = null;
+    $itens = '';
+    $n = 0;
+    foreach ($passos as $chave => $p) {
+        $n++;
+        $agora = !$p['feito'] && $proximo === null;
+        if ($agora) {
+            $proximo = $chave;
+        }
+        $classe = $p['feito'] ? 'passo feito' : ($agora ? 'passo agora' : 'passo');
+        $titulo = $p['feito'] ? e($p['titulo']) : '<a href="' . e($p['link']) . '">' . e($p['titulo']) . '</a>';
+        $itens .= '<li class="' . $classe . '"><span class="passo-marca">' . ($p['feito'] ? '✓' : $n) . '</span>'
+                . '<div><strong>' . $titulo . '</strong>'
+                . ($p['feito'] ? '' : '<p class="ajuda">' . e($p['ajuda']) . '</p>') . '</div></li>';
+    }
+    return '<div class="cartao primeiros-passos">'
+         . '<h2 class="sem-topo">Primeiros passos <span class="ajuda">' . $feitos . ' de ' . count($passos) . '</span></h2>'
+         . '<ol>' . $itens . '</ol>'
+         . '<p class="ajuda">Até terminar, lucro e margens aparecem sem os seus custos — o app não usa '
+         . 'taxas de exemplo na sua conta.</p></div>';
 }
 
 /** Configuracoes: tudo que e botao e ajuste, longe das telas de numero. */

@@ -1383,3 +1383,18 @@ details.animando { overflow: hidden; }
 .tp-promessas { margin: 0; padding-left: 1.1rem; }
 .tp-promessas li { margin-bottom: .5rem; }
 .acoes form + form { margin-top: .5rem; }
+
+/* Primeiros passos de uma conta nova (Inicio e topo da Loja). */
+.primeiros-passos ol { list-style: none; margin: .4rem 0 .6rem; padding: 0; }
+.primeiros-passos h2 .ajuda { font-weight: 500; margin-left: .3rem; }
+.passo { display: flex; gap: .7rem; align-items: flex-start; padding: .55rem 0; border-top: 1px solid var(--vidro-borda); }
+.passo:first-child { border-top: 0; }
+.passo .ajuda { margin: .15rem 0 0; }
+.passo-marca {
+    flex: none; width: 1.6rem; height: 1.6rem; border-radius: 50%;
+    display: grid; place-items: center; font-size: .85rem; font-weight: 600;
+    background: rgba(127, 127, 127, .14); color: var(--suave);
+}
+.passo.agora .passo-marca { background: var(--marca); color: #fff; }
+.passo.feito .passo-marca { background: var(--tinta-positiva); color: var(--positivo); }
+.passo.feito strong { color: var(--suave); font-weight: 500; text-decoration: line-through; }

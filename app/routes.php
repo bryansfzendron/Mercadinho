@@ -1733,7 +1733,11 @@ function rota_config(array $u, string $metodo): void
     $sync   = ['loja' => sync_estado('loja'), 'vendas' => sync_estado('vendas')];
     $cron   = cron_formatar(q1('SELECT * FROM sync_estado WHERE fonte = ?', ['cron']));
 
-    ver('config', compact('aba', 'p', 'pdvs', 'unificados', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'mudancas', 'metas_pdv', 'imposto'), 'Configuracoes');
+    // Conta nova: os campos de taxa e de meta abrem vazios, nao com zero.
+    $passos = primeiros_passos();
+    $taxas_novas = $passos !== null && !$passos['taxas']['feito'];
+    $metas_novas = $passos !== null && !$passos['metas']['feito'];
+    ver('config', compact('aba', 'p', 'pdvs', 'unificados', 'loja', 'vendas', 'sync', 'cron', 'ativos', 'pdv_taxas', 'overrides', 'mudancas', 'metas_pdv', 'imposto', 'taxas_novas', 'metas_novas'), 'Configuracoes');
 }
 
 /**

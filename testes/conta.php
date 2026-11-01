@@ -13,6 +13,8 @@ define('APP', dirname(__DIR__) . '/app');
 require APP . '/helpers.php';
 require APP . '/conta.php';
 require APP . '/sync.php';
+require APP . '/metas.php';
+require APP . '/custos.php';
 
 $ok = 0; $falhou = 0;
 function checar(string $nome, $obtido, $esperado): void
@@ -78,6 +80,20 @@ checar('outra conta: aviso pede a senha neste aparelho',
 // O numero vai literal no SQL: so inteiro entra.
 conta_definir((int) '3 OR 1=1');
 checar('id esquisito vira inteiro', conta_sql('p.conta_id'), 'p.conta_id = 3');
+
+// Conta nova nao herda as taxas e metas de exemplo; a legada segue com elas.
+conta_separada_forcar(false);
+checar('sem migracao: usa os padroes', custos_usa_padrao(), true);
+conta_separada_forcar(true);
+conta_definir(1);
+checar('legada: usa os padroes', custos_usa_padrao(), true);
+conta_definir(2);
+checar('conta nova: nao usa os padroes', custos_usa_padrao(), false);
+checar('conta nova: base toda em zero', array_values(array_unique(custos_base_vazia())), [0.0]);
+checar('conta nova: base tem todas as chaves de custo e meta',
+    array_keys(custos_base_vazia()), array_keys(custos_padrao() + metas_padrao()));
+conta_definir(null);
+checar('sem conta: nao usa os padroes', custos_usa_padrao(), false);
 
 echo "\n{$ok} passaram, {$falhou} falharam\n";
 exit($falhou > 0 ? 1 : 0);

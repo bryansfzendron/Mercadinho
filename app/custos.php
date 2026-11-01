@@ -53,10 +53,27 @@ function custos_parametros(?string $dia = null): array
     return custos_montar(custos_parametros_base(), [], custos_vigencias(), 0, $dia ?? date('Y-m-d'));
 }
 
-/** Parametros gravados, completados com os padroes, sem olhar o historico. */
+/**
+ * Os numeros de custos_padrao() sao os da loja que nasceu o app (a maquininha,
+ * o condominio e a franquia dela). Conta nova nao herda nada disso: comeca
+ * zerada e passa pelos primeiros passos (primeiros_passos()) para dizer os
+ * seus. So a conta legada — e o app ainda sem separacao — segue com eles.
+ */
+function custos_usa_padrao(): bool
+{
+    return conta_legada();
+}
+
+/** Todas as chaves de custo e de meta, zeradas. */
+function custos_base_vazia(): array
+{
+    return array_fill_keys(array_keys(custos_padrao() + metas_padrao()), 0.0);
+}
+
+/** Parametros gravados, completados com os padroes (ou com zero, conta nova), sem olhar o historico. */
 function custos_parametros_base(): array
 {
-    $valores = custos_padrao() + metas_padrao();
+    $valores = custos_usa_padrao() ? custos_padrao() + metas_padrao() : custos_base_vazia();
     foreach (q('SELECT chave, valor FROM custos_parametros WHERE ' . conta_sql()) as $linha) {
         $chave = (string) $linha['chave'];
         if (array_key_exists($chave, $valores)) {
@@ -963,4 +980,78 @@ function custos_pct_variavel_pdvs(array $por_pdv_forma, array $params_por_pdv, f
         return (float) $p['condominio_pct'] + (float) $p['franquia_pct'] + $imposto_pct;
     }
     return $variavel / $receita * 100 + $imposto_pct;
+}
+
+// ---------------------------------------------------------------------
+// Primeiros passos de uma conta nova
+// ---------------------------------------------------------------------
+
+/**
+ * O que falta uma conta nova fazer antes de os numeros dela valerem: conectar
+ * o TouchPay, puxar a loja, dizer as taxas e custos (e deles que saem as
+ * margens) e as metas. Null quando nao ha nada a mostrar — tudo feito, ou a
+ * conta legada, que ja nasceu configurada.
+ *
+ * Taxas contam como feitas quando qualquer custo foi salvo (o formulario
+ * manda todos juntos); metas, quando a meta da empresa ou a de um PDV foi
+ * salva — mesmo zero, que e a pessoa dizendo "sem meta".
+ *
+ * @return ?array<string, array{titulo:string, feito:bool, link:string, ajuda:string}>
+ */
+function primeiros_passos(): ?array
+{
+    if (!function_exists('conta_separada') || !conta_separada() || conta_legada()) {
+        return null;
+    }
+    $conta = conta_atual();
+    $tem = static function (string $sql, array $args = []): bool {
+        try {
+            return (bool) q1($sql, $args);
+        } catch (PDOException $e) {
+            return false;
+        }
+    };
+    $marcas = static fn (array $chaves): string => implode(',', array_fill(0, count($chaves), '?'));
+    $custos = array_keys(custos_padrao());
+    $metas  = array_keys(metas_padrao());
+
+    $passos = [
+        'touchpay' => [
+            'titulo' => 'Conectar sua conta TouchPay',
+            'feito'  => $conta !== null,
+            'link'   => '/config/touchpay',
+            'ajuda'  => 'O e-mail e a senha do painel do TouchPay. A senha fica só no seu celular.',
+        ],
+        'loja' => [
+            'titulo' => 'Puxar a sua loja',
+            'feito'  => $conta !== null && $tem('SELECT 1 FROM loja_pdvs WHERE ' . conta_sql() . ' LIMIT 1'),
+            'link'   => '/loja',
+            'ajuda'  => 'Arraste a tela para baixo: o app traz PDVs, preços, estoque e o último ano de vendas.',
+        ],
+        'taxas' => [
+            'titulo' => 'Configurar taxas e custos',
+            'feito'  => $conta !== null && $tem(
+                'SELECT 1 FROM custos_parametros WHERE ' . conta_sql() . ' AND chave IN (' . $marcas($custos) . ') LIMIT 1',
+                $custos
+            ),
+            'link'   => '/config/taxas',
+            'ajuda'  => 'Maquininha, condomínio, franquia e os fixos do mês. É daqui que saem as margens e o lucro.',
+        ],
+        'metas' => [
+            'titulo' => 'Configurar metas',
+            'feito'  => $conta !== null && (
+                $tem('SELECT 1 FROM custos_parametros WHERE ' . conta_sql() . ' AND chave IN (' . $marcas($metas) . ') LIMIT 1', $metas)
+                || $tem('SELECT 1 FROM custos_pdv WHERE ' . conta_pdv_sql('pdv_id') . ' AND chave IN (' . $marcas($metas) . ') LIMIT 1', $metas)
+            ),
+            'link'   => '/config/metas',
+            'ajuda'  => 'Quanto você quer faturar e lucrar por mês. Zero também vale: fica só a projeção.',
+        ],
+    ];
+
+    foreach ($passos as $p) {
+        if (!$p['feito']) {
+            return $passos;
+        }
+    }
+    return null;
 }

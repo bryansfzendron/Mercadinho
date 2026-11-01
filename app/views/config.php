@@ -9,6 +9,8 @@
  * @var array  $cron
  * @var ?array $imposto
  * @var array  $mudancas as trocas de taxa com data do escopo aberto na aba Taxas
+ * @var bool   $taxas_novas conta nova que ainda nao disse as taxas: campos vazios
+ * @var bool   $metas_novas conta nova que ainda nao disse as metas: campos vazios
  */
 ?>
 <h1>Configurações</h1>
@@ -310,7 +312,10 @@
     // ajuda abaixo diz isso com todas as letras — taxa em branco herda o
     // padrao, meta em branco deixa o PDV sem meta.
     $editando_pdv = $pdv_taxas > 0;
-    $valor_meta = static function (string $chave) use ($editando_pdv, $metas_pdv, $p): string {
+    $valor_meta = static function (string $chave) use ($editando_pdv, $metas_pdv, $p, $metas_novas): string {
+        if (!$editando_pdv && $metas_novas) {
+            return '';
+        }
         $v = $editando_pdv ? $metas_pdv[$chave] : (float) $p[$chave];
         return $v === null ? '' : number_format((float) $v, 2, ',', '');
     };
@@ -323,6 +328,13 @@
                 <a class="chip <?= $pdv_taxas === (int) $id ? 'ativo' : '' ?>"
                    href="/config/metas?pdv=<?= (int) $id ?>"><?= e($nome) ?></a>
             <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($metas_novas && !$editando_pdv): ?>
+        <div class="aviso aviso-info">
+            <strong>Primeiro passo:</strong> diga quanto quer faturar e lucrar por mês. Pode deixar
+            em branco ou zero para ficar só com a projeção — salvar já conta como configurado.
         </div>
     <?php endif; ?>
 
@@ -380,7 +392,17 @@
         ['fixo_internet'  => 'Internet (R$/mês)'],
     ];
     $por_pdv = $pdv_taxas > 0;
+    // Conta nova: o padrao abre vazio, para ninguem salvar zero sem perceber.
+    $vazio = !$por_pdv && $taxas_novas;
     ?>
+
+    <?php if ($vazio): ?>
+        <div class="aviso aviso-info">
+            <strong>Primeiro passo:</strong> preencha com as taxas da sua maquininha, o seu
+            condomínio e franquia e os fixos do mês. O app não usa valores de exemplo na sua
+            conta — campo em branco conta como zero.
+        </div>
+    <?php endif; ?>
 
     <?php if ($ativos): ?>
         <div class="chips">
@@ -410,7 +432,7 @@
                     <?php foreach ($grupo as $campo => $rotulo): ?>
                         <label class="<?= count($grupo) === 1 ? 'col-cheia' : '' ?>"><?= e($rotulo) ?>
                             <input type="text" inputmode="decimal" name="<?= e($campo) ?>"
-                                   value="<?= $por_pdv && !isset($overrides[$campo]) ? '' : e(number_format($por_pdv ? $overrides[$campo] : $p[$campo], 2, ',', '')) ?>"
+                                   value="<?= $vazio || ($por_pdv && !isset($overrides[$campo])) ? '' : e(number_format($por_pdv ? $overrides[$campo] : $p[$campo], 2, ',', '')) ?>"
                                    <?= $por_pdv ? 'placeholder="' . e(number_format($p[$campo], 2, ',', '')) . '"' : '' ?>>
                         </label>
                     <?php endforeach; ?>
@@ -423,7 +445,7 @@
             </p>
             <?php if (!$por_pdv): ?>
                 <label>CMV padrão, para produto sem nota (%)
-                    <input type="text" inputmode="decimal" name="cmv_padrao_pct" value="<?= e(number_format($p['cmv_padrao_pct'], 2, ',', '')) ?>">
+                    <input type="text" inputmode="decimal" name="cmv_padrao_pct" value="<?= $vazio ? '' : e(number_format($p['cmv_padrao_pct'], 2, ',', '')) ?>">
                 </label>
             <?php endif; ?>
             <p class="ajuda">
