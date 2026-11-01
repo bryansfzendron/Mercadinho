@@ -47,16 +47,37 @@
          'plano' => (int) ($p['planograma_id'] ?? 0),
      ], $pdvs), JSON_UNESCAPED_UNICODE)) ?>">
 
-    <div class="cartao">
-        <label>Ponto de venda
-            <select id="pg-pdv">
-                <?php foreach ($pdvs as $p): ?>
-                    <option value="<?= (int) $p['id'] ?>"<?= (int) ($p['planograma_id'] ?? 0) === 0 ? ' disabled' : '' ?>>
-                        <?= e($p['nome']) ?><?= (int) ($p['planograma_id'] ?? 0) === 0 ? ' — sem planograma' : '' ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
+    <!-- Primeiro a pergunta: o PDV nao vem mais pre-escolhido com o da ultima
+         vez. Camera, busca e ficha so aparecem depois do toque aqui. -->
+    <div id="pg-escolher">
+        <h2>Qual ponto de venda você vai repor?</h2>
+        <ul class="lista escolher-pdv">
+            <?php foreach ($pdvs as $p): $sem = (int) ($p['planograma_id'] ?? 0) === 0; ?>
+                <li><button type="button" class="escolher-pdv-item" data-pdv="<?= (int) $p['id'] ?>"<?= $sem ? ' disabled' : '' ?>>
+                    <div class="linha-topo">
+                        <span class="forte"><?= e($p['nome']) ?></span>
+                        <span class="valor"><?= $sem ? 'sem planograma' : '›' ?></span>
+                    </div>
+                    <div class="linha-baixo" hidden><span>da última vez</span></div>
+                </button></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+
+    <div id="pg-trabalho" hidden>
+    <div class="cartao pg-escolhido">
+        <div class="linha-topo">
+            <span>Repondo em <strong id="pg-pdv-nome"></strong></span>
+            <button type="button" id="pg-trocar" class="botao botao-alt">Trocar</button>
+        </div>
+        <select id="pg-pdv" hidden aria-hidden="true" tabindex="-1">
+            <option value="0"></option>
+            <?php foreach ($pdvs as $p): ?>
+                <option value="<?= (int) $p['id'] ?>"<?= (int) ($p['planograma_id'] ?? 0) === 0 ? ' disabled' : '' ?>>
+                    <?= e($p['nome']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
         <p class="ajuda" id="pg-plano"></p>
     </div>
 
@@ -86,6 +107,7 @@
     </form>
 
     <div id="pg-resultado"></div>
+    </div>
 
     <?php if ($log): ?>
         <h2>Últimas alterações</h2>
@@ -120,7 +142,7 @@
 </div>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/planograma.js?v=7"></script>
+<script src="/assets/planograma.js?v=8"></script>
 <script>
 (function () {
     /*
@@ -226,13 +248,25 @@
         if (document.hidden) { leitor.pausar(); } else { leitor.retomar(); }
     });
 
-    (async function abrirSozinha() {
-        if (!querAutomatico()) return;
+    // A camera so abre depois que o PDV foi escolhido: bipar antes da escolha
+    // nao teria onde procurar. Trocar de PDV pausa o leitor; escolher retoma.
+    tela.addEventListener('planograma:trocar', () => { if (leitor) leitor.pausar(); });
+    tela.addEventListener('planograma:pdv', () => {
+        if (leitor) { leitor.retomar(); return; }
+        abrirSozinha();
+    });
+
+    let tentouAbrir = false;
+    async function abrirSozinha() {
+        if (tentouAbrir || !querAutomatico()) return;
+        tentouAbrir = true;
         const estadoPerm = await Scanner.permissao();
         if (estadoPerm === 'denied') { espera.textContent = 'Sem permissão de câmera'; return; }
         if (estadoPerm === 'granted' || jaAbriuNestaSessao()) { ligar(true); return; }
         espera.textContent = 'Toque em "Ligar câmera"';
-    })();
+    }
+    // Chegou de um link com o PDV no endereco: o planograma.js ja escolheu.
+    if (tela.dataset.pdvEscolhido) abrirSozinha();
 })();
 </script>
 

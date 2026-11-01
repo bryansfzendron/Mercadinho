@@ -531,6 +531,22 @@ function rota_repor_nota(array $u, int $id, string $m): void
 
     iniciar_sessao();
     $src = $m === 'POST' ? $_POST : $_GET;
+
+    // Quem chega pelo botao da nota ainda nao disse para onde vai a mercadoria.
+    // Abrir no PDV da ultima vez fazia repor no container errado sem perceber:
+    // primeiro a pergunta, e so a escolha (o ?pdv= do link) abre os itens.
+    if ($m === 'GET' && !isset($_GET['pdv']) && count($pdvs) > 1) {
+        ver('repor_escolher_pdv', [
+            'pdvs'   => $pdvs,
+            'ultimo' => (int) ($_SESSION['repor_pdv'] ?? 0),
+            'link'   => '/notas/' . $id . '/repor?pdv=',
+            'voltar' => ['/notas/' . $id, 'Nota'],
+            'titulo_tela' => 'Repor itens',
+            'contexto' => ($nota['loja'] ?? 'Sem loja') . ' · ' . count($nota['itens']) . ' itens',
+            'erro_tp' => $erro_tp,
+        ], 'Repor itens');
+    }
+
     $pdv_sel = (int) ($src['pdv'] ?? ($_SESSION['repor_pdv'] ?? 0));
     $pdv = null;
     foreach ($pdvs as $p) {

@@ -262,13 +262,18 @@
             pdvs = JSON.parse(tela.dataset.pdvs || '[]') || [];
         } catch (e) { /* atributo torto: a tela ainda funciona pelo select */ }
 
-        // O ponto de venda de ontem costuma ser o de hoje: quem repoe volta ao
-        // mesmo container. Errar o PDV aqui e mexer no preco da loja errada.
+        // O PDV nao vem mais pre-escolhido: abrir no da ultima vez fazia
+        // esquecer de trocar e mexer no preco da loja errada. A tela pergunta
+        // primeiro; o da ultima vez so ganha uma marca na lista.
+        const escolher  = doc.getElementById('pg-escolher');
+        const trabalho  = doc.getElementById('pg-trabalho');
+        const nomePdv   = doc.getElementById('pg-pdv-nome');
+        const btnTrocar = doc.getElementById('pg-trocar');
+
         try {
             const guardado = global.localStorage.getItem(LEMBRAR_PDV);
-            if (guardado && selPdv.querySelector('option[value="' + guardado + '"]:not([disabled])')) {
-                selPdv.value = guardado;
-            }
+            const marca = guardado && escolher.querySelector('[data-pdv="' + Number(guardado) + '"]:not([disabled]) .linha-baixo');
+            if (marca) marca.hidden = false;
         } catch (e) { /* modo privado */ }
 
         function pdvAtual() {
@@ -277,17 +282,57 @@
 
         function mostrarPlano() {
             const p = pdvs.filter((x) => x.id === pdvAtual())[0];
+            nomePdv.textContent = p ? p.nome : '';
             alvoPlano.textContent = p && p.plano
                 ? 'Planograma ' + p.plano
                 : 'Sem planograma ativo — não dá para repor neste ponto de venda.';
         }
 
-        selPdv.addEventListener('change', () => {
+        // Codigo que chegou num link sem PDV: procura assim que o PDV for escolhido.
+        let procurarAoEscolher = null;
+
+        function escolherPdv(id) {
+            if (!selPdv.querySelector('option[value="' + Number(id) + '"]:not([disabled])')) return false;
+            selPdv.value = String(Number(id));
             try { global.localStorage.setItem(LEMBRAR_PDV, String(pdvAtual())); } catch (e) { /* modo privado */ }
             mostrarPlano();
+            Array.prototype.forEach.call(escolher.querySelectorAll('[data-pdv]'), (x) => {
+                const m = x.querySelector('.linha-baixo');
+                if (m) m.hidden = Number(x.getAttribute('data-pdv')) !== pdvAtual();
+            });
             alvo.innerHTML = '';
+            escolher.hidden = true;
+            trabalho.hidden = false;
+            tela.dataset.pdvEscolhido = '1';
+            tela.dispatchEvent(new CustomEvent('planograma:pdv', { detail: pdvAtual() }));
+            if (procurarAoEscolher) {
+                const codigo = procurarAoEscolher;
+                procurarAoEscolher = null;
+                procurar(codigo);
+            }
+            return true;
+        }
+
+        Array.prototype.forEach.call(escolher.querySelectorAll('[data-pdv]'), (b) => {
+            b.addEventListener('click', () => {
+                escolherPdv(b.getAttribute('data-pdv'));
+                global.scrollTo(0, 0);
+            });
         });
-        mostrarPlano();
+
+        btnTrocar.addEventListener('click', () => {
+            selPdv.value = '0';
+            alvo.innerHTML = '';
+            campo.value = '';
+            delete tela.dataset.pdvEscolhido;
+            trabalho.hidden = true;
+            escolher.hidden = false;
+            tela.dispatchEvent(new CustomEvent('planograma:trocar'));
+        });
+
+        // Um PDV so com planograma: nao ha o que perguntar.
+        const possiveis = escolher.querySelectorAll('[data-pdv]:not([disabled])');
+        if (possiveis.length === 1) escolherPdv(possiveis[0].getAttribute('data-pdv'));
 
         function esc(t) {
             const d = doc.createElement('div');
@@ -819,11 +864,6 @@
             const q = new URLSearchParams(global.location.search);
             const codigo = (q.get('codigo') || '').trim();
             if (codigo) {
-                const pdv = q.get('pdv');
-                if (pdv && selPdv.querySelector('option[value="' + Number(pdv) + '"]:not([disabled])')) {
-                    selPdv.value = String(Number(pdv));
-                    mostrarPlano();
-                }
                 preencher = {
                     codigo: codigo,
                     custo: q.get('custo') || '',
@@ -836,7 +876,15 @@
                     global.history.replaceState(null, '', global.location.pathname);
                 }
                 campo.value = codigo;
-                procurar(codigo);
+                // O link costuma trazer o PDV (a promocao e de um PDV so) e ai
+                // a pergunta se pula. Sem ele, a ficha espera a escolha.
+                const pdv = q.get('pdv');
+                if (pdv) escolherPdv(pdv);
+                if (pdvAtual()) {
+                    procurar(codigo);
+                } else {
+                    procurarAoEscolher = codigo;
+                }
             }
         } catch (e) { /* navegador sem URLSearchParams: a tela segue normal */ }
     }
