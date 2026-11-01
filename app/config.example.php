@@ -67,9 +67,10 @@ return [
     'touchpay_email' => '',
     'touchpay_senha' => '',
     // Chave que cifra o e-mail/senha do TouchPay que cada usuario guarda no
-    // proprio aparelho (Configuracoes > TouchPay). Qualquer texto longo e
-    // aleatorio. Vazio: deriva dos outros segredos deste arquivo. Trocar faz
-    // todo mundo digitar a senha do TouchPay de novo.
+    // proprio aparelho (Configuracoes > TouchPay) e que identifica cada conta
+    // no banco. Qualquer texto longo e aleatorio. DEFINA UMA VEZ E NAO TROQUE:
+    // trocar desliga cada usuario da loja dele ate reconectar. Obrigatoria
+    // para separar a loja por conta (setup.php).
     'touchpay_cofre_chave' => '',
 
     // ---------------------------------------------------------------

@@ -57,7 +57,7 @@ function custos_parametros(?string $dia = null): array
 function custos_parametros_base(): array
 {
     $valores = custos_padrao() + metas_padrao();
-    foreach (q('SELECT chave, valor FROM custos_parametros') as $linha) {
+    foreach (q('SELECT chave, valor FROM custos_parametros WHERE ' . conta_sql()) as $linha) {
         $chave = (string) $linha['chave'];
         if (array_key_exists($chave, $valores)) {
             $valores[$chave] = (float) $linha['valor'];
@@ -73,6 +73,10 @@ function custos_parametros_base(): array
  */
 function custos_salvar(array $novos): int
 {
+    // Sem conta conectada nao ha de quem sejam as taxas.
+    if (conta_separada() && conta_atual() === null) {
+        return 0;
+    }
     $conhecidos = custos_padrao() + metas_padrao();
     $agora = date('Y-m-d H:i:s');
     $n = 0;
@@ -80,15 +84,25 @@ function custos_salvar(array $novos): int
         if (!array_key_exists($chave, $conhecidos)) {
             continue;
         }
-        $v = max(0.0, num_br($valor));
-        exec_sql(
-            'INSERT INTO custos_parametros (chave, valor, atualizado_em) VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE valor = VALUES(valor), atualizado_em = VALUES(atualizado_em)',
-            [$chave, $v, $agora]
-        );
+        custos_parametro_gravar((string) $chave, max(0.0, num_br($valor)), $agora);
         $n++;
     }
     return $n;
+}
+
+/**
+ * Grava um parametro geral (sem PDV) na conta de quem pede. Antes da migracao
+ * a tabela nao tem conta_id e o INSERT sai como sempre saiu.
+ */
+function custos_parametro_gravar(string $chave, float $valor, string $agora): void
+{
+    $dados = conta_colunas() + ['chave' => $chave, 'valor' => $valor, 'atualizado_em' => $agora];
+    exec_sql(
+        'INSERT INTO custos_parametros (' . implode(', ', array_keys($dados)) . ')
+         VALUES (' . implode(', ', array_fill(0, count($dados), '?')) . ')
+         ON DUPLICATE KEY UPDATE valor = VALUES(valor), atualizado_em = VALUES(atualizado_em)',
+        array_values($dados)
+    );
 }
 
 /**
@@ -365,7 +379,7 @@ function custos_inicio_atividade(): string
 {
     static $cache = null;
     return $cache ??= custos_inicio_de(
-        array_column(q('SELECT inauguracao FROM loja_pdvs WHERE ativo = 1'), 'inauguracao')
+        array_column(q('SELECT inauguracao FROM loja_pdvs WHERE ativo = 1 AND ' . conta_sql()), 'inauguracao')
     );
 }
 
@@ -505,7 +519,8 @@ function custos_vigencias(bool $recarregar = false): array
     static $cache = null;
     if ($cache === null || $recarregar) {
         try {
-            $cache = q('SELECT id, pdv_id, chave, valor, desde FROM custos_vigencias ORDER BY desde, id');
+            $cache = q('SELECT id, pdv_id, chave, valor, desde FROM custos_vigencias
+                         WHERE ' . conta_sql() . ' ORDER BY desde, id');
         } catch (PDOException $e) {
             $cache = [];
         }
@@ -624,6 +639,9 @@ function custos_cortes(array $vigencias, ?string $de, ?string $ate): array
  */
 function custos_salvar_datadas(int $pdv_id, array $novos, ?string $desde): array
 {
+    if (($pdv_id > 0 && !conta_tem_pdv($pdv_id)) || (conta_separada() && conta_atual() === null)) {
+        return [0, []];
+    }
     $desde = data_iso($desde);
     $hoje  = date('Y-m-d');
     $dia   = $desde ?? $hoje;
@@ -642,7 +660,8 @@ function custos_salvar_datadas(int $pdv_id, array $novos, ?string $desde): array
         if ($bruto === '') {
             if ($pdv_id > 0 && custos_tem_excecao($pdv_id, $chave)) {
                 exec_sql('DELETE FROM custos_pdv WHERE pdv_id = ? AND chave = ?', [$pdv_id, $chave]);
-                exec_sql('DELETE FROM custos_vigencias WHERE pdv_id = ? AND chave = ?', [$pdv_id, $chave]);
+                exec_sql('DELETE FROM custos_vigencias WHERE pdv_id = ? AND chave = ? AND ' . conta_sql(),
+                    [$pdv_id, $chave]);
                 $n++;
             }
             continue;
@@ -658,13 +677,17 @@ function custos_salvar_datadas(int $pdv_id, array $novos, ?string $desde): array
         }
 
         if ($desde !== null) {
+            $dados = conta_colunas() + ['pdv_id' => $pdv_id, 'chave' => $chave, 'valor' => $valor,
+                                        'desde' => $desde, 'criado_em' => $agora];
             exec_sql(
-                'INSERT INTO custos_vigencias (pdv_id, chave, valor, desde, criado_em) VALUES (?, ?, ?, ?, ?)
+                'INSERT INTO custos_vigencias (' . implode(', ', array_keys($dados)) . ')
+                 VALUES (' . implode(', ', array_fill(0, count($dados), '?')) . ')
                  ON DUPLICATE KEY UPDATE valor = VALUES(valor), criado_em = VALUES(criado_em)',
-                [$pdv_id, $chave, $valor, $desde, $agora]
+                array_values($dados)
             );
         } elseif ($v = custos_vigencia_em($vig, $pdv_id, $chave, $hoje)) {
-            exec_sql('UPDATE custos_vigencias SET valor = ? WHERE id = ?', [$valor, (int) $v['id']]);
+            exec_sql('UPDATE custos_vigencias SET valor = ? WHERE id = ? AND ' . conta_sql(),
+                [$valor, (int) $v['id']]);
         } elseif ($pdv_id > 0) {
             exec_sql(
                 'INSERT INTO custos_pdv (pdv_id, chave, valor, atualizado_em) VALUES (?, ?, ?, ?)
@@ -672,11 +695,7 @@ function custos_salvar_datadas(int $pdv_id, array $novos, ?string $desde): array
                 [$pdv_id, $chave, $valor, $agora]
             );
         } else {
-            exec_sql(
-                'INSERT INTO custos_parametros (chave, valor, atualizado_em) VALUES (?, ?, ?)
-                 ON DUPLICATE KEY UPDATE valor = VALUES(valor), atualizado_em = VALUES(atualizado_em)',
-                [$chave, $valor, $agora]
-            );
+            custos_parametro_gravar($chave, $valor, $agora);
         }
         $n++;
     }
@@ -710,7 +729,8 @@ function custos_vigencias_do(int $pdv_id): array
 /** Apaga uma mudanca datada: daquele dia em diante volta a valer a anterior. */
 function custos_excluir_vigencia(int $id): void
 {
-    exec_sql('DELETE FROM custos_vigencias WHERE id = ?', [$id]);
+    // O id vem da tela: so apaga se for da conta de quem pede.
+    exec_sql('DELETE FROM custos_vigencias WHERE id = ? AND ' . conta_sql(), [$id]);
     custos_vigencias(true);
 }
 
@@ -741,7 +761,7 @@ function custos_parametros_pdv(int $pdv_id, ?string $dia = null): array
 function custos_overrides_pdv(int $pdv_id): array
 {
     $fora = [];
-    foreach (q('SELECT chave, valor FROM custos_pdv WHERE pdv_id = ?', [$pdv_id]) as $linha) {
+    foreach (q('SELECT chave, valor FROM custos_pdv WHERE pdv_id = ? AND ' . conta_pdv_sql('pdv_id'), [$pdv_id]) as $linha) {
         $fora[(string) $linha['chave']] = (float) $linha['valor'];
     }
     return $fora;
@@ -754,7 +774,7 @@ function custos_overrides_pdv(int $pdv_id): array
  */
 function custos_salvar_pdv(int $pdv_id, array $novos, ?array $conhecidos = null): int
 {
-    if ($pdv_id <= 0) {
+    if ($pdv_id <= 0 || !conta_tem_pdv($pdv_id)) {
         return 0;
     }
     // As metas moram na mesma tabela e usam o mesmo mecanismo, mas nao sao
@@ -817,8 +837,8 @@ function custos_params_dos_pdvs(array $linhas): array
 function custos_fixos_no_escopo(int $pdv_id = 0, ?string $de = null, ?string $ate = null): array
 {
     $linhas = $pdv_id > 0
-        ? q('SELECT id, inauguracao FROM loja_pdvs WHERE id = ?', [$pdv_id])
-        : q('SELECT id, inauguracao FROM loja_pdvs WHERE ativo = 1');
+        ? q('SELECT id, inauguracao FROM loja_pdvs WHERE id = ? AND ' . conta_sql(), [$pdv_id])
+        : q('SELECT id, inauguracao FROM loja_pdvs WHERE ativo = 1 AND ' . conta_sql());
 
     $hoje = date('Y-m-d');
     $mapa = [];

@@ -280,7 +280,7 @@ function promocao_item(int $pdv_id, int $produto_externo): ?array
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
           WHERE li.pdv_id = ? AND li.externo_produto_id = ?
-            AND p.ativo = 1 AND p.unificado_para IS NULL
+            AND p.ativo = 1 AND p.unificado_para IS NULL AND ' . conta_sql('p.conta_id') . '
           LIMIT 1',
         [$pdv_id, $produto_externo]
     );
@@ -300,7 +300,8 @@ function promocao_venda_dia(array $item, int $janela = 30): ?float
 
     $tem_vendas = (int) qv(
         'SELECT COUNT(*) FROM vendas v
-          WHERE v.pdv_id = ? AND v.data_hora >= ? AND (v.resultado = ? OR v.resultado IS NULL)',
+          WHERE v.pdv_id = ? AND v.data_hora >= ? AND (v.resultado = ? OR v.resultado IS NULL)
+            AND ' . conta_pdv_sql('v.pdv_id'),
         [$pdv, $desde, 'Ok']
     );
     if ($tem_vendas === 0) {
@@ -312,6 +313,7 @@ function promocao_venda_dia(array $item, int $janela = 30): ?float
            FROM venda_itens vi
            JOIN vendas v ON v.id = vi.venda_id
           WHERE v.pdv_id = ? AND v.data_hora >= ? AND (v.resultado = ? OR v.resultado IS NULL)
+            AND ' . conta_pdv_sql('v.pdv_id') . '
             AND (vi.externo_produto_id = ? OR vi.ean = ?)',
         [$pdv, $desde, 'Ok',
          (int) ($item['externo_produto_id'] ?? 0) ?: -1,
@@ -707,6 +709,7 @@ function promocoes_do_item(array $item, bool $usar_touchpay = true): array
         $locais = q(
             'SELECT * FROM promocoes
               WHERE pdv_id = ? AND produto_externo_id = ? AND ok = 1 AND fim >= ?
+                AND ' . conta_pdv_sql('pdv_id') . '
            ORDER BY inicio',
             [(int) $item['pdv_id'], $produto, date('Y-m-d')]
         );
@@ -733,7 +736,7 @@ function promocoes_enriquecer(array $linhas): array
         return [];
     }
     $pdvs = [];
-    foreach (q('SELECT id, nome, externo_id FROM loja_pdvs WHERE unificado_para IS NULL') as $p) {
+    foreach (q('SELECT id, nome, externo_id FROM loja_pdvs WHERE unificado_para IS NULL AND ' . conta_sql()) as $p) {
         $pdvs[(int) $p['externo_id']] = $p;
     }
 
@@ -742,6 +745,7 @@ function promocoes_enriquecer(array $linhas): array
                        p.externo_id AS pdv_externo, p.ativo
                   FROM loja_itens li JOIN loja_pdvs p ON p.id = li.pdv_id
                  WHERE li.externo_produto_id IS NOT NULL AND p.unificado_para IS NULL
+                   AND ' . conta_sql('p.conta_id') . '
               ORDER BY p.ativo DESC') as $i) {
         $itens[(int) $i['pdv_externo'] . ':' . (int) $i['externo_produto_id']] = $i;
         // Promocao sem ponto de venda (PDV 0, "todos") olha o produto num PDV
@@ -751,7 +755,8 @@ function promocoes_enriquecer(array $linhas): array
 
     $doApp = [];
     try {
-        foreach (q('SELECT externo_id FROM promocoes WHERE ok = 1 AND externo_id IS NOT NULL') as $p) {
+        foreach (q('SELECT pr.externo_id FROM promocoes pr
+                     WHERE pr.ok = 1 AND pr.externo_id IS NOT NULL AND ' . promocoes_conta_sql()) as $p) {
             $doApp[(int) $p['externo_id']] = true;
         }
     } catch (Throwable $e) {
@@ -892,6 +897,16 @@ function promocao_registrar(array $linha): void
 }
 
 /**
+ * As promocoes da conta de quem pede (alias `pr`). A de "todos os PDVs" nao tem
+ * pdv_id: e da conta de quem a criou.
+ */
+function promocoes_conta_sql(): string
+{
+    return '(' . conta_pdv_sql('pr.pdv_id')
+         . ' OR (pr.pdv_id IS NULL AND ' . conta_notas_sql('pr.usuario_id') . '))';
+}
+
+/**
  * As promocoes que o app criou, das mais novas para as mais velhas.
  *
  * @param bool $so_recusadas so as que o TouchPay recusou — com a lista de la
@@ -906,6 +921,7 @@ function promocoes_locais(int $limite = 60, bool $so_recusadas = false): array
           LEFT JOIN loja_pdvs p ON p.id = pr.pdv_id
           LEFT JOIN usuarios  u ON u.id = pr.usuario_id
               WHERE ' . ($so_recusadas ? 'pr.ok = 0 AND pr.criado_em >= ?' : '1 = 1') . '
+                AND ' . promocoes_conta_sql() . '
            ORDER BY pr.id DESC
               LIMIT ' . max(1, min(200, $limite)),
             $so_recusadas ? [date('Y-m-d 00:00:00', strtotime('-7 days'))] : []
@@ -932,7 +948,7 @@ function promocoes_sugeridas(int $usuario_id): array
         'SELECT li.*, p.nome AS pdv, p.id AS pdv_id, p.externo_id AS pdv_externo
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
-          WHERE p.ativo = 1 AND p.unificado_para IS NULL
+          WHERE p.ativo = 1 AND p.unificado_para IS NULL AND ' . conta_sql('p.conta_id') . '
             AND li.validade IS NOT NULL AND li.validade <= ?
             AND li.estoque > 0
        ORDER BY li.validade, li.descricao

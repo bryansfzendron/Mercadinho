@@ -15,6 +15,8 @@ require APP . '/helpers.php';
 require APP . '/mercado.php';
 require APP . '/touchpay.php';
 require APP . '/planograma.php';
+require APP . '/conta.php';
+conta_separada_forcar(false);
 require APP . '/vendas.php';
 
 date_default_timezone_set('America/Sao_Paulo');

@@ -20,7 +20,7 @@ declare(strict_types=1);
 /** Janela de datas do proximo sync, olhando o que ja esta gravado. */
 function vendas_janela(int $dias_primeira_carga = 365, int $sobreposicao = 3): array
 {
-    $ultima = qv('SELECT MAX(data_hora) FROM vendas');
+    $ultima = qv('SELECT MAX(v.data_hora) FROM vendas v WHERE ' . conta_venda_sql('v.pdv_id'));
     $ate    = date('Y-m-d');
 
     if (!$ultima) {
@@ -1022,6 +1022,8 @@ function vendas_filtro_sql(array $f): array
     $onde = [
         '(v.resultado = ? OR v.resultado IS NULL)',
         '(v.pdv_id IS NULL OR EXISTS (SELECT 1 FROM loja_pdvs lp WHERE lp.id = v.pdv_id AND lp.ativo = 1))',
+        // So a loja da conta de quem pede (app/conta.php).
+        conta_venda_sql('v.pdv_id'),
     ];
     $args = ['Ok'];
 
@@ -1125,7 +1127,7 @@ function vendas_custo_por_produto(array $ids): array
                FROM itens i
                JOIN notas n ON n.id = i.nota_id
               WHERE n.status = ? AND i.produto_id IN (' . $marcas . ')
-                AND i.valor_unitario_liquido > 0
+                AND i.valor_unitario_liquido > 0 AND ' . conta_notas_sql('n.usuario_id') . '
            ORDER BY n.emissao DESC, n.id DESC',
             array_merge(['ok'], $parte)
         );
@@ -1157,6 +1159,7 @@ function vendas_sql_custo_na_data(): string
                JOIN notas n ON n.id = i.nota_id
               WHERE i.produto_id = vi.produto_id AND n.status = 'ok'
                 AND i.valor_unitario_liquido > 0 AND n.emissao <= v.data_hora
+                AND " . conta_notas_sql('n.usuario_id') . "
            ORDER BY n.emissao DESC, n.id DESC
               LIMIT 1)";
 }
@@ -1457,7 +1460,8 @@ function vendas_itens_das(array $ids): array
         'SELECT vi.venda_id, vi.produto_id, vi.descricao, vi.categoria, vi.ean,
                 vi.quantidade, vi.valor_total, vi.valor_unitario
            FROM venda_itens vi
-          WHERE vi.venda_id IN (' . $marcas . ')
+           JOIN vendas v ON v.id = vi.venda_id
+          WHERE vi.venda_id IN (' . $marcas . ') AND ' . conta_venda_sql('v.pdv_id') . '
        ORDER BY vi.venda_id, vi.valor_total DESC',
         $ids
     ));
@@ -1479,7 +1483,7 @@ function vendas_pdvs(): array
     return q(
         'SELECT p.id, p.nome, COUNT(*) AS vendas
            FROM vendas v JOIN loja_pdvs p ON p.id = v.pdv_id
-          WHERE p.ativo = 1
+          WHERE p.ativo = 1 AND ' . conta_sql('p.conta_id') . '
        GROUP BY p.id, p.nome ORDER BY p.nome'
     );
 }
@@ -1490,7 +1494,9 @@ function vendas_categorias(): array
     return array_column(q(
         "SELECT DISTINCT vi.categoria AS categoria
            FROM venda_itens vi
+           JOIN vendas v ON v.id = vi.venda_id
           WHERE vi.categoria IS NOT NULL AND vi.categoria <> ''
+            AND " . conta_venda_sql('v.pdv_id') . "
        ORDER BY vi.categoria"
     ), 'categoria');
 }

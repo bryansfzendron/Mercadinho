@@ -51,7 +51,7 @@ function metas_do_pdv(int $pdv_id): array
 /** Inauguracao de um PDV (null = sem data, conta como aberto o mes todo). */
 function metas_inauguracao(int $pdv_id): ?string
 {
-    $l = q('SELECT inauguracao FROM loja_pdvs WHERE id = ?', [$pdv_id]);
+    $l = q('SELECT inauguracao FROM loja_pdvs WHERE id = ? AND ' . conta_sql(), [$pdv_id]);
     return $l ? data_iso($l[0]['inauguracao']) : null;
 }
 
@@ -80,7 +80,7 @@ function metas_de_todos_pdvs(string $ate): array
     $linhas = q(
         "SELECT c.pdv_id, c.chave, c.valor, p.inauguracao FROM custos_pdv c
          JOIN loja_pdvs p ON p.id = c.pdv_id AND p.ativo = 1
-         WHERE c.chave IN ('meta_faturamento', 'meta_lucro')"
+         WHERE c.chave IN ('meta_faturamento', 'meta_lucro') AND " . conta_sql('p.conta_id')
     );
     foreach ($linhas as $l) {
         $f = metas_abertura(data_iso($l['inauguracao']), $ate)['fracao'];

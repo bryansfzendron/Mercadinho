@@ -16,6 +16,9 @@ function despachar(string $rota): void
 
     // ---------------- exige login ----------------
     $u = exigir_login();
+    // A loja que este usuario enxerga e a da conta TouchPay que ele conectou
+    // (app/conta.php). Sem conta conectada, nenhuma.
+    conta_definir(tp_conta_do_usuario((int) $u['id'])['conta_id'] ?? null);
 
     if ($rota === '/')          { rota_inicio($u); return; }
     if ($rota === '/dashboard') { rota_dashboard($u); return; }

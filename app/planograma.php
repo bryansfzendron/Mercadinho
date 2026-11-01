@@ -444,7 +444,7 @@ function planograma_pdvs(): array
     return q(
         'SELECT id, nome, externo_id, planograma_id, inventario_id, atualizado_em
            FROM loja_pdvs
-          WHERE ativo = 1 AND unificado_para IS NULL
+          WHERE ativo = 1 AND unificado_para IS NULL AND ' . conta_sql() . '
        ORDER BY nome'
     );
 }
@@ -455,7 +455,7 @@ function planograma_pdv(int $pdv_id): ?array
     return q1(
         'SELECT id, nome, externo_id, planograma_id, inventario_id
            FROM loja_pdvs
-          WHERE id = ? AND ativo = 1 AND unificado_para IS NULL',
+          WHERE id = ? AND ativo = 1 AND unificado_para IS NULL AND ' . conta_sql(),
         [$pdv_id]
     );
 }
@@ -486,7 +486,7 @@ function planograma_sincronizar_pdvs(): array
         $vivos[] = $externo;
         exec_sql(
             'UPDATE loja_pdvs SET planograma_id = ?, inventario_id = ?
-              WHERE fonte = ? AND externo_id = ?',
+              WHERE fonte = ? AND externo_id = ? AND ' . conta_sql(),
             [
                 ((int) ($p['currentPlanogramId'] ?? 0)) ?: null,
                 ((int) ($p['inventoryId'] ?? 0)) ?: null,
@@ -520,6 +520,7 @@ function planograma_espelho(int $pdv_id, string $ean): ?array
         'SELECT externo_produto_id, codigo, ean, descricao
            FROM loja_itens
           WHERE pdv_id = ? AND ean = ? AND externo_produto_id IS NOT NULL
+            AND ' . conta_pdv_sql('pdv_id') . '
           LIMIT 1',
         [$pdv_id, $ean]
     );
@@ -978,6 +979,7 @@ function planograma_log_recente(int $limite = 20): array
            FROM planograma_log l
       LEFT JOIN loja_pdvs p ON p.id = l.pdv_id
       LEFT JOIN usuarios  u ON u.id = l.usuario_id
+          WHERE ' . conta_pdv_sql('l.pdv_id') . '
        ORDER BY l.id DESC
           LIMIT ' . max(1, min(100, $limite))
     );

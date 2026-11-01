@@ -618,7 +618,27 @@ function abas_loja(string $atual): string
         '/margens'    => 'Margens',
         '/vendas'     => 'Vendas',
         '/metas'      => 'Metas',
-    ], $atual, ['/planograma' => ' data-pedir-pdv']) . folha_pedir_pdv();
+    ], $atual, ['/planograma' => ' data-pedir-pdv']) . conta_aviso_loja() . folha_pedir_pdv();
+}
+
+/**
+ * O aviso no topo da Loja para quem nao ve loja nenhuma: sem conta TouchPay
+ * conectada, ou com uma conta que o app ainda nao sincroniza (fase 2).
+ */
+function conta_aviso_loja(): string
+{
+    if (!function_exists('conta_separada') || !conta_separada()) {
+        return '';
+    }
+    if (conta_atual() === null) {
+        return '<div class="aviso aviso-info">Conecte sua conta TouchPay para ver a sua loja. '
+             . '<a href="/config/touchpay">Conectar</a></div>';
+    }
+    if (!conta_e_do_sync()) {
+        return '<div class="aviso aviso-info">Sua conta TouchPay está conectada, mas a loja dela '
+             . 'ainda não é sincronizada pelo app. Isso chega na próxima atualização.</div>';
+    }
+    return '';
 }
 
 /**

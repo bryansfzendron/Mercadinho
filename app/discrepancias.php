@@ -206,7 +206,8 @@ function discrepancia_precos(): array
     foreach (q('SELECT li.ean, li.produto_id, li.descricao, li.preco_venda
                   FROM loja_itens li
                   JOIN loja_pdvs p ON p.id = li.pdv_id
-                 WHERE p.ativo = 1 AND p.unificado_para IS NULL AND li.preco_venda > 0') as $l) {
+                 WHERE p.ativo = 1 AND p.unificado_para IS NULL AND li.preco_venda > 0
+                   AND ' . conta_sql('p.conta_id')) as $l) {
         $preco = (float) $l['preco_venda'];
         if ($l['ean']) {
             $por_ean[$l['ean']] ??= ['nome' => (string) $l['descricao'], 'venda' => $preco];

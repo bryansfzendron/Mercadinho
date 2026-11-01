@@ -135,6 +135,9 @@ CREATE TABLE IF NOT EXISTS itens (
 CREATE TABLE IF NOT EXISTS loja_pdvs (
     id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
     fonte         VARCHAR(20)  NOT NULL DEFAULT 'touchpay',
+    -- A conta TouchPay dona deste PDV (touchpay_contas). Tudo da loja pende
+    -- do PDV, entao e aqui que a loja de uma conta se separa da de outra.
+    conta_id      INT UNSIGNED NULL,
     externo_id    INT UNSIGNED NOT NULL,
     nome          VARCHAR(120) NOT NULL,
     tipo          VARCHAR(40)  NULL,
@@ -162,6 +165,7 @@ CREATE TABLE IF NOT EXISTS loja_pdvs (
     criado_em     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_pdv_fonte_externo (fonte, externo_id),
+    KEY ix_pdv_conta (conta_id),
     KEY ix_pdv_unificado (unificado_para),
     CONSTRAINT fk_pdv_unificado FOREIGN KEY (unificado_para)
         REFERENCES loja_pdvs (id) ON DELETE SET NULL
@@ -266,10 +270,11 @@ CREATE TABLE IF NOT EXISTS venda_itens (
 -- tem nota daquele produto.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS custos_parametros (
+    conta_id      INT UNSIGNED  NOT NULL,
     chave         VARCHAR(40)   NOT NULL,
     valor         DECIMAL(14,4) NOT NULL DEFAULT 0,
     atualizado_em DATETIME      NOT NULL,
-    PRIMARY KEY (chave)
+    PRIMARY KEY (conta_id, chave)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
@@ -317,13 +322,14 @@ CREATE TABLE IF NOT EXISTS custos_pdv (
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS custos_vigencias (
     id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    conta_id      INT UNSIGNED  NOT NULL,
     pdv_id        INT UNSIGNED  NOT NULL DEFAULT 0,
     chave         VARCHAR(40)   NOT NULL,
     valor         DECIMAL(14,4) NOT NULL DEFAULT 0,
     desde         DATE          NOT NULL,
     criado_em     DATETIME      NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_vigencia (pdv_id, chave, desde)
+    UNIQUE KEY uq_vigencia (conta_id, pdv_id, chave, desde)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------

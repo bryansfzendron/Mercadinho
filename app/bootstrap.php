@@ -90,6 +90,7 @@ require APP . '/sync.php';
 require APP . '/mercado.php';
 require APP . '/touchpay.php';
 require APP . '/touchpay_conta.php';
+require APP . '/conta.php';
 require APP . '/sefaz.php';
 require APP . '/planograma.php';
 require APP . '/planilha_repor.php';

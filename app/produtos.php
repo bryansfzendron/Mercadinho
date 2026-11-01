@@ -260,7 +260,7 @@ function produto_nome_unidade(string $ean, string $fallback): string
         'SELECT li.descricao
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
-          WHERE li.ean = ? AND p.ativo = 1 AND p.unificado_para IS NULL
+          WHERE li.ean = ? AND p.ativo = 1 AND p.unificado_para IS NULL AND ' . conta_sql('p.conta_id') . '
           LIMIT 1',
         [$ean]
     );

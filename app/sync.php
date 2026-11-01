@@ -257,6 +257,9 @@ function sync_puxar(?string $de = null, ?string $ate = null, int $orcamento = 9)
 /** Preco e estoque, pelo caminho que estiver valendo. */
 function sync_coletar_loja(array $pos_ids = [], ?int $teto_segundos = null): array
 {
+    if (!conta_e_do_sync()) {
+        return ['ok' => false, 'erro' => conta_aviso_sem_sync()];
+    }
     return sync_modo() === 'n8n'
         ? loja_disparar_sync($pos_ids)
         : loja_sincronizar_local($pos_ids, $teto_segundos);
@@ -266,6 +269,9 @@ function sync_coletar_loja(array $pos_ids = [], ?int $teto_segundos = null): arr
 function sync_coletar_vendas(?string $de = null, ?string $ate = null,
                             ?int $teto_segundos = null): array
 {
+    if (!conta_e_do_sync()) {
+        return ['ok' => false, 'erro' => conta_aviso_sem_sync()];
+    }
     return sync_modo() === 'n8n'
         ? vendas_disparar_sync($de, $ate)
         : vendas_sincronizar_local($de, $ate, $teto_segundos);

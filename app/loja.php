@@ -503,7 +503,8 @@ function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
         // PDV que aparece primeiro numa venda entra sem data de espelho: ele
         // ainda nao tem preco nem estoque nossos.
         'atualizado_em' => $marcar_sync ? date('Y-m-d H:i:s') : null,
-    ]);
+    // A conta que o sync esta alimentando (fase 2: a do config.php).
+    ] + conta_colunas(conta_sync()));
 }
 
 /**
@@ -654,7 +655,7 @@ function loja_por_ean(?string $ean_bruto, ?int $produto_id = null): array
                 p.nome AS pdv, p.externo_id AS pdv_externo
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
-          WHERE p.ativo = 1 AND (' . implode(' OR ', $onde) . ')
+          WHERE p.ativo = 1 AND ' . conta_sql('p.conta_id') . ' AND (' . implode(' OR ', $onde) . ')
        ORDER BY p.nome',
         $args
     );
@@ -684,7 +685,7 @@ function loja_por_produtos(array $produto_ids): array
                 COUNT(*)            AS pdvs
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
-          WHERE p.ativo = 1 AND li.produto_id IN (' . $marcas . ')
+          WHERE p.ativo = 1 AND ' . conta_sql('p.conta_id') . ' AND li.produto_id IN (' . $marcas . ')
        GROUP BY produto_id',
         $ids
     );
@@ -713,7 +714,7 @@ function loja_listar(
     int $limite = 400
 ): array {
     // PDV desligado sai do app inteiro; o sync continua trazendo os dados.
-    $onde = ['p.ativo = 1'];
+    $onde = ['p.ativo = 1', conta_sql('p.conta_id')];
     $args = [];
 
     if ($busca !== '') {
@@ -801,7 +802,7 @@ function loja_resumo(): array
                 SUM(CASE WHEN li.produto_id IS NOT NULL THEN 1 ELSE 0 END) AS vinculados
            FROM loja_pdvs p
       LEFT JOIN loja_itens li ON li.pdv_id = p.id
-          WHERE p.ativo = 1 AND p.unificado_para IS NULL
+          WHERE p.ativo = 1 AND p.unificado_para IS NULL AND ' . conta_sql('p.conta_id') . '
        GROUP BY p.id, p.nome, p.atualizado_em
        ORDER BY p.nome'
     );
@@ -822,7 +823,7 @@ function loja_pdvs_todos(): array
                 (SELECT COUNT(*) FROM loja_itens li WHERE li.pdv_id = p.id) AS itens,
                 (SELECT COUNT(*) FROM vendas v WHERE v.pdv_id = p.id) AS vendas
            FROM loja_pdvs p
-          WHERE p.unificado_para IS NULL
+          WHERE p.unificado_para IS NULL AND ' . conta_sql('p.conta_id') . '
        ORDER BY p.nome'
     );
 }
@@ -834,7 +835,7 @@ function loja_pdvs_unificados(): array
         'SELECT p.id, p.nome, p.externo_id, d.nome AS destino_nome
            FROM loja_pdvs p
            JOIN loja_pdvs d ON d.id = p.unificado_para
-          WHERE p.unificado_para IS NOT NULL
+          WHERE p.unificado_para IS NOT NULL AND ' . conta_sql('p.conta_id') . '
        ORDER BY p.nome'
     );
 }
@@ -873,8 +874,9 @@ function loja_pdvs_unificar(int $de, int $para): array
         return $nada + ['msg' => 'Sao o mesmo ponto de venda.'];
     }
 
-    $origem  = q1('SELECT id, nome, unificado_para FROM loja_pdvs WHERE id = ?', [$de]);
-    $destino = q1('SELECT id, nome, unificado_para FROM loja_pdvs WHERE id = ?', [$para]);
+    // Os dois tem de ser da conta de quem pede: id de outra loja da em nada.
+    $origem  = q1('SELECT id, nome, unificado_para FROM loja_pdvs WHERE id = ? AND ' . conta_sql(), [$de]);
+    $destino = q1('SELECT id, nome, unificado_para FROM loja_pdvs WHERE id = ? AND ' . conta_sql(), [$para]);
     if (!$origem || !$destino) {
         return $nada + ['msg' => 'Ponto de venda nao encontrado.'];
     }
@@ -937,7 +939,7 @@ function loja_pdvs_unificar(int $de, int $para): array
 /** Liga ou desliga um ponto de venda no app. */
 function loja_pdv_ativo(int $id, bool $ativo): void
 {
-    exec_sql('UPDATE loja_pdvs SET ativo = ? WHERE id = ?', [$ativo ? 1 : 0, $id]);
+    exec_sql('UPDATE loja_pdvs SET ativo = ? WHERE id = ? AND ' . conta_sql(), [$ativo ? 1 : 0, $id]);
 }
 
 /**
@@ -946,7 +948,7 @@ function loja_pdv_ativo(int $id, bool $ativo): void
  */
 function loja_pdv_inauguracao(int $id, ?string $data): void
 {
-    exec_sql('UPDATE loja_pdvs SET inauguracao = ? WHERE id = ?', [data_iso($data), $id]);
+    exec_sql('UPDATE loja_pdvs SET inauguracao = ? WHERE id = ? AND ' . conta_sql(), [data_iso($data), $id]);
 }
 
 /**
@@ -958,7 +960,7 @@ function loja_pdv_inauguracao(int $id, ?string $data): void
  */
 function margens_listar(string $filtro = '', string $busca = ''): array
 {
-    $onde = ['p.ativo = 1', 'li.preco_venda IS NOT NULL', 'li.preco_venda > 0'];
+    $onde = ['p.ativo = 1', conta_sql('p.conta_id'), 'li.preco_venda IS NOT NULL', 'li.preco_venda > 0'];
     $args = [];
 
     if ($busca !== '') {

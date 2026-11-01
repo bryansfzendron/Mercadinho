@@ -100,6 +100,65 @@ function migracoes(): array
     ];
 }
 
+/**
+ * Separar a loja por conta TouchPay (fase 2).
+ *
+ * Nao entra em migracoes() porque nao e so acrescentar coluna: os dados de
+ * hoje tem de ir para uma conta (a do e-mail do config.php) e duas chaves
+ * mudam para levar a conta junto. Cada passo confere se ja foi feito, entao
+ * rodar de novo nao estraga nada.
+ *
+ * @return string[] o que foi feito
+ */
+function separar_por_conta(int $conta_id): array
+{
+    $feito = [];
+    $passos = [
+        ['loja_pdvs', 'ALTER TABLE loja_pdvs ADD COLUMN conta_id INT UNSIGNED NULL AFTER fonte, ADD KEY ix_pdv_conta (conta_id)'],
+        ['custos_parametros', 'ALTER TABLE custos_parametros ADD COLUMN conta_id INT UNSIGNED NULL FIRST'],
+        ['custos_vigencias', 'ALTER TABLE custos_vigencias ADD COLUMN conta_id INT UNSIGNED NULL AFTER id'],
+    ];
+    foreach ($passos as [$tabela, $sql]) {
+        if (!coluna_existe($tabela, 'conta_id')) {
+            db()->exec($sql);
+            $feito[] = 'Coluna ' . $tabela . '.conta_id criada.';
+        }
+    }
+    foreach (['loja_pdvs', 'custos_parametros', 'custos_vigencias'] as $tabela) {
+        $n = exec_sql('UPDATE ' . $tabela . ' SET conta_id = ? WHERE conta_id IS NULL', [$conta_id]);
+        if ($n > 0) {
+            $feito[] = $n . ' linha(s) de ' . $tabela . ' foram para a conta ' . $conta_id . '.';
+        }
+    }
+    // Taxa e meta padrao: uma por conta, e nao mais uma para o app inteiro.
+    $pk = q('SHOW KEYS FROM custos_parametros WHERE Key_name = ?', ['PRIMARY']);
+    if (count($pk) < 2) {
+        db()->exec('ALTER TABLE custos_parametros MODIFY conta_id INT UNSIGNED NOT NULL,'
+                 . ' DROP PRIMARY KEY, ADD PRIMARY KEY (conta_id, chave)');
+        $feito[] = 'Chave de custos_parametros agora e (conta, chave).';
+    }
+    $uq = q('SHOW KEYS FROM custos_vigencias WHERE Key_name = ?', ['uq_vigencia']);
+    if (!in_array('conta_id', array_column($uq, 'Column_name'), true)) {
+        db()->exec('ALTER TABLE custos_vigencias MODIFY conta_id INT UNSIGNED NOT NULL,'
+                 . ' DROP INDEX uq_vigencia, ADD UNIQUE KEY uq_vigencia (conta_id, pdv_id, chave, desde)');
+        $feito[] = 'Chave de custos_vigencias agora leva a conta.';
+    }
+    return $feito;
+}
+
+function separacao_pendente(): bool
+{
+    foreach (['loja_pdvs', 'custos_parametros', 'custos_vigencias'] as $t) {
+        if (!coluna_existe($t, 'conta_id')) {
+            return true;
+        }
+    }
+    $pk = q('SHOW KEYS FROM custos_parametros WHERE Key_name = ?', ['PRIMARY']);
+    $uq = q('SHOW KEYS FROM custos_vigencias WHERE Key_name = ?', ['uq_vigencia']);
+    return count($pk) < 2 || !in_array('conta_id', array_column($uq, 'Column_name'), true)
+        || (int) qv('SELECT COUNT(*) FROM loja_pdvs WHERE conta_id IS NULL') > 0;
+}
+
 function coluna_existe(string $tabela, string $coluna): bool
 {
     return (int) qv(
@@ -314,6 +373,53 @@ if ($db_ok) {
         if ($pendentes) {
             echo '<form method="post"><input type="hidden" name="acao" value="migrar">'
                . '<button type="submit">Aplicar migrações e recalcular os líquidos</button></form>';
+        }
+    }
+
+    // ---- separar a loja por conta TouchPay (fase 2) ----
+    if (!$faltando && !migracoes_pendentes()) {
+        echo '<h2>Loja por conta TouchPay</h2>';
+        $chave_ok = !in_array(trim((string) cfg('touchpay_cofre_chave', '')), ['', 'TROQUE-ME'], true);
+        $conta = $chave_ok ? conta_sync() : null;
+        if (!$chave_ok) {
+            echo '<div class="caixa"><p class="erro">Defina <code>touchpay_cofre_chave</code> no config.php '
+               . '(um texto longo e aleatório) e <strong>não troque mais</strong>: é dela que sai a identidade '
+               . 'de cada conta. Depois reconecte a sua conta em Configurações &gt; TouchPay e volte aqui.</p></div>';
+        } elseif ($conta === null) {
+            echo '<div class="caixa"><p class="erro">Defina <code>touchpay_email</code> no config.php: '
+               . 'é a conta que fica com a loja de hoje.</p></div>';
+        } else {
+            if (($_POST['acao'] ?? '') === 'separar') {
+                try {
+                    foreach (separar_por_conta($conta) as $msg) {
+                        echo '<p class="bom">' . htmlspecialchars($msg) . '</p>';
+                    }
+                } catch (Throwable $e) {
+                    echo '<div class="caixa"><p class="erro">' . htmlspecialchars($e->getMessage()) . '</p></div>';
+                }
+            }
+            $ligados = q('SELECT u.nome, u.email FROM usuario_touchpay ut
+                            JOIN usuarios u ON u.id = ut.usuario_id
+                           WHERE ut.conta_id = ? ORDER BY u.nome', [$conta]);
+            echo '<table>';
+            linha('A loja de hoje fica com a conta do touchpay_email do config.php', true, 'conta ' . $conta);
+            linha('Usuários do app ligados a essa conta', (bool) $ligados,
+                $ligados ? implode(', ', array_map(static fn ($u) => $u['nome'] . ' <' . $u['email'] . '>', $ligados))
+                         : 'nenhum: conecte em Configurações > TouchPay antes, com o mesmo e-mail');
+            $pendente = separacao_pendente();
+            linha('Loja separada por conta', !$pendente);
+            echo '</table>';
+            if ($pendente) {
+                echo '<p>Depois disto, cada usuário só vê a loja da conta TouchPay que conectou. '
+                   . 'Quem não conectou vê a Loja vazia.</p>';
+                if (!$ligados) {
+                    echo '<p class="erro"><strong>Ninguém veria a loja de hoje.</strong> Conecte a sua conta '
+                       . 'em Configurações &gt; TouchPay com o e-mail do config.php e volte aqui.</p>';
+                } else {
+                    echo '<form method="post"><input type="hidden" name="acao" value="separar">'
+                       . '<button type="submit">Separar a loja por conta</button></form>';
+                }
+            }
         }
     }
 

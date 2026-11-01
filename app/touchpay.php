@@ -156,6 +156,13 @@ function tp_token(bool $renovar = false): string
 {
     static $memoria = null;
 
+    // Fase 2: o token e o da conta do config.php. Quem esta em outra conta
+    // (ou em nenhuma) nao fala com o TouchPay por ela — senao repor e
+    // promocao de um usuario mexeriam na loja de outro.
+    if (!conta_e_do_sync()) {
+        throw new TouchPayErro(conta_aviso_sem_sync());
+    }
+
     if ($renovar) {
         $memoria = null;
     } elseif ($memoria !== null) {
