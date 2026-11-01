@@ -1532,7 +1532,13 @@ Um item entra na lista quando (`discrepancia_motivo()`):
 
 - o custo da unidade passa do **preço de venda** do produto na máquina; ou
 - custa **3 vezes ou mais** o que o mesmo produto costuma custar nas outras compras; ou
-- o produto **já foi aberto como caixa** noutra nota, mas aqui ficou fechado.
+- o produto **já foi aberto como caixa** noutra nota, mas aqui ficou fechado;
+- o código da nota é um **GTIN-14 de caixa** e a unidade escondida nele é vendida na
+  máquina. Foi o caso do leite Parmalat (`37896034610018` → `7896034610017`): o item
+  ganhou cadastro próprio pela caixa, sem preço de venda nem outra compra, e nenhuma
+  das contas acima tinha com o que comparar;
+- o produto vinculado **não é vendido** e um produto de **nome parecido** (duas palavras
+  em comum, e o mesmo tamanho pesa mais) vende por um terço ou menos do que o item custou.
 
 Para cada um, a tela sugere **qual é a unidade** (`discrepancia_candidatos()`):
 

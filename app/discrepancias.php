@@ -57,11 +57,24 @@ function gtin_unidade_da_caixa(?string $gtin): ?string
  * @param ?float $ref       custo tipico do mesmo produto nas outras compras
  * @param ?float $conhecida unidades por caixa de quando esse produto ja foi
  *                          aberto como caixa noutra nota
+ * @param ?array $da_caixa  [nome, venda] da unidade escondida no GTIN-14 do
+ *                          codigo da nota, quando ela e vendida na maquina
+ * @param ?array $parecido  [nome, venda] do produto de nome parecido mais
+ *                          barato que a maquina vende — so conta quando o
+ *                          produto vinculado nao e vendido
  */
-function discrepancia_motivo(float $custo, ?float $venda, ?float $ref, ?float $conhecida): ?string
+function discrepancia_motivo(float $custo, ?float $venda, ?float $ref, ?float $conhecida,
+                             ?array $da_caixa = null, ?array $parecido = null): ?string
 {
     if ($conhecida !== null && $conhecida >= 2) {
         return 'Esse produto já foi aberto como caixa de ' . qtd_fmt($conhecida) . ' noutra nota.';
+    }
+    // O leite Parmalat: a nota trouxe o GTIN-14 da caixa, o item ganhou um
+    // cadastro proprio (que nao e vendido nem tem outra compra) e nenhuma das
+    // contas abaixo tinha com o que comparar. O codigo da caixa ja dizia tudo.
+    if ($da_caixa !== null) {
+        return 'O código da nota é de caixa: a unidade dele é ' . $da_caixa['nome']
+             . ', que vende a ' . moeda($da_caixa['venda']) . '.';
     }
     if ($venda !== null && $venda > 0 && $custo > $venda) {
         return 'Custou ' . moeda($custo) . ' a unidade, mas a unidade vende a ' . moeda($venda) . '.';
@@ -69,6 +82,12 @@ function discrepancia_motivo(float $custo, ?float $venda, ?float $ref, ?float $c
     if ($ref !== null && $ref > 0 && $custo >= 3 * $ref) {
         return 'Custou ' . moeda($custo) . ', ' . number_format($custo / $ref, 0, ',', '.')
              . ' vezes o que costuma custar (' . moeda($ref) . ').';
+    }
+    // Tres vezes, como acima: caixa de verdade passa longe (24 Tortuguitas
+    // custam 9x uma), e o chocolate de 80g ao lado do Baton nao chega la.
+    if ($venda === null && $parecido !== null && $parecido['venda'] > 0 && $custo >= 3 * $parecido['venda']) {
+        return 'Custou ' . moeda($custo) . ', e ' . $parecido['nome'] . ' (parecido) vende a '
+             . moeda($parecido['venda']) . '.';
     }
     return null;
 }
@@ -121,7 +140,8 @@ function discrepancia_parecido(string $nota, string $nome): int
     $palavras = explode(' ', normalizar_texto($nome));
     $pontos = 0;
     foreach (array_unique(explode(' ', normalizar_texto(str_replace('.', ' ', $nota)))) as $t) {
-        if (strlen($t) < 3 || ctype_digit($t) || in_array($t, $ignorar, true)) {
+        // Palavra com numero ("300G", "24X15") e tamanho, que conta logo abaixo.
+        if (strlen($t) < 3 || preg_match('/\d/', $t) || in_array($t, $ignorar, true)) {
             continue;
         }
         foreach ($palavras as $p) {
@@ -131,7 +151,48 @@ function discrepancia_parecido(string $nota, string $nome): int
             }
         }
     }
+    // O mesmo tamanho vale por duas palavras: na caixa "TORTUGUITA 24X15,5G"
+    // e o chocolate de 15,5g, e nao o biscoito Tortuguita de 86g. So desempata
+    // quem ja divide alguma palavra: "300G" sozinho nao faz dois produtos parecidos.
+    if ($pontos > 0 && array_intersect(discrepancia_tamanhos($nota), discrepancia_tamanhos($nome))) {
+        $pontos += 2;
+    }
     return $pontos;
+}
+
+/** Os tamanhos escritos num nome ("15,5G", "395 g", "1L") como "15.5G". Pura. */
+function discrepancia_tamanhos(string $nome): array
+{
+    preg_match_all('/(\d+(?:[.,]\d+)?)\s*(KG|G|ML|L)\b/u', mb_strtoupper($nome, 'UTF-8'), $m, PREG_SET_ORDER);
+    return array_values(array_unique(array_map(static fn(array $x): string =>
+        str_replace(',', '.', $x[1]) . $x[2], $m)));
+}
+
+/**
+ * O produto da maquina que mais parece o item e vende por menos do que ele
+ * custou, ou null. Funcao pura. Pede duas palavras em comum: uma so ("LEITE")
+ * casaria leite condensado com leite integral.
+ *
+ * @param array $por_ean ean => [nome, venda]
+ * @return ?array{nome:string, venda:float}
+ */
+function discrepancia_mais_parecido(string $descricao, array $por_ean, float $custo): ?array
+{
+    $melhor = null;
+    $pontos = 1;
+    foreach ($por_ean as $p) {
+        if ($p['venda'] >= $custo) {
+            continue;
+        }
+        $n = discrepancia_parecido($descricao, $p['nome']);
+        // Mesmo desempate da lista de unidades: o nome mais enxuto.
+        if ($n > $pontos || ($melhor !== null && $n === $pontos
+                && str_word_count($p['nome']) < str_word_count($melhor['nome']))) {
+            $melhor = $p;
+            $pontos = $n;
+        }
+    }
+    return $melhor;
 }
 
 // ---------------------------------------------------------------------
@@ -194,7 +255,7 @@ function discrepancias_itens(int $usuario_id, ?int $nota_id = null): array
               ORDER BY i.id', [$usuario_id]) as $c) {
         $caixas[(int) $c['caixa_produto_id']] = ['por_caixa' => (float) $c['por_caixa'], 'unidade' => (int) $c['produto_id']];
     }
-    [, $venda_por_produto] = discrepancia_precos();
+    [$por_ean, $venda_por_produto] = discrepancia_precos();
 
     $saida = [];
     foreach ($itens as $i) {
@@ -212,7 +273,16 @@ function discrepancias_itens(int $usuario_id, ?int $nota_id = null): array
         $venda = $venda_por_produto[$pid] ?? null;
         $conhecida = $caixas[$pid] ?? null;
 
-        $motivo = discrepancia_motivo((float) $i['valor_unitario_liquido'], $venda, $ref, $conhecida['por_caixa'] ?? null);
+        $custo = (float) $i['valor_unitario_liquido'];
+        $un_da_caixa = gtin_unidade_da_caixa($i['ean_original']);
+        $da_caixa = $un_da_caixa !== null && isset($por_ean[$un_da_caixa]) ? $por_ean[$un_da_caixa] : null;
+        // Nome parecido so para produto que a maquina nao vende: os outros ja
+        // tem o preco de venda dele mesmo para comparar.
+        $parecido = $venda === null && $da_caixa === null && $conhecida === null
+            ? discrepancia_mais_parecido((string) $i['descricao_original'], $por_ean, $custo)
+            : null;
+
+        $motivo = discrepancia_motivo($custo, $venda, $ref, $conhecida['por_caixa'] ?? null, $da_caixa, $parecido);
         if ($motivo === null) {
             continue;
         }
@@ -257,7 +327,8 @@ function discrepancia_candidatos(array $item, array $por_ean): array
         $por(qv('SELECT ean FROM produtos WHERE id = ?', [$item['conhecida']['unidade']]), 'aberta antes');
     }
     $por(gtin_unidade_da_caixa($caixa), 'tirado do código da caixa');
-    if ($item['produto_ean'] !== null && $item['produto_ean'] !== $caixa) {
+    // So se a maquina vende: senao o "vinculado" e a propria caixa, nao a unidade.
+    if ($item['produto_ean'] !== null && $item['produto_ean'] !== $caixa && isset($por_ean[$item['produto_ean']])) {
         $por($item['produto_ean'], 'cadastro vinculado hoje', $item['produto_nome']);
     }
 
@@ -269,7 +340,11 @@ function discrepancia_candidatos(array $item, array $por_ean): array
             $pontos[$ean] = $n;
         }
     }
-    arsort($pontos);
+    // Empate vai para o nome mais enxuto: na caixa de Tortuguita baunilha,
+    // "Tortuguita Recheio sabor Baunilha 15,5g" diz menos coisa que nao esta
+    // na nota do que "Chocolate Tortuguita ao Leite Recheio Brigadeiro".
+    uksort($pontos, static fn($a, $b): int => $pontos[$b] <=> $pontos[$a]
+        ?: str_word_count($por_ean[$a]['nome']) <=> str_word_count($por_ean[$b]['nome']));
     foreach (array_slice(array_keys($pontos), 0, 3) as $ean) {
         $por((string) $ean, 'nome parecido');
     }
