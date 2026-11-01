@@ -12,6 +12,7 @@ declare(strict_types=1);
 define('APP', dirname(__DIR__) . '/app');
 require APP . '/helpers.php';
 require APP . '/conta.php';
+require APP . '/sync.php';
 
 $ok = 0; $falhou = 0;
 function checar(string $nome, $obtido, $esperado): void
@@ -32,7 +33,8 @@ checar('sem migracao: conta_pdv_sql nao filtra', conta_pdv_sql('v.pdv_id'), '1=1
 checar('sem migracao: venda nao filtra', conta_venda_sql('v.pdv_id'), '1=1');
 checar('sem migracao: notas nao filtram', conta_notas_sql('n.usuario_id'), '1=1');
 checar('sem migracao: INSERT sem coluna nova', conta_colunas(), []);
-checar('sem migracao: todo mundo fala com o TouchPay', conta_e_do_sync(), true);
+checar('sem migracao: tudo e a conta legada', conta_legada(), true);
+checar('sem migracao: placar sem conta no nome', sync_chave('vendas'), 'vendas');
 
 // Depois da migracao.
 conta_separada_forcar(true);
@@ -43,8 +45,8 @@ checar('sem conta: conta_sql fecha tudo', conta_sql('p.conta_id'), '1=0');
 checar('sem conta: conta_pdv_sql fecha tudo', conta_pdv_sql('v.pdv_id'), '1=0');
 checar('sem conta: vendas fecham', conta_venda_sql('v.pdv_id'), '1=0');
 checar('sem conta: notas fecham', conta_notas_sql('n.usuario_id'), '1=0');
-checar('sem conta: nao fala com o TouchPay', conta_e_do_sync(), false);
-checar('sem conta: aviso pede para conectar', str_contains(conta_aviso_sem_sync(), 'Conecte'), true);
+checar('sem conta: nao e a legada', conta_legada(), false);
+checar('sem conta: aviso pede para conectar', str_contains(conta_aviso_sem_touchpay(), 'Conecte'), true);
 
 // O dono (conta 1, a do sync).
 conta_definir(1);
@@ -59,15 +61,19 @@ checar('dono: notas dos usuarios da conta 1',
     'n.usuario_id IN (SELECT ut.usuario_id FROM usuario_touchpay ut WHERE ut.conta_id = 1)');
 checar('dono: INSERT leva a conta', conta_colunas(), ['conta_id' => 1]);
 checar('dono: INSERT do sync leva a conta do sync', conta_colunas(conta_sync()), ['conta_id' => 1]);
-checar('dono: fala com o TouchPay', conta_e_do_sync(), true);
+checar('dono: e a conta legada', conta_legada(), true);
+checar('dono: placar de sempre (o n8n bate nele)', sync_chave('vendas'), 'vendas');
 
 // Outra conta (2): so a dela, e venda orfa do sync nao entra.
 conta_definir(2);
 checar('outra conta: filtra pela conta 2', conta_sql('p.conta_id'), 'p.conta_id = 2');
 checar('outra conta: venda orfa fica de fora',
     conta_venda_sql('v.pdv_id'), 'v.pdv_id IN (SELECT cp.id FROM loja_pdvs cp WHERE cp.conta_id = 2)');
-checar('outra conta: ainda nao fala com o TouchPay (fase 2)', conta_e_do_sync(), false);
-checar('outra conta: aviso de sync pendente', str_contains(conta_aviso_sem_sync(), 'próxima atualização'), true);
+checar('outra conta: nao e a legada', conta_legada(), false);
+checar('outra conta: placar proprio', sync_chave('vendas'), 'vendas#2');
+checar('outra conta: placar cabe na coluna (20)', strlen(sync_chave('vendas')) <= 20, true);
+checar('outra conta: aviso pede a senha neste aparelho',
+    str_contains(conta_aviso_sem_touchpay(), 'neste aparelho'), true);
 
 // O numero vai literal no SQL: so inteiro entra.
 conta_definir((int) '3 OR 1=1');

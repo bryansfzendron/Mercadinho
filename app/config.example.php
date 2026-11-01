@@ -64,6 +64,11 @@ return [
     // A NOTA FISCAL nao entra nesta chave: ela tem a sua, o nfce_modo.
     'sync_modo' => 'local',
 
+    // A conta TouchPay "legada": a que ficou com a loja de antes da separacao
+    // por conta. O e-mail fica (identifica a conta e recebe os callbacks do
+    // n8n). A senha e opcional: com ela, o cron sincroniza essa conta 24h;
+    // vazia, a conta sincroniza como as outras, enquanto o dono usa o app
+    // (a senha fica so no celular, em Configuracoes > TouchPay).
     'touchpay_email' => '',
     'touchpay_senha' => '',
     // Chave que cifra o e-mail/senha do TouchPay que cada usuario guarda no

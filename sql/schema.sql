@@ -510,3 +510,18 @@ CREATE TABLE IF NOT EXISTS usuario_touchpay (
     CONSTRAINT fk_utp_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE,
     CONSTRAINT fk_utp_conta FOREIGN KEY (conta_id) REFERENCES touchpay_contas (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- O token do TouchPay de cada conta (vale ~1 hora). Nao e a senha: e o que
+-- deixa o cron sincronizar uma conta cuja senha so existe no celular do dono,
+-- enquanto alguem usou o app ha pouco. Substitui touchpay_sessao, que era um
+-- token so para o app inteiro.
+CREATE TABLE IF NOT EXISTS touchpay_tokens (
+    conta_id   INT UNSIGNED NOT NULL,
+    jwt        TEXT         NOT NULL,
+    -- Ja com a folga: o `exp` do token menos dois minutos.
+    expira_em  DATETIME     NOT NULL,
+    criado_em  DATETIME     NOT NULL,
+    PRIMARY KEY (conta_id),
+    KEY ix_tptoken_expira (expira_em),
+    CONSTRAINT fk_tptoken_conta FOREIGN KEY (conta_id) REFERENCES touchpay_contas (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

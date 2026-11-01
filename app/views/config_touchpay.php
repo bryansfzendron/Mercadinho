@@ -91,7 +91,13 @@
     </ul>
 </div>
 
-<p class="ajuda">
-    Por enquanto o app ainda lê a loja pela conta configurada no servidor. A conta que
-    você conecta aqui passa a ser usada nas próximas atualizações.
-</p>
+<div class="cartao">
+    <h2 class="sem-topo">Quando a loja se atualiza</h2>
+    <p class="ajuda">
+        Como a senha não fica no servidor, o app só consegue falar com o TouchPay enquanto
+        você usa o app e por cerca de uma hora depois. Nesse tempo as vendas, os preços e o
+        estoque chegam sozinhos, de poucos em poucos minutos. Com o app fechado por mais
+        tempo a atualização pausa e volta assim que você abrir — ou arraste a tela para
+        baixo para buscar na hora.
+    </p>
+</div>

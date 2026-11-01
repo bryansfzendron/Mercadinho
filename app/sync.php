@@ -14,9 +14,23 @@ declare(strict_types=1);
 /** Depois disto, "rodando" sem noticia e fluxo que morreu no caminho. */
 const SYNC_TETO_MINUTOS = 10;
 
+/**
+ * A linha do placar desta fonte, na conta de agora.
+ *
+ * Cada conta tem o proprio placar (uma rodando nao pode travar a outra), mas
+ * sem mexer na tabela: a conta vai no nome da fonte, "vendas#7". A legada
+ * fica com "vendas", que e a linha que ja existia, e o n8n continua batendo
+ * nela.
+ */
+function sync_chave(string $fonte): string
+{
+    return conta_legada() ? $fonte : $fonte . '#' . (int) conta_atual();
+}
+
 /** Marca o inicio. Zera o contador porque a carga anterior nao interessa mais. */
 function sync_iniciar(string $fonte): void
 {
+    $fonte = sync_chave($fonte);
     $agora = date('Y-m-d H:i:s');
     exec_sql(
         'INSERT INTO sync_estado (fonte, status, lote, lotes, itens, mensagem, iniciado_em, atualizado_em)
@@ -35,6 +49,7 @@ function sync_iniciar(string $fonte): void
  */
 function sync_avancar(string $fonte, int $lote, int $lotes, int $itens, ?string $erro = null): void
 {
+    $fonte = sync_chave($fonte);
     $agora = date('Y-m-d H:i:s');
     $status = $erro !== null ? 'erro' : (($lotes > 0 && $lote >= $lotes) ? 'ok' : 'rodando');
 
@@ -56,7 +71,7 @@ function sync_avancar(string $fonte, int $lote, int $lotes, int $itens, ?string 
 /** O placar de uma fonte, pronto para a tela. */
 function sync_estado(string $fonte): array
 {
-    $r = q1('SELECT * FROM sync_estado WHERE fonte = ?', [$fonte]);
+    $r = q1('SELECT * FROM sync_estado WHERE fonte = ?', [sync_chave($fonte)]);
     if (!$r) {
         return sync_formatar(null);
     }
@@ -71,7 +86,8 @@ function sync_estado(string $fonte): array
  */
 function sync_ultimo(): ?string
 {
-    $v = qv("SELECT MAX(atualizado_em) FROM sync_estado WHERE status = 'ok'");
+    $v = qv("SELECT MAX(atualizado_em) FROM sync_estado WHERE status = 'ok' AND fonte IN (?, ?)",
+        [sync_chave('loja'), sync_chave('vendas')]);
     return $v ? (string) $v : null;
 }
 
@@ -257,10 +273,12 @@ function sync_puxar(?string $de = null, ?string $ate = null, int $orcamento = 9)
 /** Preco e estoque, pelo caminho que estiver valendo. */
 function sync_coletar_loja(array $pos_ids = [], ?int $teto_segundos = null): array
 {
-    if (!conta_e_do_sync()) {
-        return ['ok' => false, 'erro' => conta_aviso_sem_sync()];
+    if (!conta_pode_touchpay()) {
+        return ['ok' => false, 'erro' => conta_aviso_sem_touchpay()];
     }
-    return sync_modo() === 'n8n'
+    // O n8n recebe e-mail e senha no corpo e guarda a execucao: so a conta
+    // legada, cuja senha ja mora no config.php, pode ir por la.
+    return sync_modo() === 'n8n' && conta_legada()
         ? loja_disparar_sync($pos_ids)
         : loja_sincronizar_local($pos_ids, $teto_segundos);
 }
@@ -269,10 +287,10 @@ function sync_coletar_loja(array $pos_ids = [], ?int $teto_segundos = null): arr
 function sync_coletar_vendas(?string $de = null, ?string $ate = null,
                             ?int $teto_segundos = null): array
 {
-    if (!conta_e_do_sync()) {
-        return ['ok' => false, 'erro' => conta_aviso_sem_sync()];
+    if (!conta_pode_touchpay()) {
+        return ['ok' => false, 'erro' => conta_aviso_sem_touchpay()];
     }
-    return sync_modo() === 'n8n'
+    return sync_modo() === 'n8n' && conta_legada()
         ? vendas_disparar_sync($de, $ate)
         : vendas_sincronizar_local($de, $ate, $teto_segundos);
 }
@@ -310,7 +328,7 @@ function sync_disparar_pendentes(bool $forcar = false, ?string $agora = null): a
 {
     $saida = [];
     foreach (sync_fontes() as $fonte => $como) {
-        $estado = q1('SELECT * FROM sync_estado WHERE fonte = ?', [$fonte]);
+        $estado = q1('SELECT * FROM sync_estado WHERE fonte = ?', [sync_chave($fonte)]);
         $motivo = sync_motivo_para_pular($estado, $como['minutos'], $agora);
 
         if ($motivo !== null && !$forcar) {

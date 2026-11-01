@@ -17,8 +17,9 @@ declare(strict_types=1);
  * Qual conta vale:
  *  - requisicao com usuario logado: a que ele conectou em Configuracoes >
  *    TouchPay; sem conexao, nenhuma (a Loja aparece vazia);
- *  - cron, callbacks e o que mais roda sem usuario: a conta do sync, que ate
- *    a fase 3 e a do e-mail do config.php.
+ *  - cron: uma de cada vez, todas as que tem como falar com o TouchPay;
+ *  - callbacks do n8n e o que mais roda sem usuario: a conta "legada", a do
+ *    e-mail do config.php, que ficou com a loja de antes da separacao.
  *
  * Antes do setup.php criar as colunas, tudo responde "1=1": o app continua
  * exatamente como era, uma loja so.
@@ -27,9 +28,19 @@ declare(strict_types=1);
 /** @var int|null|false false = ninguem definiu (contexto sem usuario) */
 $GLOBALS['__conta_atual'] = false;
 
-function conta_definir(?int $conta_id): void
+/**
+ * @param ?int $usuario_id quem esta usando o app agora: e do cookie dele que
+ *                         sai a senha do TouchPay (null no cron)
+ */
+function conta_definir(?int $conta_id, ?int $usuario_id = null): void
 {
     $GLOBALS['__conta_atual'] = $conta_id;
+    $GLOBALS['__conta_usuario'] = $usuario_id;
+}
+
+function conta_usuario(): ?int
+{
+    return $GLOBALS['__conta_usuario'] ?? null;
 }
 
 function conta_atual(): ?int
@@ -39,8 +50,8 @@ function conta_atual(): ?int
 }
 
 /**
- * A conta que o sync alimenta: a do e-mail do config.php (fase 2). E nela que
- * os dados de antes da separacao foram parar.
+ * A conta legada: a do e-mail do config.php. Ficou com a loja de antes da
+ * separacao, com as vendas sem PDV e com o que chega pelos callbacks do n8n.
  */
 function conta_sync(): ?int
 {
@@ -66,14 +77,54 @@ function conta_sync(): ?int
     return $id = $l ? (int) $l['id'] : null;
 }
 
-/** O usuario logado esta na conta que o sync alimenta? So ele pode disparar o sync (fase 2). */
-function conta_e_do_sync(): bool
+/** A conta de agora e a legada (ou o app ainda e uma loja so)? */
+function conta_legada(): bool
 {
     if (!conta_separada()) {
         return true;
     }
     $c = conta_atual();
     return $c !== null && $c === conta_sync();
+}
+
+/**
+ * Da para falar com o TouchPay por esta conta agora? Token guardado valendo,
+ * a senha no cookie de quem esta usando o app, ou (so a legada) o config.php.
+ */
+function conta_pode_touchpay(): bool
+{
+    if (!conta_separada()) {
+        return tp_configurado();
+    }
+    $c = conta_atual();
+    return $c !== null && (tp_token_guardado($c) !== null || tp_credenciais($c) !== null);
+}
+
+/**
+ * As contas que o cron consegue sincronizar agora: as com token valendo e,
+ * se o dono deixou a senha no config.php, a legada. As outras esperam alguem
+ * abrir o app — a senha delas so existe no celular.
+ *
+ * @return array<int,?int> null = app ainda sem separacao (uma loja so)
+ */
+function conta_para_o_cron(): array
+{
+    if (!conta_separada()) {
+        return [null];
+    }
+    $ids = [];
+    try {
+        foreach (q('SELECT conta_id FROM touchpay_tokens WHERE expira_em > ?', [date('Y-m-d H:i:s')]) as $l) {
+            $ids[] = (int) $l['conta_id'];
+        }
+    } catch (PDOException $e) {
+        // sem a tabela: so a legada, pelo config.php
+    }
+    $legada = conta_sync();
+    if ($legada !== null && tp_configurado()) {
+        $ids[] = $legada;
+    }
+    return array_values(array_unique($ids));
 }
 
 /** As colunas da separacao ja existem? Sem elas o app segue como uma loja so. */
@@ -193,10 +244,35 @@ function conta_notas_sql(string $coluna_usuario = 'n.usuario_id'): string
         : $coluna_usuario . ' IN (SELECT ut.usuario_id FROM usuario_touchpay ut WHERE ut.conta_id = ' . (int) $c . ')';
 }
 
-/** O que a tela diz a quem ainda nao pode falar com o TouchPay (fase 2). */
-function conta_aviso_sem_sync(): string
+/** O que a tela diz a quem nao tem como falar com o TouchPay agora. */
+function conta_aviso_sem_touchpay(): string
 {
     return conta_atual() === null
         ? 'Conecte sua conta TouchPay em Configurações > TouchPay.'
-        : 'Sua conta TouchPay ainda não é sincronizada pelo app. Isso chega na próxima atualização.';
+        : 'A senha do TouchPay não está neste aparelho. Entre de novo em Configurações > TouchPay.';
+}
+
+/**
+ * Renova o token da conta quando falta pouco para ele vencer, enquanto o dono
+ * usa o app. Um login por ~45 minutos de uso; falhar aqui nao derruba a tela.
+ */
+function conta_manter_token(): void
+{
+    if (!conta_separada()) {
+        return;
+    }
+    $c = conta_atual();
+    if ($c === null || tp_token_resta($c) > 15 * 60) {
+        return;
+    }
+    $cred = tp_credenciais($c);
+    if ($cred === null || $cred['do_config']) {
+        // Sem senha neste aparelho; a do config, o cron renova sozinho.
+        return;
+    }
+    try {
+        tp_token(true);
+    } catch (Throwable $e) {
+        error_log('conta_manter_token: ' . $e->getMessage());
+    }
 }

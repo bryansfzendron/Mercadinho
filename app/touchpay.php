@@ -146,50 +146,152 @@ function tp_entrar(?string $email = null, ?string $senha = null): string
 }
 
 /**
- * O JWT de agora: o guardado, enquanto valer, ou um login novo.
+ * O JWT de agora, da conta de agora: o guardado, enquanto valer, ou um login
+ * novo.
  *
  * Guardado no banco e nao na sessao do PHP porque quem repoe a gondola abre a
- * tela pelo celular e o cron tambem passa por aqui: um login por hora para o
- * app inteiro, em vez de um por aparelho e por aba.
+ * tela pelo celular e o cron tambem passa por aqui: um login por hora por
+ * conta, em vez de um por aparelho e por aba. E e esse token guardado que
+ * deixa o cron sincronizar uma conta cuja senha so existe no celular do dono:
+ * enquanto ele vale (uma hora desde o ultimo uso do app), o cron trabalha.
+ *
+ * O login sai das credenciais de tp_credenciais(): o cookie de quem esta
+ * usando o app ou, so para a conta do config.php, o e-mail e a senha de la.
  */
 function tp_token(bool $renovar = false): string
 {
-    static $memoria = null;
+    static $memoria = [];
 
-    // Fase 2: o token e o da conta do config.php. Quem esta em outra conta
-    // (ou em nenhuma) nao fala com o TouchPay por ela — senao repor e
-    // promocao de um usuario mexeriam na loja de outro.
-    if (!conta_e_do_sync()) {
-        throw new TouchPayErro(conta_aviso_sem_sync());
+    $separada = conta_separada();
+    $conta = $separada ? conta_atual() : null;
+    if ($separada && $conta === null) {
+        throw new TouchPayErro(conta_aviso_sem_touchpay());
     }
+    $k = (int) $conta;
 
     if ($renovar) {
-        $memoria = null;
-    } elseif ($memoria !== null) {
-        return $memoria;
+        unset($memoria[$k]);
+    } elseif (isset($memoria[$k])) {
+        return $memoria[$k];
     }
 
     if (!$renovar) {
-        $linha = q1('SELECT jwt, expira_em FROM touchpay_sessao WHERE id = 1');
-        if ($linha && strtotime((string) $linha['expira_em']) > time()) {
-            return $memoria = (string) $linha['jwt'];
+        $guardado = tp_token_guardado($conta);
+        if ($guardado !== null) {
+            return $memoria[$k] = $guardado;
         }
     }
 
-    $jwt = tp_entrar();
+    $cred = tp_credenciais($conta);
+    if ($cred === null) {
+        throw new TouchPayErro(conta_aviso_sem_touchpay());
+    }
+    $jwt = $cred['do_config'] ? tp_entrar() : tp_entrar($cred['email'], $cred['senha']);
+    tp_token_guardar($conta, $jwt);
+
+    return $memoria[$k] = $jwt;
+}
+
+/**
+ * Com que e-mail e senha entrar no TouchPay por esta conta, agora. Nunca le
+ * do banco: a senha so existe no cookie do aparelho de quem esta usando o
+ * app, ou no config.php (so a conta do config, e so enquanto o dono deixar
+ * a senha la).
+ *
+ * @return ?array{email:string, senha:string, do_config:bool}
+ */
+function tp_credenciais(?int $conta): ?array
+{
+    $do_config = ['email' => '', 'senha' => '', 'do_config' => true];
+    if (!conta_separada()) {
+        return tp_configurado() ? $do_config : null;
+    }
+    if ($conta === null) {
+        return null;
+    }
+    $uid = conta_usuario();
+    if ($uid !== null) {
+        $cofre = tp_cofre_ler($uid);
+        $vinculo = $cofre ? tp_conta_do_usuario($uid) : null;
+        if ($vinculo && $vinculo['conta_id'] === $conta && tp_conta_confere($vinculo, $cofre['email'])) {
+            return ['email' => $cofre['email'], 'senha' => $cofre['senha'], 'do_config' => false];
+        }
+    }
+    if ($conta === conta_sync() && tp_configurado()) {
+        return $do_config;
+    }
+    return null;
+}
+
+/** O token guardado desta conta, se ainda vale (ja com a folga), ou null. */
+function tp_token_guardado(?int $conta): ?string
+{
+    $linha = null;
+    if ($conta !== null) {
+        try {
+            $linha = q1('SELECT jwt, expira_em FROM touchpay_tokens WHERE conta_id = ?', [$conta]);
+        } catch (PDOException $e) {
+            // setup.php ainda nao criou a tabela: a conta do config segue no
+            // lugar de sempre.
+            $linha = $conta === conta_sync() ? tp_token_legado() : null;
+        }
+    } else {
+        $linha = tp_token_legado();
+    }
+    if ($linha && strtotime((string) $linha['expira_em']) > time()) {
+        return (string) $linha['jwt'];
+    }
+    return null;
+}
+
+function tp_token_legado(): ?array
+{
+    return q1('SELECT jwt, expira_em FROM touchpay_sessao WHERE id = 1');
+}
+
+/** Guarda o token da conta. Quem conecta na tela ja deixa um, e o cron comeca. */
+function tp_token_guardar(?int $conta, string $jwt): void
+{
     $exp = tp_jwt_exp($jwt);
     // Token ilegivel nao e motivo para parar: vale meia hora e a proxima
     // renovacao resolve.
-    $expira = $exp !== null ? $exp - TP_FOLGA_EXP : time() + 1800;
+    $expira = date('Y-m-d H:i:s', $exp !== null ? $exp - TP_FOLGA_EXP : time() + 1800);
+    $agora = date('Y-m-d H:i:s');
 
+    if ($conta !== null) {
+        try {
+            exec_sql(
+                'INSERT INTO touchpay_tokens (conta_id, jwt, expira_em, criado_em) VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE jwt = VALUES(jwt), expira_em = VALUES(expira_em),
+                                         criado_em = VALUES(criado_em)',
+                [$conta, $jwt, $expira, $agora]
+            );
+            return;
+        } catch (PDOException $e) {
+            if ($conta !== conta_sync()) {
+                return;
+            }
+        }
+    }
     exec_sql(
         'INSERT INTO touchpay_sessao (id, jwt, expira_em, criado_em) VALUES (1, ?, ?, ?)
          ON DUPLICATE KEY UPDATE jwt = VALUES(jwt), expira_em = VALUES(expira_em),
                                  criado_em = VALUES(criado_em)',
-        [$jwt, date('Y-m-d H:i:s', $expira), date('Y-m-d H:i:s')]
+        [$jwt, $expira, $agora]
     );
+}
 
-    return $memoria = $jwt;
+/** Quanto falta para o token desta conta vencer, em segundos (0 = vencido ou nenhum). */
+function tp_token_resta(?int $conta): int
+{
+    try {
+        $l = $conta !== null
+            ? q1('SELECT expira_em FROM touchpay_tokens WHERE conta_id = ?', [$conta])
+            : tp_token_legado();
+    } catch (PDOException $e) {
+        return 0;
+    }
+    return $l ? max(0, (int) strtotime((string) $l['expira_em']) - time()) : 0;
 }
 
 /**

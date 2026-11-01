@@ -111,8 +111,8 @@ const VENDAS_POR_LOTE = 500;
 function vendas_sincronizar_local(?string $desde = null, ?string $ate = null,
                                  ?int $teto_segundos = null): array
 {
-    if (!tp_configurado()) {
-        return ['ok' => false, 'erro' => 'touchpay_email/touchpay_senha nao configurados'];
+    if (!conta_pode_touchpay()) {
+        return ['ok' => false, 'erro' => conta_aviso_sem_touchpay()];
     }
 
     // No cron nao ha pressa: CLI nao tem teto de execucao e a carga de um ano
@@ -504,8 +504,12 @@ function vendas_gravar_lote(array $p, array $normalizadas): array
         $externos = array_map(static fn (array $n): int => $n['venda']['externo_id'], $normalizadas);
         foreach (array_chunk($externos, 500) as $parte) {
             $marcas = implode(',', array_fill(0, count($parte), '?'));
+            // So as desta conta: a venda de outra loja com o mesmo numero (dois
+            // logins da mesma empresa) nao pode ser apagada por este sync —
+            // o INSERT abaixo esbarra na chave e o lote para, sem estrago.
             exec_sql(
-                'DELETE FROM vendas WHERE fonte = ? AND externo_id IN (' . $marcas . ')',
+                'DELETE FROM vendas WHERE fonte = ? AND externo_id IN (' . $marcas . ')
+                    AND ' . conta_venda_sql('pdv_id'),
                 array_merge(['touchpay'], $parte)
             );
         }
@@ -543,7 +547,8 @@ function vendas_gravar_lote(array $p, array $normalizadas): array
         foreach (array_chunk($externos, 500) as $parte) {
             $marcas = implode(',', array_fill(0, count($parte), '?'));
             foreach (q(
-                'SELECT id, externo_id FROM vendas WHERE fonte = ? AND externo_id IN (' . $marcas . ')',
+                'SELECT id, externo_id FROM vendas WHERE fonte = ? AND externo_id IN (' . $marcas . ')
+                    AND ' . conta_venda_sql('pdv_id'),
                 array_merge(['touchpay'], $parte)
             ) as $linha) {
                 $ids[(int) $linha['externo_id']] = (int) $linha['id'];

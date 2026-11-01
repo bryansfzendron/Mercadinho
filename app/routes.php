@@ -18,7 +18,12 @@ function despachar(string $rota): void
     $u = exigir_login();
     // A loja que este usuario enxerga e a da conta TouchPay que ele conectou
     // (app/conta.php). Sem conta conectada, nenhuma.
-    conta_definir(tp_conta_do_usuario((int) $u['id'])['conta_id'] ?? null);
+    conta_definir(tp_conta_do_usuario((int) $u['id'])['conta_id'] ?? null, (int) $u['id']);
+    // Quem esta usando o app mantem o token da conta vivo: e ele que deixa o
+    // cron sincronizar uma conta cuja senha so existe neste celular.
+    if ($m === 'GET' && !str_starts_with($rota, '/api/')) {
+        conta_manter_token();
+    }
 
     if ($rota === '/')          { rota_inicio($u); return; }
     if ($rota === '/dashboard') { rota_dashboard($u); return; }
@@ -435,10 +440,10 @@ function rota_produtos(array $u): void
  */
 function rota_planograma(array $u): void
 {
-    if (!tp_configurado()) {
+    if (!conta_pode_touchpay()) {
         ver('planograma', [
             'pdvs' => [],
-            'erro' => 'Falta touchpay_email e touchpay_senha no config.php.',
+            'erro' => conta_aviso_sem_touchpay(),
             'log'  => [],
         ], 'Repor');
     }
@@ -516,8 +521,8 @@ function rota_repor_nota(array $u, int $id, string $m): void
         flash('erro', 'Esta nota ainda não tem itens para repor.');
         redirecionar('/notas/' . $id);
     }
-    if (!tp_configurado()) {
-        flash('erro', 'Falta touchpay_email e touchpay_senha no config.php.');
+    if (!conta_pode_touchpay()) {
+        flash('erro', conta_aviso_sem_touchpay());
         redirecionar('/notas/' . $id);
     }
 
@@ -646,7 +651,7 @@ function rota_repor_importar(array $u, string $m): void
     // So os PDVs que o TouchPay ainda tem: um que sumiu de la guarda um
     // planograma morto e repor nele da 404 (era o "MIRANTE" duplicado).
     $vivos = null;
-    if (tp_configurado()) {
+    if (conta_pode_touchpay()) {
         try {
             $vivos = planograma_sincronizar_pdvs();
         } catch (TouchPayErro $e) {
@@ -712,14 +717,14 @@ function rota_repor_lote(array $u, int $id): void
     }
     // Uma vez por abertura, como o Repor: planograma nao troca no meio do lote.
     $erro = null;
-    if (tp_configurado()) {
+    if (conta_pode_touchpay()) {
         try {
             planograma_sincronizar_pdvs();
         } catch (TouchPayErro $e) {
             $erro = $e->getMessage();
         }
     } else {
-        $erro = 'Falta touchpay_email e touchpay_senha no config.php.';
+        $erro = conta_aviso_sem_touchpay();
     }
     ver('repor_lote', [
         'lote'   => $dados['lote'],
@@ -1835,10 +1840,13 @@ function rota_config_touchpay(array $u, string $m): void
             $email_digitado = trim((string) ($_POST['tp_email'] ?? ''));
             $senha = (string) ($_POST['tp_senha'] ?? '');
             try {
-                tp_entrar($email_digitado, $senha);
+                $jwt = tp_entrar($email_digitado, $senha);
                 $antes = tp_conta_do_usuario($uid);
                 $conta_id = tp_conta_vincular($uid, $email_digitado);
                 tp_cofre_gravar($email_digitado, $senha, $uid);
+                // O login ja deu um token: guardado, o cron comeca a puxar a
+                // loja desta conta na proxima passada, sem esperar outro toque.
+                tp_token_guardar($conta_id, $jwt);
                 flash('ok', $antes && $antes['conta_id'] !== $conta_id
                     ? 'Conta TouchPay trocada. O login funcionou e ficou guardado só neste aparelho.'
                     : 'Conectado. O login funcionou e ficou guardado só neste aparelho.');
@@ -1864,6 +1872,17 @@ function rota_config_touchpay(array $u, string $m): void
             redirecionar('/config/touchpay');
         } elseif ($acao === 'desconectar') {
             tp_cofre_apagar();
+            // O token guardado iria deixar o cron seguir por ate uma hora com a
+            // conta de quem acabou de sair. Um socio na mesma conta renova o
+            // dele no proximo toque.
+            $vinculo = tp_conta_do_usuario($uid);
+            if ($vinculo) {
+                try {
+                    exec_sql('DELETE FROM touchpay_tokens WHERE conta_id = ?', [$vinculo['conta_id']]);
+                } catch (PDOException $e) {
+                    // tabela ainda nao criada: nada a apagar
+                }
+            }
             tp_conta_desvincular($uid);
             flash('ok', 'Desconectado. A senha foi apagada deste aparelho.');
             redirecionar('/config/touchpay');

@@ -623,7 +623,7 @@ function abas_loja(string $atual): string
 
 /**
  * O aviso no topo da Loja para quem nao ve loja nenhuma: sem conta TouchPay
- * conectada, ou com uma conta que o app ainda nao sincroniza (fase 2).
+ * conectada, sem a senha neste aparelho, ou com a primeira carga por vir.
  */
 function conta_aviso_loja(): string
 {
@@ -634,9 +634,14 @@ function conta_aviso_loja(): string
         return '<div class="aviso aviso-info">Conecte sua conta TouchPay para ver a sua loja. '
              . '<a href="/config/touchpay">Conectar</a></div>';
     }
-    if (!conta_e_do_sync()) {
-        return '<div class="aviso aviso-info">Sua conta TouchPay está conectada, mas a loja dela '
-             . 'ainda não é sincronizada pelo app. Isso chega na próxima atualização.</div>';
+    if (!conta_pode_touchpay()) {
+        return '<div class="aviso aviso-info">A senha do TouchPay não está neste aparelho: sem ela a '
+             . 'loja não se atualiza. <a href="/config/touchpay">Entrar de novo</a></div>';
+    }
+    if (!q1('SELECT 1 FROM loja_pdvs WHERE ' . conta_sql() . ' LIMIT 1')) {
+        return '<div class="aviso aviso-info">Sua loja ainda não foi puxada do TouchPay. '
+             . '<strong>Arraste a tela para baixo</strong> para buscar agora — a primeira vez traz '
+             . 'o último ano de vendas e pode levar alguns puxões.</div>';
     }
     return '';
 }

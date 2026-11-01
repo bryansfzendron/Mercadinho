@@ -284,8 +284,8 @@ function loja_montar_payload(array $pdv, array $entradas, array $inventario,
  */
 function loja_sincronizar_local(array $pos_ids = [], ?int $teto_segundos = null): array
 {
-    if (!tp_configurado()) {
-        return ['ok' => false, 'erro' => 'touchpay_email/touchpay_senha nao configurados'];
+    if (!conta_pode_touchpay()) {
+        return ['ok' => false, 'erro' => conta_aviso_sem_touchpay()];
     }
 
     sync_iniciar('loja');
@@ -469,9 +469,20 @@ function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
     $inv   = ((int) ($pos['inventario_id'] ?? 0)) ?: null;
 
     $linha = q1(
-        'SELECT id, unificado_para FROM loja_pdvs WHERE fonte = ? AND externo_id = ?',
+        'SELECT id, unificado_para' . (conta_separada() ? ', conta_id' : '') . '
+           FROM loja_pdvs WHERE fonte = ? AND externo_id = ?',
         ['touchpay', $externo]
     );
+    // O mesmo PDV do TouchPay em duas contas do app (dois logins da mesma
+    // empresa) nao cabe: a loja e de uma conta so. Para em vez de passar o
+    // PDV, e as vendas dele, de uma loja para a outra.
+    if ($linha && conta_separada() && (int) ($linha['conta_id'] ?? 0) !== (int) conta_atual()) {
+        if ($linha['conta_id'] !== null) {
+            throw new RuntimeException('O ponto de venda "' . $nome . '" já pertence a outra conta do app. '
+                . 'Quem usa a mesma empresa no TouchPay deve conectar com o mesmo login.');
+        }
+        exec_sql('UPDATE loja_pdvs SET conta_id = ? WHERE id = ?', [conta_atual(), $linha['id']]);
+    }
     if ($linha) {
         $unificado = (int) ($linha['unificado_para'] ?? 0);
         if ($unificado > 0) {
@@ -503,8 +514,8 @@ function loja_pdv_resolver(array $pos, bool $marcar_sync = true): ?int
         // PDV que aparece primeiro numa venda entra sem data de espelho: ele
         // ainda nao tem preco nem estoque nossos.
         'atualizado_em' => $marcar_sync ? date('Y-m-d H:i:s') : null,
-    // A conta que o sync esta alimentando (fase 2: a do config.php).
-    ] + conta_colunas(conta_sync()));
+    // A conta que esta sincronizando agora.
+    ] + conta_colunas(conta_atual()));
 }
 
 /**

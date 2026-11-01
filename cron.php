@@ -64,20 +64,33 @@ $forcar = isset($_GET['forcar']) || in_array('--forcar', $argv ?? [], true);
 $resumo = [];
 $falhou = false;
 
-foreach (sync_disparar_pendentes($forcar, $agora) as $r) {
-    if ($r['pulou']) {
-        dizer($r['nome'] . ': pulou — ' . $r['motivo']);
-        $resumo[] = $r['nome'] . ' pulou';
-        continue;
-    }
-    if ($r['ok']) {
-        $janela = $r['desde'] !== null ? ' (' . $r['desde'] . ' a ' . $r['ate'] . ')' : '';
-        dizer($r['nome'] . ': disparado' . $janela);
-        $resumo[] = $r['nome'] . ' disparado';
-    } else {
-        dizer($r['nome'] . ': FALHOU — ' . $r['erro']);
-        $resumo[] = $r['nome'] . ': ' . $r['erro'];
-        $falhou = true;
+// Uma conta de cada vez. So entram as que da para sincronizar sem ninguem no
+// app: token ainda valendo (alguem usou o app na ultima hora) ou, a legada,
+// com a senha no config.php. As outras esperam o dono abrir o app.
+$contas = conta_para_o_cron();
+if (!$contas) {
+    dizer('nenhuma conta com token valendo: nada a sincronizar agora');
+    $resumo[] = 'nenhuma conta ativa';
+}
+foreach ($contas as $conta) {
+    conta_definir($conta);
+    $quem = $conta === null ? '' : 'conta ' . $conta . ' · ';
+
+    foreach (sync_disparar_pendentes($forcar, $agora) as $r) {
+        if ($r['pulou']) {
+            dizer($quem . $r['nome'] . ': pulou — ' . $r['motivo']);
+            $resumo[] = $quem . $r['nome'] . ' pulou';
+            continue;
+        }
+        if ($r['ok']) {
+            $janela = $r['desde'] !== null ? ' (' . $r['desde'] . ' a ' . $r['ate'] . ')' : '';
+            dizer($quem . $r['nome'] . ': disparado' . $janela);
+            $resumo[] = $quem . $r['nome'] . ' disparado';
+        } else {
+            dizer($quem . $r['nome'] . ': FALHOU — ' . $r['erro']);
+            $resumo[] = $quem . $r['nome'] . ': ' . $r['erro'];
+            $falhou = true;
+        }
     }
 }
 
