@@ -97,6 +97,9 @@ $lista_vendidos = static function (array $produtos, string $vazio, string $de, s
 ?>
 <p class="inicio-sub">Gestão do seu negócio</p>
 
+<?php // O mesmo aviso do topo da Loja: sem conta TouchPay, a capa fica zerada. ?>
+<?= conta_aviso_loja() ?>
+
 <?php // Com um PDV so, o filtro escolheria entre ele e ele mesmo. ?>
 <?php if (count($pdvs) > 1 || $pdv_id > 0): ?>
 <form method="get" action="/" class="filtro-pdv">
