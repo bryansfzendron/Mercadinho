@@ -304,6 +304,10 @@
             escolher.hidden = true;
             trabalho.hidden = false;
             tela.dataset.pdvEscolhido = '1';
+            // Recarregar a pagina fica no mesmo PDV; so o botao Repor pergunta de novo.
+            if (global.history && global.history.replaceState) {
+                global.history.replaceState(null, '', global.location.pathname + '?pdv=' + pdvAtual());
+            }
             tela.dispatchEvent(new CustomEvent('planograma:pdv', { detail: pdvAtual() }));
             if (procurarAoEscolher) {
                 const codigo = procurarAoEscolher;
@@ -325,6 +329,9 @@
             alvo.innerHTML = '';
             campo.value = '';
             delete tela.dataset.pdvEscolhido;
+            if (global.history && global.history.replaceState) {
+                global.history.replaceState(null, '', global.location.pathname);
+            }
             trabalho.hidden = true;
             escolher.hidden = false;
             tela.dispatchEvent(new CustomEvent('planograma:trocar'));
@@ -863,6 +870,8 @@
         try {
             const q = new URLSearchParams(global.location.search);
             const codigo = (q.get('codigo') || '').trim();
+            // Veio do botao Repor, que ja perguntou o PDV na folha: abre nele.
+            if (!codigo && q.get('pdv')) escolherPdv(q.get('pdv'));
             if (codigo) {
                 preencher = {
                     codigo: codigo,

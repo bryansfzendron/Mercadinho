@@ -97,7 +97,7 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
             Nada encontrado para essa busca.
         <?php elseif ($ordem === 'validade'): ?>
             Nenhum item com validade cadastrada neste filtro.<br>
-            A validade se cadastra na aba <a href="/planograma">Repor</a>.
+            A validade se cadastra na aba <a href="/planograma" data-pedir-pdv>Repor</a>.
         <?php elseif ($estoque === 'sem'): ?>
             Nenhum item zerado neste filtro. A prateleira está inteira.
         <?php else: ?>

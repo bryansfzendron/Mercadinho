@@ -582,9 +582,10 @@ function url(string $caminho = '/'): string
 /**
  * Submenu de uma secao: varias telas dentro do mesmo lugar do menu principal.
  *
- * @param array<string,string> $abas  href => rotulo
+ * @param array<string,string> $abas    href => rotulo
+ * @param array<string,string> $extras  href => atributos a mais no <a> (ja escapados)
  */
-function abas(array $abas, string $atual): string
+function abas(array $abas, string $atual, array $extras = []): string
 {
     // A pilula da aba ativa ganha nome de transicao de view: trocando de aba,
     // o navegador ve a mesma pilula nas duas paginas e a faz *deslizar* ate a
@@ -602,7 +603,7 @@ function abas(array $abas, string $atual): string
         $eAtual = $href === $atual;
         $html .= '<a class="aba' . ($eAtual ? ' ativo' : '') . '"'
                . ($eAtual ? ' style="--nome-aba:aba-ativa-' . $grupo . '"' : '')
-               . ' href="' . e($href) . '">' . e($rotulo) . '</a>';
+               . ' href="' . e($href) . '"' . ($extras[$href] ?? '') . '>' . e($rotulo) . '</a>';
     }
     return $html . '</nav>';
 }
@@ -617,7 +618,55 @@ function abas_loja(string $atual): string
         '/margens'    => 'Margens',
         '/vendas'     => 'Vendas',
         '/metas'      => 'Metas',
-    ], $atual);
+    ], $atual, ['/planograma' => ' data-pedir-pdv']) . folha_pedir_pdv();
+}
+
+/**
+ * A pergunta que o botao Repor faz antes de abrir a tela: para qual ponto de
+ * venda vai a mercadoria. Repor abria no PDV da ultima vez e trocar dependia de
+ * lembrar do filtro — esquecer era mudar preco no container errado.
+ *
+ * Cada PDV e um link para /planograma?pdv=ID, que ja abre nele. O toque no
+ * botao (pedir-pdv.js) abre esta folha em vez de navegar; sem JS, ou sem PDV
+ * no banco, o link segue normal e a propria tela pergunta.
+ */
+function folha_pedir_pdv(): string
+{
+    static $feita = false;
+    if ($feita) {
+        return '';
+    }
+    $feita = true;
+
+    try {
+        $pdvs = planograma_pdvs();
+    } catch (Throwable $e) {
+        return '';
+    }
+    if (!$pdvs) {
+        return '';
+    }
+
+    $itens = '';
+    foreach ($pdvs as $p) {
+        $nome = e($p['nome']);
+        if ((int) ($p['planograma_id'] ?? 0) === 0) {
+            $itens .= '<li class="desligado"><div class="escolher-pdv-item">'
+                    . '<div class="linha-topo"><span class="forte">' . $nome . '</span>'
+                    . '<span class="valor">sem planograma</span></div></div></li>';
+            continue;
+        }
+        $itens .= '<li><a href="/planograma?pdv=' . (int) $p['id'] . '" data-pdv="' . (int) $p['id'] . '">'
+                . '<div class="linha-topo"><span class="forte">' . $nome . '</span><span class="valor">›</span></div>'
+                . '<div class="linha-baixo" hidden><span>da última vez</span></div></a></li>';
+    }
+
+    return '<dialog class="folha-pdv" id="folha-pdv" aria-labelledby="folha-pdv-titulo">'
+         . '<div class="folha-pdv-miolo">'
+         . '<h2 id="folha-pdv-titulo" tabindex="-1">Qual ponto de venda você vai abastecer?</h2>'
+         . '<ul class="lista escolher-pdv">' . $itens . '</ul>'
+         . '<form method="dialog"><button class="botao botao-alt">Cancelar</button></form>'
+         . '</div></dialog>';
 }
 
 /** Configuracoes: tudo que e botao e ajuste, longe das telas de numero. */

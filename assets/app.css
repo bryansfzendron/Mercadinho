@@ -1360,3 +1360,21 @@ details.animando { overflow: hidden; }
 .pg-escolhido .linha-topo { align-items: center; }
 .pg-escolhido .botao { width: auto; padding: .4rem .9rem; font-size: .9rem; }
 .pg-escolhido .ajuda { margin: .3rem 0 0; }
+
+/* Folha "qual PDV vai abastecer?" que o botao Repor abre por cima da tela. */
+.folha-pdv {
+    width: min(100% - 32px, 480px); max-height: 85vh; margin: auto auto 16px;
+    padding: 0; border: 0; border-radius: 22px;
+    background: var(--fundo); color: var(--texto);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .25);
+}
+.folha-pdv::backdrop { background: rgba(0, 0, 0, .4); }
+.folha-pdv[open] { animation: folha-sobe .28s cubic-bezier(.32, .72, 0, 1); }
+@keyframes folha-sobe { from { transform: translateY(40px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .folha-pdv[open] { animation: none; } }
+.folha-pdv-miolo { padding: 1.1rem 1rem 1rem; }
+.folha-pdv h2 { margin: 0 0 .8rem; }
+.folha-pdv .lista { margin: 0 0 .6rem; }
+.folha-pdv .desligado { opacity: .5; }
+.folha-pdv form { margin: 0; }
+.folha-pdv h2:focus { outline: none; }
