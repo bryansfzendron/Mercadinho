@@ -1092,8 +1092,15 @@ function vendas_por_pdv_forma(array $f): array
 /**
  * Junta as linhas de (PDV, forma) por forma de pagamento, que e como a tela
  * mostra. Funcao pura.
+ *
+ * Com os parametros de cada linha (custos_params_dos_pdvs), cada forma leva
+ * tambem a taxa que DE FATO pagou no periodo: a de cada venda, pela data dela
+ * e pelo PDV. 'taxa_pct' e a media pesada pelo valor; 'taxa_min'/'taxa_max'
+ * mostram quando o periodo atravessou uma troca de taxa. Antes a tela
+ * escrevia a taxa padrao de hoje para qualquer periodo — a conta do lucro ja
+ * usava a certa, so o rotulo mentia.
  */
-function vendas_juntar_formas(array $por_pdv_forma): array
+function vendas_juntar_formas(array $por_pdv_forma, ?array $params_por_pdv = null): array
 {
     $por_forma = [];
     foreach ($por_pdv_forma as $l) {
@@ -1101,8 +1108,24 @@ function vendas_juntar_formas(array $por_pdv_forma): array
         if (!isset($por_forma[$forma])) {
             $por_forma[$forma] = ['forma' => $forma, 'n' => 0, 'total' => 0.0];
         }
+        $total = (float) ($l['total'] ?? 0);
         $por_forma[$forma]['n']     += (int) ($l['n'] ?? 0);
-        $por_forma[$forma]['total'] += (float) ($l['total'] ?? 0);
+        $por_forma[$forma]['total'] += $total;
+
+        if ($params_por_pdv !== null) {
+            $pct = custo_taxa_da_forma($forma, custos_params_da_linha($l, $params_por_pdv));
+            $f = &$por_forma[$forma];
+            $f['taxa_valor'] = ($f['taxa_valor'] ?? 0.0) + $total * $pct / 100;
+            $f['taxa_min']   = isset($f['taxa_min']) ? min($f['taxa_min'], $pct) : $pct;
+            $f['taxa_max']   = isset($f['taxa_max']) ? max($f['taxa_max'], $pct) : $pct;
+            unset($f);
+        }
+    }
+    if ($params_por_pdv !== null) {
+        foreach ($por_forma as &$f) {
+            $f['taxa_pct'] = $f['total'] > 0 ? $f['taxa_valor'] / $f['total'] * 100 : (float) $f['taxa_min'];
+        }
+        unset($f);
     }
     usort($por_forma, static fn (array $a, array $b): int => $b['total'] <=> $a['total']);
     return $por_forma;
@@ -1335,7 +1358,7 @@ function vendas_relatorio(array $f): array
         'agrupar'      => $chave,
         'linhas'       => $agrupado['linhas'],
         // A tela mostra por forma de pagamento; a conta e por (PDV, forma).
-        'por_forma'    => vendas_juntar_formas($por_pdv_forma),
+        'por_forma'    => vendas_juntar_formas($por_pdv_forma, $params_por_pdv),
         'resultado'    => custos_resultado_pdvs(
             $por_pdv_forma,
             $params_por_pdv,
@@ -1526,4 +1549,24 @@ function vendas_periodos(): array
         'dias30'   => ['30 dias',      date('Y-m-d', strtotime('-29 days')), $hoje, '30 dias'],
         'hoje'     => ['Hoje',         $hoje, $hoje, 'Hoje'],
     ];
+}
+
+/**
+ * O rotulo da taxa de uma forma de pagamento no periodo. Funcao pura.
+ *
+ * Uma taxa so: "taxa 2,92%". Periodo que atravessou uma troca (ou PDVs com
+ * taxas diferentes): "taxa 2,92% a 4,99% (media 3,40%)".
+ */
+function vendas_taxa_texto(array $pf): string
+{
+    $fmt = static fn (float $v): string => number_format($v, 2, ',', '.') . '%';
+    if (!isset($pf['taxa_pct'])) {
+        return '';
+    }
+    $min = (float) $pf['taxa_min'];
+    $max = (float) $pf['taxa_max'];
+    if (abs($max - $min) < 0.005) {
+        return 'taxa ' . $fmt($min);
+    }
+    return 'taxa ' . $fmt($min) . ' a ' . $fmt($max) . ' (média ' . $fmt((float) $pf['taxa_pct']) . ')';
 }

@@ -118,7 +118,7 @@ window.SYNC_JANELA = <?= json_encode(['de' => $f['de'], 'ate' => $f['ate']]) ?>;
                 </div>
                 <div class="linha-baixo">
                     <span><?= (int) $pf['n'] ?> venda(s)</span>
-                    <span>taxa <?= number_format(custo_taxa_da_forma($pf['forma'], $r['parametros']), 2, ',', '.') ?>%</span>
+                    <span><?= e(vendas_taxa_texto($pf)) ?></span>
                 </div>
             </div></li>
         <?php endforeach; ?>

@@ -135,7 +135,7 @@ $indice = array_search($chave, array_keys($periodos), true) ?: 0;
             <div class="numero" style="min-width:110px">
                 <span class="kpi-rotulo"><?= e($formas_map[$pf['forma']] ?? $pf['forma']) ?></span>
                 <strong class="kpi-valor"><?= moeda($pf['total']) ?></strong>
-                <span class="ajuda"><?= (int) $pf['n'] ?> vendas · <?= number_format(custo_taxa_da_forma($pf['forma'], $r['parametros']), 2, ',', '.') ?>% taxa</span>
+                <span class="ajuda"><?= (int) $pf['n'] ?> vendas · <?= e(vendas_taxa_texto($pf)) ?></span>
             </div>
         <?php endforeach; ?>
     </div>

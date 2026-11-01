@@ -365,6 +365,24 @@ $mix = vendas_juntar_formas([
     ['pdv_id' => 2, 'forma' => 'Debit', 'total' => 90.0, 'n' => 2],
 ]);
 checar('maior primeiro', $mix[0]['forma'], 'Debit');
+// A taxa da forma e a que cada venda pagou, pela data dela: um mes que
+// atravessou a troca de 2,92% para 4,99% no credito mostra as duas e a media
+// pesada — e nao a taxa de hoje para o mes inteiro.
+$antes  = ['taxa_credito' => 2.92, 'taxa_debito' => 1.23, 'taxa_pix' => 0.35, 'taxa_voucher' => 3.5];
+$depois = ['taxa_credito' => 4.99] + $antes;
+$trocou = vendas_juntar_formas([
+    ['pdv_id' => 1, 'forma' => 'Credit', 'trecho' => '0001-01-01', 'total' => 300.0, 'n' => 3],
+    ['pdv_id' => 1, 'forma' => 'Credit', 'trecho' => '2026-10-20', 'total' => 100.0, 'n' => 1],
+    ['pdv_id' => 1, 'forma' => 'Debit',  'trecho' => '0001-01-01', 'total' => 50.0,  'n' => 1],
+], ['1|0001-01-01' => $antes, '1|2026-10-20' => $depois, 1 => $depois, 0 => $depois]);
+$credito = array_values(array_filter($trocou, static fn ($f) => $f['forma'] === 'Credit'))[0];
+quase('credito: menor taxa e a de antes da troca', $credito['taxa_min'], 2.92);
+quase('credito: maior taxa e a de depois', $credito['taxa_max'], 4.99);
+quase('credito: media pesada pelo valor', $credito['taxa_pct'], (300 * 2.92 + 100 * 4.99) / 400, 0.0001);
+checar('credito: rotulo com as duas', vendas_taxa_texto($credito), 'taxa 2,92% a 4,99% (média 3,44%)');
+$debito = array_values(array_filter($trocou, static fn ($f) => $f['forma'] === 'Debit'))[0];
+checar('debito: uma taxa so', vendas_taxa_texto($debito), 'taxa 1,23%');
+checar('sem parametros: sem rotulo de taxa', vendas_taxa_texto($mix[0]), '');
 
 // --------------------------------------------------- imposto (Simples Nacional)
 // Tabela do Anexo I (CNAE 4712-1/00), conferida contra a LC 123/2006.
