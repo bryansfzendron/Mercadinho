@@ -743,19 +743,27 @@ function vendas_produtos_por_dia(string $de, string $ate, int $pdv_id = 0): arra
 {
     [$onde, $args] = vendas_filtro_sql(['de' => $de, 'ate' => $ate, 'pdv_id' => $pdv_id]);
 
+    // Custeado venda a venda, como o relatorio (vendas_sql_custo_na_data).
     return q(
-        'SELECT DATE(v.data_hora) AS dia,
-                COALESCE(vi.ean, vi.codigo, vi.descricao) AS grupo,
-                MIN(vi.produto_id) AS produto_id,
-                MIN(vi.descricao) AS descricao,
-                SUM(vi.quantidade) AS quantidade,
-                SUM(vi.valor_total) AS total,
-                COUNT(DISTINCT v.id) AS vendas
-           FROM venda_itens vi
-           JOIN vendas v ON v.id = vi.venda_id
-          WHERE ' . $onde . '
-       GROUP BY dia, grupo
-       ORDER BY dia, total DESC
+        'SELECT x.dia,
+                x.grupo,
+                MIN(x.produto_id) AS produto_id,
+                MIN(x.descricao) AS descricao,
+                SUM(x.quantidade) AS quantidade,
+                SUM(x.valor_total) AS total,
+                COUNT(DISTINCT x.venda_id) AS vendas,
+                SUM(x.quantidade * x.custo_un) AS custo_nota,
+                SUM(CASE WHEN x.custo_un IS NULL THEN x.valor_total ELSE 0 END) AS receita_sem_nota
+           FROM (SELECT DATE(v.data_hora) AS dia,
+                        COALESCE(vi.ean, vi.codigo, vi.descricao) AS grupo,
+                        vi.produto_id, vi.descricao, vi.quantidade, vi.valor_total,
+                        v.id AS venda_id,
+                        ' . vendas_sql_custo_na_data() . ' AS custo_un
+                   FROM venda_itens vi
+                   JOIN vendas v ON v.id = vi.venda_id
+                  WHERE ' . $onde . ') x
+       GROUP BY x.dia, x.grupo
+       ORDER BY x.dia, total DESC
           LIMIT 20000',
         $args
     );
@@ -831,6 +839,16 @@ function vendas_produtos_juntar(array $linhas, string $de, string $ate, int $lim
         $juntos[$grupo]['quantidade'] += (float) $l['quantidade'];
         $juntos[$grupo]['total']      += (float) $l['total'];
         $juntos[$grupo]['vendas']     += (int) $l['vendas'];
+        // O custo de cada dia ja veio do banco: o periodo so soma.
+        if (array_key_exists('custo_nota', $l)) {
+            if ($l['custo_nota'] !== null) {
+                $juntos[$grupo]['custo_nota'] = ($juntos[$grupo]['custo_nota'] ?? 0.0) + (float) $l['custo_nota'];
+            } else {
+                $juntos[$grupo]['custo_nota'] ??= null;
+            }
+            $juntos[$grupo]['receita_sem_nota'] = ($juntos[$grupo]['receita_sem_nota'] ?? 0.0)
+                + (float) ($l['receita_sem_nota'] ?? 0);
+        }
     }
     return vendas_produtos_ordenar(array_values($juntos), $limite);
 }
@@ -874,7 +892,7 @@ function vendas_produtos_custear(array $lista, array $custos,
             // A capa chama de "total" o que o relatorio chama de "receita".
             'receita'    => num_br($p['total'] ?? 0),
             'vendas'     => (int) ($p['vendas'] ?? 0),
-        ];
+        ] + array_intersect_key($p, ['custo_nota' => 0, 'receita_sem_nota' => 0]);
     }
 
     $por_grupo = [];
@@ -1121,6 +1139,28 @@ function vendas_custo_por_produto(array $ids): array
     return $custos;
 }
 
+/**
+ * O custo unitario de um item vendido (alias `vi`, venda `v`): o da ultima
+ * compra daquele produto ate o instante da venda. NULL quando nao houve
+ * compra antes dela — essa venda fica no percentual padrao.
+ *
+ * vendas_custo_por_produto() responde "quanto custa hoje", que e a pergunta
+ * de quem vai precificar. Para o CMV de um periodo a pergunta e outra: uma
+ * compra lancada no dia 31 nao pode mudar o custo do que saiu no dia 1. Foi
+ * o que aconteceu com uma caixa de lamen lancada como se fosse um pacote: o
+ * R$ 114,50 dela virou o custo de todo pacote vendido no mes.
+ */
+function vendas_sql_custo_na_data(): string
+{
+    return "(SELECT i.valor_unitario_liquido
+               FROM itens i
+               JOIN notas n ON n.id = i.nota_id
+              WHERE i.produto_id = vi.produto_id AND n.status = 'ok'
+                AND i.valor_unitario_liquido > 0 AND n.emissao <= v.data_hora
+           ORDER BY n.emissao DESC, n.id DESC
+              LIMIT 1)";
+}
+
 /** Dias do periodo filtrado, para ratear os custos fixos do mes. */
 function vendas_dias_do_periodo(array $f): int
 {
@@ -1135,6 +1175,11 @@ function vendas_dias_do_periodo(array $f): int
 /**
  * Junta as linhas do banco em grupos, aplicando o custo de cada produto.
  * Funcao pura — e onde mora a conta que os testes cobrem.
+ *
+ * Linha que ja traz `custo_nota` veio custeada venda a venda pelo banco
+ * (vendas_sql_custo_na_data): `custo_nota` e o custo do que tinha compra
+ * antes, `receita_sem_nota` o que saiu antes da primeira compra e vai no
+ * percentual padrao. Sem essas chaves vale o mapa `$custos`.
  *
  * @param array            $linhas  uma linha por (grupo, produto)
  * @param array<int,float> $custos  produto_id => custo unitario da NFC-e
@@ -1152,15 +1197,22 @@ function vendas_agrupar(array $linhas, array $custos, float $cmv_padrao_pct, flo
         $qtd     = num_br($l['quantidade'] ?? 0);
         $pid     = (int) ($l['produto_id'] ?? 0);
 
-        // Custo de nota quando existe; senao o percentual padrao.
-        $de_nota = $pid > 0 && isset($custos[$pid]);
-        $custo   = $de_nota ? $custos[$pid] * $qtd : $receita * $cmv_padrao_pct / 100;
-
-        $receita_total += $receita;
-        $cmv_total     += $custo;
-        if ($de_nota) {
-            $receita_com_nota += $receita;
+        if (array_key_exists('custo_nota', $l)) {
+            // Custeado venda a venda: o que nao tinha compra antes vai no padrao.
+            $sem_nota = num_br($l['receita_sem_nota'] ?? 0);
+            $de_nota  = $l['custo_nota'] !== null;
+            $custo    = num_br($l['custo_nota']) + $sem_nota * $cmv_padrao_pct / 100;
+            $com_nota = $receita - $sem_nota;
+        } else {
+            // Custo de nota quando existe; senao o percentual padrao.
+            $de_nota  = $pid > 0 && isset($custos[$pid]);
+            $custo    = $de_nota ? $custos[$pid] * $qtd : $receita * $cmv_padrao_pct / 100;
+            $com_nota = $de_nota ? $receita : 0.0;
         }
+
+        $receita_total    += $receita;
+        $cmv_total        += $custo;
+        $receita_com_nota += $com_nota;
 
         if (!isset($grupos[$g])) {
             $grupos[$g] = [
@@ -1223,20 +1275,26 @@ function vendas_relatorio(array $f): array
 
     // Uma linha por (grupo, produto): o custo e por produto, entao o CMV so
     // fecha se o produto vier separado dentro do grupo. A dobra em grupo
-    // acontece no PHP, em vendas_agrupar().
+    // acontece no PHP, em vendas_agrupar(). Cada item sai custeado pela
+    // compra que valia na hora da venda, por isso a subconsulta por item.
     $linhas = q(
-        'SELECT ' . $coluna . ' AS grupo,
-                vi.produto_id,
-                MIN(vi.descricao) AS descricao,
-                MIN(vi.ean) AS ean,
-                SUM(vi.quantidade) AS quantidade,
-                SUM(vi.valor_total) AS receita,
-                COUNT(DISTINCT v.id) AS vendas
-           FROM venda_itens vi
-           JOIN vendas v ON v.id = vi.venda_id
-      LEFT JOIN loja_pdvs p ON p.id = v.pdv_id
-          WHERE ' . $onde . '
-       GROUP BY grupo, vi.produto_id
+        'SELECT x.grupo,
+                x.produto_id,
+                MIN(x.descricao) AS descricao,
+                MIN(x.ean) AS ean,
+                SUM(x.quantidade) AS quantidade,
+                SUM(x.valor_total) AS receita,
+                COUNT(DISTINCT x.venda_id) AS vendas,
+                SUM(x.quantidade * x.custo_un) AS custo_nota,
+                SUM(CASE WHEN x.custo_un IS NULL THEN x.valor_total ELSE 0 END) AS receita_sem_nota
+           FROM (SELECT ' . $coluna . ' AS grupo, vi.produto_id, vi.descricao, vi.ean,
+                        vi.quantidade, vi.valor_total, v.id AS venda_id,
+                        ' . vendas_sql_custo_na_data() . ' AS custo_un
+                   FROM venda_itens vi
+                   JOIN vendas v ON v.id = vi.venda_id
+              LEFT JOIN loja_pdvs p ON p.id = v.pdv_id
+                  WHERE ' . $onde . ') x
+       GROUP BY x.grupo, x.produto_id
           LIMIT 20000',
         $args
     );
@@ -1251,7 +1309,8 @@ function vendas_relatorio(array $f): array
 
     $agrupado = vendas_agrupar(
         $linhas,
-        vendas_custo_por_produto(array_column($linhas, 'produto_id')),
+        // O custo ja veio por linha (custo_nota): o "custo de hoje" nao entra.
+        [],
         (float) $p['cmv_padrao_pct'],
         $pct_variavel
     );

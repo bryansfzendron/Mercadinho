@@ -326,6 +326,22 @@ checar('sem custo nao ha fator', $deGraca[0]['fator'], null);
 
 checar('lista vazia devolve lista vazia', vendas_produtos_custear([], $custos, 50.0, 10.0), []);
 
+// Com o custo venda a venda vindo do banco, a capa soma o dos dias e nao olha
+// o "custo de hoje": o mapa diz 114,50, mas os pacotes sairam a 2,29.
+$custeado = [
+    ['dia' => '2026-10-30', 'grupo' => 'L', 'produto_id' => 76, 'descricao' => 'LAMEN',
+     'quantidade' => 2, 'total' => 9.56, 'vendas' => 2, 'custo_nota' => '4.58', 'receita_sem_nota' => '0'],
+    ['dia' => '2026-10-31', 'grupo' => 'L', 'produto_id' => 76, 'descricao' => 'LAMEN',
+     'quantidade' => 1, 'total' => 4.78, 'vendas' => 1, 'custo_nota' => '2.29', 'receita_sem_nota' => '0'],
+    ['dia' => '2026-10-31', 'grupo' => 'B', 'produto_id' => 0, 'descricao' => 'BOLO',
+     'quantidade' => 1, 'total' => 10.0, 'vendas' => 1, 'custo_nota' => null, 'receita_sem_nota' => '10'],
+];
+$mes = vendas_produtos_custear(vendas_produtos_juntar($custeado, '2026-10-01', '2026-10-31'), [76 => 114.50], 50.0, 0.0);
+checar('o periodo soma o custo de cada dia', round($linha_de($mes, 'L')['custo'], 2), 6.87);
+checar('e o custo de hoje nao entra', $linha_de($mes, 'L')['com_nota'], true);
+checar('sem compra nenhuma fica no padrao', round($linha_de($mes, 'B')['custo'], 2), 5.0);
+checar('e nao se diz de nota', $linha_de($mes, 'B')['com_nota'], false);
+
 // ============================================================
 // COLETA LOCAL — o que antes era o workflow do n8n
 // ============================================================

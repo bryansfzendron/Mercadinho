@@ -146,6 +146,29 @@ $semCusto = vendas_agrupar(
 );
 checar('receita zero nao inventa fator', $semCusto['linhas'][0]['fator'], null);
 
+// ------------------------------------------- custo da compra que valia na venda
+// O banco custeia cada venda pela ultima compra ate ela. Uma caixa de lamen
+// lancada no dia 31 como se fosse pacote (R$ 114,50) nao pode virar o custo
+// dos pacotes vendidos antes: eles vem com o custo da compra anterior.
+$naData = vendas_agrupar([
+    // 21 pacotes a R$ 4,78, todos com compra anterior a R$ 2,29.
+    ['grupo' => 'LAMEN', 'produto_id' => 76, 'descricao' => 'LAMEN', 'ean' => null, 'quantidade' => 21,
+     'receita' => 100.48, 'vendas' => 21, 'custo_nota' => '48.0900', 'receita_sem_nota' => '0.00'],
+    // Vendeu R$ 10 antes da primeira compra e R$ 20 depois (custo R$ 8).
+    ['grupo' => 'BALA', 'produto_id' => 5, 'descricao' => 'BALA', 'ean' => null, 'quantidade' => 30,
+     'receita' => 30.0, 'vendas' => 30, 'custo_nota' => '8.0000', 'receita_sem_nota' => '10.00'],
+    // Nunca comprado: nenhuma venda tem compra antes.
+    ['grupo' => 'BOLO', 'produto_id' => 0, 'descricao' => 'BOLO', 'ean' => null, 'quantidade' => 2,
+     'receita' => 20.0, 'vendas' => 2, 'custo_nota' => null, 'receita_sem_nota' => '20.00'],
+], [76 => 114.50], 55.0, 0.0);
+$porGrupo = array_column($naData['linhas'], null, 'grupo');
+quase('a compra de depois nao muda o custo de antes', $porGrupo['LAMEN']['custo'], 48.09);
+quase('o que saiu antes da primeira compra vai no padrao', $porGrupo['BALA']['custo'], 8.0 + 10.0 * 0.55);
+checar('parte com nota ja conta como nota', $porGrupo['BALA']['com_nota'], true);
+quase('nunca comprado e todo padrao', $porGrupo['BOLO']['custo'], 20.0 * 0.55);
+checar('e nao conta como nota', $porGrupo['BOLO']['com_nota'], false);
+quase('cobertura conta so a receita que tinha compra antes', $naData['cobertura'], (100.48 + 20.0) / 150.48 * 100);
+
 // ---------------------------------------------------------- dias do periodo
 checar('dias inclui as duas pontas', vendas_dias_do_periodo(['de' => '2026-09-01', 'ate' => '2026-09-30']), 30);
 checar('um dia so', vendas_dias_do_periodo(['de' => '2026-09-06', 'ate' => '2026-09-06']), 1);
