@@ -1651,3 +1651,5 @@ details.animando { overflow: hidden; }
 .ver-mais-baixo { display: flex; justify-content: center; margin-top: .55rem; }
 .ver-mais-baixo .ver-mais { padding: .45rem .8rem; }
 .recolhivel:not(.cartao) > .ver-mais-baixo { margin-bottom: 1rem; }
+/* Dentro do "Ver custos" nenhum custo leva o negrito do faturamento. */
+.mais .dados-grandes > div:first-child dd { font-weight: 500; }

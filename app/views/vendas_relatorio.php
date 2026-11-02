@@ -19,8 +19,10 @@ window.SYNC_JANELA = <?= json_encode(['de' => $f['de'], 'ate' => $f['ate']]) ?>;
 
 <?php
 $res = $r['resultado'];
-// Os tres custos que mais pesam ficam a vista; o resto recolhe em "Ver todos".
-$custos_extra = [
+// A vista fica so o faturamento; os custos, todos, abrem no "Ver custos".
+$custos = [
+    'Mercadoria (CMV)'            => $res['cmv'],
+    'Maquininha'                  => $res['taxa'],
     'Condomínio'                  => $res['condominio'],
     'Franquia'                    => $res['franquia'],
     'Imposto (Simples Nacional)'  => $res['imposto'],
@@ -42,12 +44,10 @@ $custos_extra = [
 
     <dl class="dados dados-grandes">
         <div><dt>Faturamento</dt><dd class="valor"><?= moeda($res['receita']) ?></dd></div>
-        <div><dt>Mercadoria (CMV)</dt><dd class="valor">− <?= moeda($res['cmv']) ?></dd></div>
-        <div><dt>Maquininha</dt><dd class="valor">− <?= moeda($res['taxa']) ?></dd></div>
     </dl>
-    <?= mais_inicio('Ver todos os custos (' . count($custos_extra) . ' mais)', 'Esconder custos') ?>
+    <?= mais_inicio('Ver custos (' . count($custos) . ')', 'Esconder custos') ?>
         <dl class="dados dados-grandes">
-            <?php foreach ($custos_extra as $rot => $v): ?>
+            <?php foreach ($custos as $rot => $v): ?>
                 <div><dt><?= e($rot) ?></dt><dd class="valor">− <?= moeda($v) ?></dd></div>
             <?php endforeach; ?>
         </dl>
