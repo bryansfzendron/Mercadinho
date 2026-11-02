@@ -17,15 +17,7 @@ $nome_mes = $meses_disponiveis[$mes_ref] ?? $mes;
 <div class="cartao filtros-cartao">
     <form method="get" action="/metas">
         <div class="vf-linha">
-            <?= gaveta_inicio('calendario', $nome_mes, true) ?>
-                <label class="col-cheia">Mês
-                    <select name="mes" onchange="this.form.submit()">
-                        <?php foreach ($meses_disponiveis as $val => $lbl): ?>
-                            <option value="<?= e($val) ?>" <?= $mes_ref === $val ? 'selected' : '' ?>><?= e($lbl) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-            <?= gaveta_fim() ?>
+            <?= campo_escolha('calendario', 'mes', $meses_disponiveis, (string) $mes_ref, 'Mês', $nome_mes) ?>
             <?= gaveta_inicio('filtros', filtros_rotulo($pdv_id > 0 ? 1 : 0)) ?>
                 <label class="col-cheia">Ponto de venda
                     <select name="pdv_id" onchange="this.form.submit()">

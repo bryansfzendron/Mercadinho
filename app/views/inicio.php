@@ -103,26 +103,15 @@ $lista_vendidos = static function (array $produtos, string $vazio, string $de, s
 <?php // Com um PDV so, o filtro escolheria entre ele e ele mesmo. ?>
 <?php if (count($pdvs) > 1 || $pdv_id > 0): ?>
 <?php
-$nome_pdv = 'Todos os pontos de venda';
+$opcoes_pdv = ['0' => 'Todos os pontos de venda'];
 foreach ($pdvs as $p) {
-    if ($pdv_id === (int) $p['id']) {
-        $nome_pdv = $p['nome'];
-    }
+    $opcoes_pdv[(string) (int) $p['id']] = (string) $p['nome'];
 }
 ?>
 <div class="cartao filtros-cartao">
     <form method="get" action="/">
         <div class="vf-linha">
-            <?= gaveta_inicio('pdv', $nome_pdv, true) ?>
-                <label class="col-cheia">Ponto de venda
-                    <select name="pdv_id" onchange="this.form.submit()">
-                        <option value="0">todos</option>
-                        <?php foreach ($pdvs as $p): ?>
-                            <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>><?= e($p['nome']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-            <?= gaveta_fim() ?>
+            <?= campo_escolha('pdv', 'pdv_id', $opcoes_pdv, (string) $pdv_id, 'Ponto de venda') ?>
         </div>
     </form>
 </div>

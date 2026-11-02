@@ -61,15 +61,7 @@ foreach ($pdvs as $p) {
     <form method="get" action="/loja">
         <input type="hidden" name="estoque" value="<?= e($estoque) ?>">
         <div class="vf-linha">
-            <?= gaveta_inicio('lista', 'Ordem: ' . ($ordens[$ordem] ?? 'nome'), true) ?>
-                <label class="col-cheia">Ordenar por
-                    <select name="ordem" onchange="this.form.submit()">
-                        <?php foreach ($ordens as $chave => $rotulo): ?>
-                            <option value="<?= e($chave) ?>" <?= $ordem === $chave ? 'selected' : '' ?>><?= e($rotulo) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-            <?= gaveta_fim() ?>
+            <?= campo_escolha('lista', 'ordem', $ordens, (string) $ordem, 'Ordenar por', 'Ordem: ' . ($ordens[$ordem] ?? 'nome')) ?>
             <?= gaveta_inicio('filtros', filtros_rotulo($pdv_id > 0 ? 1 : 0)) ?>
                 <label class="col-cheia">Ponto de venda
                     <select name="pdv" onchange="this.form.submit()">
@@ -119,12 +111,12 @@ foreach ($pdvs as $p) {
         ? loja_faixas_validade($itens)
         : [['rotulo' => null, 'classe' => '', 'itens' => $itens]];
     ?>
-    <?php $recolhe = $ordem !== 'validade' && count($itens) > 30; ?>
-    <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
+    <?php // A lista vai inteira: com 30 a vista e o "Ver todos" no topo,
+          // quem chegava ao fim tinha de subir tudo para abrir o resto. A
+          // busca e os filtros la em cima e que encurtam a lista. ?>
+    <div class="cartao">
     <?= cartao_cabeca('lista', $ordem === 'validade' ? 'Por vencimento' : 'Itens',
-        number_format(count($itens), 0, ',', '.') . ' neste filtro',
-        $recolhe ? ver_mais_botao('Ver todos', 'Ver menos') : '') ?>
-    <?php $n_item = 0; ?>
+        number_format(count($itens), 0, ',', '.') . ' neste filtro') ?>
     <?php foreach ($grupos as $g): ?>
     <?php if ($g['rotulo'] !== null): ?>
         <h2 class="faixa-validade <?= e($g['classe']) ?>">
@@ -132,8 +124,8 @@ foreach ($pdvs as $p) {
         </h2>
     <?php endif; ?>
     <ul class="lista">
-        <?php foreach ($g['itens'] as $l): $n_item++; ?>
-            <li class="<?= $recolhe && $n_item > 30 ? 'extra' : '' ?>">
+        <?php foreach ($g['itens'] as $l): ?>
+            <li>
                 <?php
                 // Produto ja conhecido leva para o historico; o resto e so leitura.
                 // Por vencimento a pergunta e outra — "por quanto ponho isto para

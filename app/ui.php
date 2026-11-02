@@ -104,6 +104,28 @@ function gaveta_fim(): string
     return '</div></details>';
 }
 
+/**
+ * Um campo do cartao de filtros que ja e a escolha: o toque abre direto a
+ * lista (o seletor nativo), sem gaveta no meio, e trocar envia o formulario.
+ * Para quando so ha uma pergunta (qual PDV, qual mes); filtros com mais de um
+ * campo continuam na gaveta. O select fica por cima de tudo, transparente,
+ * para o toque em qualquer ponto do campo abrir a lista.
+ *
+ * @param array<string|int,string> $opcoes valor => rotulo
+ */
+function campo_escolha(string $icone, string $nome, array $opcoes, string $atual, string $rotulo, ?string $texto = null): string
+{
+    $html = '';
+    foreach ($opcoes as $valor => $r) {
+        $html .= '<option value="' . e((string) $valor) . '"' . ((string) $valor === $atual ? ' selected' : '') . '>' . e($r) . '</option>';
+    }
+    $texto ??= $opcoes[$atual] ?? (string) reset($opcoes);
+    return '<label class="vf-campo vf-larga vf-escolha">' . icone($icone)
+         . '<span class="vf-texto">' . e($texto) . '</span>' . icone('seta-baixo', 'vf-seta')
+         . '<select name="' . e($nome) . '" aria-label="' . e($rotulo) . '" onchange="this.form.submit()">'
+         . $html . '</select></label>';
+}
+
 /** A linha da busca: campo com lupa e o botao Filtrar. */
 function filtro_busca(string $nome, string $valor, string $dica, string $botao = 'Filtrar'): string
 {

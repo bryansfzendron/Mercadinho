@@ -11,11 +11,9 @@ $indice = array_search($chave, array_keys($periodos), true) ?: 0;
 <p class="inicio-sub"><?= e($rotulo) ?> · <?= data_fmt($de) ?> a <?= data_fmt($ate) ?></p>
 
 <?php
-$nome_pdv = 'Todos os pontos de venda';
+$opcoes_pdv = ['' => 'Todos os pontos de venda'];
 foreach ($pdvs as $p) {
-    if ($pdv_id === (int) $p['id']) {
-        $nome_pdv = $p['nome'];
-    }
+    $opcoes_pdv[(string) (int) $p['id']] = (string) $p['nome'];
 }
 ?>
 <?php if (count($pdvs) > 1 || $pdv_id > 0): ?>
@@ -23,16 +21,7 @@ foreach ($pdvs as $p) {
     <form method="get" action="/dashboard">
         <input type="hidden" name="periodo" value="<?= e($chave) ?>">
         <div class="vf-linha">
-            <?= gaveta_inicio('pdv', $nome_pdv, true) ?>
-                <label class="col-cheia">Ponto de venda
-                    <select name="pdv_id" onchange="this.form.submit()">
-                        <option value="">todos</option>
-                        <?php foreach ($pdvs as $p): ?>
-                            <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>><?= e($p['nome']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-            <?= gaveta_fim() ?>
+            <?= campo_escolha('pdv', 'pdv_id', $opcoes_pdv, $pdv_id > 0 ? (string) $pdv_id : '', 'Ponto de venda') ?>
         </div>
     </form>
 </div>
