@@ -627,25 +627,16 @@ function abas_loja(string $atual): string
     ], $atual, ['/planograma' => ' data-pedir-pdv'], icones_loja()) . conta_aviso_loja() . folha_pedir_pdv();
 }
 
-/** Os icones das abas da Loja, no traco dos icones da barra de baixo. */
+/** Os icones das abas da Loja (app/ui.php). */
 function icones_loja(): array
 {
-    $svg = static fn (string $miolo): string =>
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
-        . 'stroke-linecap="round" stroke-linejoin="round">' . $miolo . '</svg>';
     return [
-        // caixa
-        '/loja'       => $svg('<path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="m4 7 8 4 8-4"/><path d="M12 11v10"/>'),
-        // setas girando
-        '/planograma' => $svg('<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>'),
-        // etiqueta
-        '/promocoes'  => $svg('<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.4"/>'),
-        // barras
-        '/margens'    => $svg('<rect x="4" y="13" width="3.5" height="7" rx="1"/><rect x="10.25" y="8" width="3.5" height="12" rx="1"/><rect x="16.5" y="4" width="3.5" height="16" rx="1"/>'),
-        // carrinho
-        '/vendas'     => $svg('<path d="M3 4h2.2l2 10.5a1.5 1.5 0 0 0 1.5 1.2h7.9a1.5 1.5 0 0 0 1.5-1.2L19.5 8H6"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="16.5" cy="19.5" r="1.3"/>'),
-        // alvo
-        '/metas'      => $svg('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.8"/><circle cx="12" cy="12" r="1.2"/><path d="m15.5 8.5 4-4"/>'),
+        '/loja'       => icone('caixa'),
+        '/planograma' => icone('repor'),
+        '/promocoes'  => icone('etiqueta'),
+        '/margens'    => icone('barras'),
+        '/vendas'     => icone('carrinho'),
+        '/metas'      => icone('alvo'),
     ];
 }
 
@@ -767,7 +758,13 @@ function abas_config(string $atual): string
         '/config/metas'   => 'Metas',
         '/config/taxas'   => 'Taxas',
         '/config/touchpay' => 'TouchPay',
-    ], $atual);
+    ], $atual, [], [
+        '/config'          => icone('sync'),
+        '/config/pdvs'     => icone('pdv'),
+        '/config/metas'    => icone('alvo'),
+        '/config/taxas'    => icone('percentual'),
+        '/config/touchpay' => icone('cadeado'),
+    ]);
 }
 
 
@@ -791,12 +788,7 @@ function kpi_moldura(?float $variacao, bool $menor_melhor = false): string
 /** O titulo das telas da Loja, com o icone da loja na frente. */
 function titulo_loja(): string
 {
-    return '<h1 class="titulo-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
-         . 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-         . '<path d="M4 9.5V19a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9.5"/>'
-         . '<path d="M3 9.5 4.6 4.7A1 1 0 0 1 5.5 4h13a1 1 0 0 1 .9.7L21 9.5"/>'
-         . '<path d="M3 9.5a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/>'
-         . '<path d="M9.5 20v-5h5v5"/></svg>Loja</h1>';
+    return titulo_icone('Loja', 'loja');
 }
 
 /** "2026-10-03" -> "3 de out. de 2026". Funcao pura. */

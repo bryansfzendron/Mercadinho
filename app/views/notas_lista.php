@@ -15,14 +15,20 @@
  * @var array $vendas      resumo das vendas importadas
  */
 ?>
-<h1>Minhas notas</h1>
+<?= titulo_icone('Minhas notas', 'nota') ?>
 
-<div class="acoes-topo">
-    <a class="botao botao-grande" href="/escanear">▣ Escanear nota</a>
-    <a class="botao botao-grande botao-alt" href="/bipar">||| Bipar produto</a>
-    <a class="botao botao-alt" href="/manual">+ Lançar nota manualmente</a>
-    <a class="botao botao-alt" href="/importar">⇪ Importar planilha (Excel/CSV)</a>
-</div>
+<?php // Os quatro jeitos de lancar, em blocos com icone como as abas da Loja. ?>
+<?= abas([
+    '/escanear' => 'Escanear',
+    '/bipar'    => 'Bipar',
+    '/manual'   => 'Manual',
+    '/importar' => 'Planilha',
+], '', [], [
+    '/escanear' => icone('camera'),
+    '/bipar'    => icone('codigo'),
+    '/manual'   => icone('nota'),
+    '/importar' => icone('lista'),
+]) ?>
 
 <?php if ($pendentes > 0): ?>
     <div class="aviso aviso-info">
@@ -37,16 +43,9 @@
     </div>
 <?php endif; ?>
 
-<div class="numeros">
-    <div class="numero">
-        <strong><?= (int) $resumo['notas'] ?></strong>
-        <span>notas</span>
-    </div>
-    <div class="numero">
-        <strong><?= (int) $itens_total ?></strong>
-        <span>itens</span>
-    </div>
-    <div class="numero">
+<div class="cartao">
+    <?= cartao_cabeca('carrinho', 'Suas compras', (int) $resumo['notas'] . ' notas · ' . (int) $itens_total . ' itens', '', true) ?>
+    <div class="destaque">
         <strong><?= moeda($resumo['total']) ?></strong>
         <span>total gasto</span>
     </div>
@@ -54,10 +53,12 @@
 
 <?php if (!$notas): ?>
     <p class="vazio">Nenhuma nota ainda. Escaneie o QR Code de um cupom para começar.</p>
-<?php else: ?>
+<?php else: $recolhe = count($notas) > 15; ?>
+    <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
+    <?= cartao_cabeca('nota', 'Notas', count($notas) . ' lançada(s)', $recolhe ? ver_mais_botao('Ver todas', 'Ver menos') : '') ?>
     <ul class="lista">
-        <?php foreach ($notas as $n): ?>
-            <li>
+        <?php foreach ($notas as $k => $n): ?>
+            <li class="<?= $recolhe && $k >= 15 ? 'extra' : '' ?>">
                 <a href="/notas/<?= (int) $n['id'] ?>">
                     <div class="linha-topo">
                         <span class="forte"><?= e($n['loja'] ?? 'Sem loja identificada') ?></span>
@@ -83,9 +84,12 @@
             </li>
         <?php endforeach; ?>
     </ul>
+    </div>
 <?php endif; ?>
 
-<h2>Loja (TouchPay)</h2>
+<div class="cartao">
+<?= cartao_cabeca('loja', 'Loja (TouchPay)', $loja ? count($loja) . ' ponto(s) de venda' : null,
+    '<a class="ver-mais" href="/loja">Catálogo' . icone('seta-dir') . '</a>') ?>
 <?php if (!$loja): ?>
     <p class="vazio">Nenhum ponto de venda sincronizado ainda.</p>
 <?php else: ?>
@@ -104,25 +108,26 @@
         <?php endforeach; ?>
     </ul>
 <?php endif; ?>
+</div>
 
-<p class="centro"><a href="/loja">Ver todos os produtos da loja</a></p>
-
-<h2>Vendas (TouchPay)</h2>
+<div class="cartao">
+<?= cartao_cabeca('grafico', 'Vendas (TouchPay)', null,
+    '<a class="ver-mais" href="/vendas">Relatório' . icone('seta-dir') . '</a>') ?>
 <?php if ((int) $vendas['vendas'] === 0): ?>
     <p class="vazio">
         Nenhuma venda importada ainda.
         <a href="/config">Importar os últimos 12 meses</a>
     </p>
 <?php else: ?>
-    <div class="numeros">
-        <div class="numero"><strong><?= (int) $vendas['vendas'] ?></strong><span>vendas</span></div>
-        <div class="numero"><strong><?= moeda($vendas['total']) ?></strong><span>faturamento</span></div>
+    <div class="destaque">
+        <strong><?= moeda($vendas['total']) ?></strong>
+        <span><?= (int) $vendas['vendas'] ?> vendas</span>
     </div>
     <p class="ajuda">
         De <?= data_fmt($vendas['primeira']) ?> a <?= data_fmt($vendas['ultima'], true) ?>.
-        <a href="/vendas">Ver o relatório</a>.
     </p>
 <?php endif; ?>
+</div>
 
 <p class="ajuda centro">
     <a href="/config">Sincronizar preços, estoque e vendas</a>

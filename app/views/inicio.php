@@ -50,7 +50,7 @@ $lista_vendidos = static function (array $produtos, string $vazio, string $de, s
     }
 
     $html = '<ul class="lista">';
-    foreach ($produtos as $p) {
+    foreach (array_values($produtos) as $n_prod => $p) {
         $qtd = num_br($p['quantidade']);
         // Unitario e conta, nao coluna: o item grava o total da linha.
         $unitario = $qtd > 0 ? (float) $p['total'] / $qtd : null;
@@ -87,7 +87,7 @@ $lista_vendidos = static function (array $produtos, string $vazio, string $de, s
         $detalhe = '/vendas/produto?' . http_build_query([
             'grupo' => (string) $p['grupo'], 'de' => $de, 'ate' => $ate, 'pdv_id' => $pdv_id ?: null,
         ]);
-        $html .= '<li><details class="compra" data-detalhe="' . e($detalhe) . '">'
+        $html .= '<li' . ($n_prod >= 10 ? ' class="extra"' : '') . '><details class="compra" data-detalhe="' . e($detalhe) . '">'
                . '<summary>' . $linha . '</summary>'
                . '<div data-detalhe-corpo><p class="ajuda">Carregando…</p></div>'
                . '</details></li>';
@@ -102,18 +102,30 @@ $lista_vendidos = static function (array $produtos, string $vazio, string $de, s
 
 <?php // Com um PDV so, o filtro escolheria entre ele e ele mesmo. ?>
 <?php if (count($pdvs) > 1 || $pdv_id > 0): ?>
-<form method="get" action="/" class="filtro-pdv">
-    <label>Ponto de venda
-        <select name="pdv_id" onchange="this.form.submit()">
-            <option value="0">todos</option>
-            <?php foreach ($pdvs as $p): ?>
-                <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>>
-                    <?= e($p['nome']) ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-    </label>
-</form>
+<?php
+$nome_pdv = 'Todos os pontos de venda';
+foreach ($pdvs as $p) {
+    if ($pdv_id === (int) $p['id']) {
+        $nome_pdv = $p['nome'];
+    }
+}
+?>
+<div class="cartao filtros-cartao">
+    <form method="get" action="/">
+        <div class="vf-linha">
+            <?= gaveta_inicio('pdv', $nome_pdv, true) ?>
+                <label class="col-cheia">Ponto de venda
+                    <select name="pdv_id" onchange="this.form.submit()">
+                        <option value="0">todos</option>
+                        <?php foreach ($pdvs as $p): ?>
+                            <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>><?= e($p['nome']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            <?= gaveta_fim() ?>
+        </div>
+    </form>
+</div>
 <?php endif; ?>
 
 <section class="painel" data-painel>
@@ -211,19 +223,22 @@ $lista_vendidos = static function (array $produtos, string $vazio, string $de, s
               . ', ' . date('d/m', strtotime($b['data']));
         $vazio = $b['hoje'] ? 'Nenhum produto vendido hoje ainda.' : 'Nenhum produto vendido nesse dia.';
         ?>
-        <section data-lista="<?= e($b['data']) ?>" <?= $b['hoje'] ? '' : 'hidden' ?>>
-            <h2><?= e($titulo) ?></h2>
-            <?= $lista_vendidos($vendidos[$b['data']] ?? [], $vazio, $b['data'], $b['data']) ?>
+        <?php $lista = $vendidos[$b['data']] ?? []; ?>
+        <section class="cartao recolhivel" data-lista="<?= e($b['data']) ?>" <?= $b['hoje'] ? '' : 'hidden' ?>>
+            <?= cartao_cabeca('carrinho', $titulo, count($lista) . ' produto(s)', count($lista) > 10 ? ver_mais_botao('Ver todos', 'Ver menos') : '', true) ?>
+            <?= $lista_vendidos($lista, $vazio, $b['data'], $b['data']) ?>
         </section>
     <?php endforeach; ?>
 
-    <section data-lista="semana" hidden>
-        <h2>Vendidos na semana</h2>
-        <?= $lista_vendidos($vendidos['semana'] ?? [], 'Nenhum produto vendido nesta semana.', $s['de'], $s['ate']) ?>
+    <?php $lista = $vendidos['semana'] ?? []; ?>
+    <section class="cartao recolhivel" data-lista="semana" hidden>
+        <?= cartao_cabeca('carrinho', 'Vendidos na semana', count($lista) . ' produto(s)', count($lista) > 10 ? ver_mais_botao('Ver todos', 'Ver menos') : '', true) ?>
+        <?= $lista_vendidos($lista, 'Nenhum produto vendido nesta semana.', $s['de'], $s['ate']) ?>
     </section>
 
-    <section data-lista="mes" hidden>
-        <h2>Vendidos no mês</h2>
-        <?= $lista_vendidos($vendidos['mes'] ?? [], 'Nenhum produto vendido neste mês.', $m['de'], $m['ate']) ?>
+    <?php $lista = $vendidos['mes'] ?? []; ?>
+    <section class="cartao recolhivel" data-lista="mes" hidden>
+        <?= cartao_cabeca('carrinho', 'Vendidos no mês', count($lista) . ' produto(s)', count($lista) > 10 ? ver_mais_botao('Ver todos', 'Ver menos') : '', true) ?>
+        <?= $lista_vendidos($lista, 'Nenhum produto vendido neste mês.', $m['de'], $m['ate']) ?>
     </section>
 </div>

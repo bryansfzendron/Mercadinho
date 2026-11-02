@@ -9,7 +9,8 @@
  * @var float  $alvo    a meta do mês; zero significa "sem meta definida"
  */
 ?>
-<h2>Breakdown diário — <?= e($titulo) ?></h2>
+<div class="cartao">
+<?= cartao_cabeca('calendario', 'Dia a dia — ' . $titulo, $alvo > 0 ? 'Meta e realizado de cada dia do mês' : null) ?>
 
 <?php if ($alvo <= 0): ?>
     <p class="ajuda">
@@ -17,7 +18,8 @@
         <a href="/config/metas">Configurações → Metas</a> para ver o breakdown.
     </p>
 <?php else: ?>
-    <div class="cartao tabela-rolante">
+    <?= mais_inicio('Ver o dia a dia', 'Esconder') ?>
+    <div class="tabela-rolante">
         <table class="tabela">
             <thead>
                 <tr>
@@ -63,4 +65,6 @@
             nos <?= (int) $b['resumo']['dias_restantes'] ?> dia(s) que restam.
         <?php endif; ?>
     </p>
+    <?= mais_fim() ?>
 <?php endif; ?>
+</div>

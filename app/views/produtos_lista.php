@@ -1,24 +1,24 @@
 <?php /** @var array $produtos @var string $busca @var array $loja */ ?>
-<h1>Produtos</h1>
+<?= titulo_icone('Produtos', 'produto') ?>
 
-<div class="acoes-topo">
-    <a class="botao botao-grande" href="/bipar">||| Bipar produto</a>
+<div class="cartao filtros-cartao">
+    <a class="botao botao-alt botao-com-icone" href="/bipar"><?= icone('camera') ?>Bipar produto</a>
+    <form method="get" action="/produtos">
+        <?= filtro_busca('q', $busca, 'Nome ou código', 'Buscar') ?>
+    </form>
 </div>
-
-<form method="get" action="/produtos" class="linha-form">
-    <input type="text" name="q" value="<?= e($busca) ?>" placeholder="buscar por nome ou código"
-           autocomplete="off" autocorrect="off" spellcheck="false">
-    <button type="submit" class="botao botao-alt">Buscar</button>
-</form>
 
 <?php if (!$produtos): ?>
     <p class="vazio">
         <?= $busca !== '' ? 'Nada encontrado para essa busca.' : 'Nenhum produto ainda.' ?>
     </p>
-<?php else: ?>
+<?php else: $recolhe = count($produtos) > 30; ?>
+    <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
+    <?= cartao_cabeca('produto', 'Comprados', count($produtos) . ' produto(s)' . ($busca !== '' ? ' nesta busca' : ''),
+        $recolhe ? ver_mais_botao('Ver todos', 'Ver menos') : '') ?>
     <ul class="lista">
-        <?php foreach ($produtos as $p): ?>
-            <li>
+        <?php foreach ($produtos as $k => $p): ?>
+            <li class="<?= $recolhe && $k >= 30 ? 'extra' : '' ?>">
                 <a href="/produtos/<?= (int) $p['id'] ?>">
                     <div class="linha-topo">
                         <span class="forte"><?= e($p['descricao']) ?></span>
@@ -52,4 +52,5 @@
             </li>
         <?php endforeach; ?>
     </ul>
+    </div>
 <?php endif; ?>

@@ -11,7 +11,7 @@
  * @var string  $email_digitado
  */
 ?>
-<h1>Configurações</h1>
+<?= titulo_icone('Configurações', 'engrenagem') ?>
 <?= abas_config('/config/touchpay') ?>
 
 <?php if (!$tabelas_ok): ?>
@@ -27,7 +27,7 @@
 
 <?php if ($neste_aparelho): ?>
     <div class="cartao">
-        <h2 class="sem-topo">Conectado</h2>
+        <?= cartao_cabeca('cadeado', 'Conectado', 'Sua conta TouchPay', '', true) ?>
         <dl class="dados">
             <div><dt>Conta</dt><dd><?= e($email) ?></dd></div>
             <div><dt>Desde</dt><dd><?= data_fmt($conta['conectado_em'], true) ?></dd></div>
@@ -50,7 +50,7 @@
     </div>
 <?php else: ?>
     <div class="cartao">
-        <h2 class="sem-topo"><?= $conta ? 'Digite a senha neste aparelho' : 'Conectar sua conta TouchPay' ?></h2>
+        <?= cartao_cabeca('cadeado', $conta ? 'Digite a senha neste aparelho' : 'Conectar sua conta TouchPay', null, '', true) ?>
         <?php if ($conta): ?>
             <p class="ajuda">
                 Sua conta TouchPay já está ligada ao seu usuário, mas a senha só fica no
@@ -78,7 +78,7 @@
 <?php endif; ?>
 
 <div class="cartao">
-    <h2 class="sem-topo">Onde fica a sua senha</h2>
+    <?= cartao_cabeca('cadeado', 'Onde fica a sua senha') ?>
     <ul class="ajuda tp-promessas">
         <li><strong>Só neste aparelho.</strong> O e-mail e a senha do TouchPay ficam num cookie
             criptografado no seu celular. O banco de dados do app não guarda nenhum dos dois.</li>
@@ -92,7 +92,7 @@
 </div>
 
 <div class="cartao">
-    <h2 class="sem-topo">Quando a loja se atualiza</h2>
+    <?= cartao_cabeca('relogio', 'Quando a loja se atualiza') ?>
     <p class="ajuda">
         Como a senha não fica no servidor, o app só consegue falar com o TouchPay enquanto
         você usa o app e por cerca de uma hora depois. Nesse tempo as vendas, os preços e o

@@ -28,18 +28,9 @@ $custos_extra = [
 ];
 ?>
 <div class="cartao resultado">
-    <div class="cartao-cabeca">
-        <span class="cartao-icone" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 19v-5M12 19V9M18 19V5"/></svg>
-        </span>
-        <div>
-            <h2 class="sem-topo">Resultado do período</h2>
-            <p class="meta sem-margem">
-                <?= number_format((int) $res['vendas'], 0, ',', '.') ?> venda(s) em <?= (int) $res['dias'] ?> dia(s) ·
-                custos fixos rateados por dia
-            </p>
-        </div>
-    </div>
+    <?= cartao_cabeca('grafico', 'Resultado do período',
+        number_format((int) $res['vendas'], 0, ',', '.') . ' venda(s) em ' . (int) $res['dias']
+        . ' dia(s) · custos fixos rateados por dia', '', true) ?>
 
     <div class="margem margem-grande <?= $res['lucro'] >= 0 ? 'margem-boa' : 'margem-ruim' ?>">
         <strong class="margem-fator"><?= number_format($res['margem'], 1, ',', '.') ?><span>%</span></strong>
@@ -54,18 +45,13 @@ $custos_extra = [
         <div><dt>Mercadoria (CMV)</dt><dd class="valor">− <?= moeda($res['cmv']) ?></dd></div>
         <div><dt>Maquininha</dt><dd class="valor">− <?= moeda($res['taxa']) ?></dd></div>
     </dl>
-    <details class="mais-custos">
-        <summary><span class="mc-botao">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-            <span class="fechado">Ver todos os custos (<?= count($custos_extra) ?> mais)</span>
-            <span class="aberto">Esconder custos</span>
-        </span></summary>
+    <?= mais_inicio('Ver todos os custos (' . count($custos_extra) . ' mais)', 'Esconder custos') ?>
         <dl class="dados dados-grandes">
             <?php foreach ($custos_extra as $rot => $v): ?>
                 <div><dt><?= e($rot) ?></dt><dd class="valor">− <?= moeda($v) ?></dd></div>
             <?php endforeach; ?>
         </dl>
-    </details>
+    <?= mais_fim() ?>
 
     <?php if ($r['cobertura'] < 99.5): ?>
         <p class="ajuda">
@@ -76,20 +62,9 @@ $custos_extra = [
     <?php endif; ?>
 </div>
 
-<?php if ($r['por_forma']): $mostrar = 2; $extras = max(0, count($r['por_forma']) - $mostrar); ?>
-    <div class="cartao como-pagaram<?= $extras ? ' recolhido' : '' ?>" id="como-pagaram">
-        <div class="cartao-cabeca">
-            <span class="cartao-icone cartao-icone-plano" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
-            </span>
-            <h2 class="sem-topo">Como pagaram</h2>
-            <?php if ($extras): ?>
-                <button type="button" class="ver-mais" aria-controls="como-pagaram" aria-expanded="false">
-                    <span class="fechado">Ver mais</span><span class="aberto">Ver menos</span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-                </button>
-            <?php endif; ?>
-        </div>
+<?php if ($r['por_forma']): $mostrar = 2; ?>
+    <div class="cartao como-pagaram recolhivel">
+        <?= cartao_cabeca('cartao', 'Como pagaram', null, count($r['por_forma']) > $mostrar ? ver_mais_botao() : '') ?>
         <ul class="lista">
             <?php foreach ($r['por_forma'] as $i => $pf): ?>
                 <li class="<?= $i >= $mostrar ? 'extra' : '' ?>"><div class="linha-cartao">
@@ -105,18 +80,6 @@ $custos_extra = [
             <?php endforeach; ?>
         </ul>
     </div>
-    <?php if ($extras): ?>
-        <script>
-        (function () {
-            const caixa = document.getElementById('como-pagaram');
-            const botao = caixa.querySelector('.ver-mais');
-            botao.addEventListener('click', () => {
-                const aberto = !caixa.classList.toggle('recolhido');
-                botao.setAttribute('aria-expanded', aberto ? 'true' : 'false');
-            });
-        })();
-        </script>
-    <?php endif; ?>
 <?php endif; ?>
 
 <p class="ajuda">

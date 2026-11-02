@@ -16,7 +16,7 @@
  * @var array  $log
  */
 ?>
-<h1>Repor</h1>
+<?= titulo_loja() ?>
 <?= abas_loja('/planograma') ?>
 
 <?php if ($erro): ?>
@@ -30,15 +30,20 @@
     </p>
 <?php else: ?>
 
-<p class="ajuda">
-    Bipe o produto na gôndola: se ele estiver no planograma, dá para mudar preço,
-    quantidade necessária, crítico e estoque. Se não estiver, mas existir no cadastro,
-    ele entra no planograma na hora. O preço pode sair da conta
-    <strong>custo × taxa</strong>, com o custo da nota do atacado, e a validade
-    mostra a que já está no estoque antes de você trocar.
-    <a href="/loja?ordem=validade">Ver o que vence primeiro</a>.
-</p>
-<p><a class="botao botao-alt" href="/planograma/importar">⇪ Repor em lote (planilha)</a></p>
+<div class="cartao">
+    <?= cartao_cabeca('repor', 'Repor a gôndola', 'Bipe o produto e ajuste preço, estoque e validade',
+        '<a class="ver-mais" href="/planograma/importar">Em lote' . icone('seta-dir') . '</a>', true) ?>
+    <?= mais_inicio('Como funciona', 'Esconder') ?>
+        <p class="ajuda">
+        Bipe o produto na gôndola: se ele estiver no planograma, dá para mudar preço,
+        quantidade necessária, crítico e estoque. Se não estiver, mas existir no cadastro,
+        ele entra no planograma na hora. O preço pode sair da conta
+        <strong>custo × taxa</strong>, com o custo da nota do atacado, e a validade
+        mostra a que já está no estoque antes de você trocar.
+        <a href="/loja?ordem=validade">Ver o que vence primeiro</a>.
+    </p>
+    <?= mais_fim() ?>
+</div>
 
 <div id="planograma"
      data-pdvs="<?= e(json_encode(array_map(static fn ($p) => [
@@ -49,8 +54,8 @@
 
     <!-- Primeiro a pergunta: o PDV nao vem mais pre-escolhido com o da ultima
          vez. Camera, busca e ficha so aparecem depois do toque aqui. -->
-    <div id="pg-escolher">
-        <h2>Qual ponto de venda você vai repor?</h2>
+    <div id="pg-escolher" class="cartao">
+        <?= cartao_cabeca('pdv', 'Qual ponto de venda você vai repor?', 'Escolha antes de bipar') ?>
         <ul class="lista escolher-pdv">
             <?php foreach ($pdvs as $p): $sem = (int) ($p['planograma_id'] ?? 0) === 0; ?>
                 <li><button type="button" class="escolher-pdv-item" data-pdv="<?= (int) $p['id'] ?>"<?= $sem ? ' disabled' : '' ?>>
@@ -100,20 +105,23 @@
         <button id="btn-luz" class="botao botao-alt botao-icone" hidden>Lanterna</button>
     </div>
 
-    <form id="pg-form" class="linha-form">
-        <input id="pg-codigo" type="text" inputmode="numeric" pattern="[0-9]*"
-               placeholder="bipe ou digite o código" autocomplete="off">
-        <button type="submit" class="botao botao-alt">Buscar</button>
+    <form id="pg-form" class="vf-linha pg-busca">
+        <label class="vf-busca"><?= icone('busca') ?>
+            <input id="pg-codigo" type="text" inputmode="numeric" pattern="[0-9]*"
+                   placeholder="Bipe ou digite o código" aria-label="Código" autocomplete="off">
+        </label>
+        <button type="submit" class="botao vf-filtrar">Buscar</button>
     </form>
 
     <div id="pg-resultado"></div>
     </div>
 
     <?php if ($log): ?>
-        <h2>Últimas alterações</h2>
+        <div class="cartao recolhivel">
+        <?= cartao_cabeca('relogio', 'Últimas alterações', count($log) . ' mais recentes', count($log) > 5 ? ver_mais_botao() : '') ?>
         <ul class="lista" id="pg-log">
-            <?php foreach ($log as $l): ?>
-                <li><div class="linha-cartao">
+            <?php foreach ($log as $n_log => $l): ?>
+                <li class="<?= $n_log >= 5 ? 'extra' : '' ?>"><div class="linha-cartao">
                     <div class="linha-topo">
                         <span class="forte"><?= e($l['descricao'] ?: ('produto ' . $l['produto_externo_id'])) ?></span>
                         <span class="valor<?= $l['ok'] ? '' : ' negativo' ?>">
@@ -138,6 +146,7 @@
                 </div></li>
             <?php endforeach; ?>
         </ul>
+        </div>
     <?php endif; ?>
 </div>
 

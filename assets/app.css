@@ -1472,14 +1472,14 @@ details.animando { overflow: hidden; }
 .abas:not(.abas-icones):has(> .aba:nth-child(2):last-child) .aba.ativo::before { border-radius: 12px; }
 
 /* Cartao dos filtros: atalhos, datas e filtros que abrem, busca. */
-.vendas-filtros { position: relative; padding: .8rem; }
+.filtros-cartao { position: relative; padding: .8rem; }
 .vf-periodos { margin-bottom: .6rem; }
 .vf-periodos .chip { flex: 1 0 auto; text-align: center; padding: .45rem .9rem; font-size: .9rem; }
 .vf-linha { display: flex; gap: .5rem; align-items: stretch; }
 .vf-linha + .vf-linha { margin-top: .5rem; }
 /* A summary fica crua (bloco, sem marcador): quem tem forma e o span de
    dentro. Safari antigo ignora display:flex na propria summary. */
-.vf-gaveta > summary, .mais-custos > summary {
+.vf-gaveta > summary, .mais > summary {
     display: block; list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .vf-gaveta > summary::-webkit-details-marker { display: none; }
@@ -1531,29 +1531,29 @@ details.animando { overflow: hidden; }
 .dados-grandes dt { font-size: 1rem; color: var(--texto); }
 .dados-grandes dd { font-size: 1rem; }
 
-.mais-custos { margin-top: .6rem; }
-.mc-botao {
+.mais { margin-top: .6rem; }
+.mais-botao {
     display: flex; align-items: center; gap: .5rem;
     padding: .65rem .8rem; border-radius: 12px; border: 1px solid var(--vidro-borda);
     background: var(--tinta-marca); color: var(--marca); font-weight: 600; font-size: .92rem;
     -webkit-tap-highlight-color: transparent;
 }
-.mais-custos > summary::-webkit-details-marker { display: none; }
-.mc-botao svg { width: 18px; height: 18px; transition: transform .2s ease; }
-.mais-custos[open] .mc-botao svg { transform: rotate(180deg); }
-.mais-custos .aberto, .mais-custos[open] .fechado { display: none; }
-.mais-custos[open] .aberto { display: inline; }
-.mais-custos > .dados { margin-top: .3rem; }
+.mais > summary::-webkit-details-marker { display: none; }
+.mais-botao svg { width: 18px; height: 18px; transition: transform .2s ease; }
+.mais[open] .mais-botao svg { transform: rotate(180deg); }
+.mais .aberto, .mais[open] .fechado { display: none; }
+.mais[open] .aberto { display: inline; }
+.mais > .dados { margin-top: .3rem; }
 
 .ver-mais {
     display: flex; align-items: center; gap: .2rem; padding: .2rem .1rem; border: 0; background: none;
     color: var(--marca); font: inherit; font-weight: 600; font-size: .92rem; cursor: pointer;
 }
 .ver-mais svg { width: 18px; height: 18px; transition: transform .2s ease; }
-.como-pagaram:not(.recolhido) .ver-mais svg { transform: rotate(90deg); }
-.ver-mais .aberto, .como-pagaram:not(.recolhido) .ver-mais .fechado { display: none; }
-.como-pagaram:not(.recolhido) .ver-mais .aberto { display: inline; }
-.como-pagaram.recolhido .lista li.extra { display: none; }
+.recolhivel:not(.recolhido) .ver-mais svg { transform: rotate(90deg); }
+.ver-mais .aberto, .recolhivel:not(.recolhido) .ver-mais .fechado { display: none; }
+.recolhivel:not(.recolhido) .ver-mais .aberto { display: inline; }
+.recolhivel.recolhido .extra { display: none !important; }
 .como-pagaram .lista li { margin-bottom: .5rem; }
 .como-pagaram .lista li:last-child { margin-bottom: 0; }
 .como-pagaram .linha-cartao { padding: .7rem .85rem; }
@@ -1567,13 +1567,13 @@ details.animando { overflow: hidden; }
 .vf-campo, .vf-botao, .vf-busca { border-color: var(--borda); }
 /* O cartao dos filtros fica por cima dos de baixo: senao o painel que abre
    some atras do cartao de resultado (o vidro dele cria outra camada). */
-.vendas-filtros { z-index: 5; }
+.filtros-cartao { z-index: 5; }
 @media (max-width: 420px) {
     .abas-icones .aba { font-size: .62rem; padding-left: 0; padding-right: 0; letter-spacing: -.02em; }
 }
 @media (max-width: 420px) {
     .vf-campo, .vf-botao { font-size: .82rem; gap: .35rem; padding: 0 .6rem; }
-    .vf-campo .vf-seta { display: none; }
+    .vf-linha > .vf-gaveta:not(:only-child) .vf-seta { display: none; }
     .vf-periodos .chip { padding: .42rem .45rem; font-size: .84rem; }
 }
 @media (max-width: 370px) {
@@ -1595,8 +1595,39 @@ details.animando { overflow: hidden; }
 .resultado .cartao-cabeca h2 { font-size: 1.35rem; }
 .margem-grande .margem-fator { font-size: 2.7rem; }
 
-.dados-grandes > div:not(:first-child) dd, .mais-custos .dados-grandes dd { font-weight: 500; }
+.dados-grandes > div:not(:first-child) dd, .mais .dados-grandes dd { font-weight: 500; }
 .dados-grandes > div:first-child dd { font-weight: 700; }
 .como-pagaram .cartao-cabeca h2 { font-size: 1.3rem; }
 .como-pagaram .linha-baixo { font-size: .82rem; }
 
+
+/* ---------- arranjo novo nas outras telas ---------- */
+/* Um numero em destaque dentro de um cartao (o valor na prateleira, o total
+   do mes): a mesma caixa tingida da do lucro, na cor da marca. */
+.destaque {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .7rem;
+    padding: .9rem 1rem; border-radius: 16px; background: var(--tinta-marca); color: var(--marca);
+}
+.destaque strong { font-size: 1.8rem; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.destaque span { font-size: .88rem; color: var(--suave); }
+.cartao-cabeca-texto { min-width: 0; flex: 1; }
+.cartao > .lista:last-child, .cartao > ul.lista { margin-bottom: 0; }
+/* Gaveta larga generica (alem da de datas da Vendas). */
+.vf-larga { flex: 1; min-width: 0; }
+.vf-gaveta .vf-painel.filtros .col-cheia { grid-column: 1 / -1; }
+.icone { width: 20px; height: 20px; }
+.titulo-icone .icone { width: 30px; height: 30px; flex: none; }
+.cartao-icone .icone { width: 30px; height: 30px; }
+.vf-campo .icone, .vf-botao .icone, .vf-busca .icone { width: 20px; height: 20px; flex: none; color: var(--suave); }
+.vf-filtrar .icone { width: 19px; height: 19px; }
+.ver-mais .icone, .mais-botao .icone { width: 18px; height: 18px; transition: transform .2s ease; }
+.mais[open] .mais-botao .icone { transform: rotate(180deg); }
+.recolhivel:not(.recolhido) .ver-mais .icone { transform: rotate(90deg); }
+.vf-gaveta[open] .vf-seta { transform: rotate(180deg); }
+.abas-icones .aba-icone .icone { width: 24px; height: 24px; }
+.vf-rola { flex-wrap: wrap; } .vf-rola .chip { flex: 0 1 auto; }
+.cartao-alerta .cartao-icone { color: var(--vermelho); }
+.pg-busca { margin: .6rem 0 1rem; } #pg-escolher .lista { margin-bottom: 0; } a.ver-mais { text-decoration: none; }
+.botao-com-icone { display: flex; align-items: center; justify-content: center; gap: .5rem; margin-bottom: .6rem; } .botao-com-icone .icone { width: 20px; height: 20px; }
+.titulo-cartao { font-size: 1.3rem; } .itens-busca { margin: .6rem 0; } .vf-busca input[type="search"] { -webkit-appearance: none; appearance: none; }
+.sem-margem-baixo { margin-bottom: 0; } .imposto-topo { margin-bottom: .6rem; }

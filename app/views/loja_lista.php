@@ -28,68 +28,62 @@ $ordens = [
     </p>
 <?php else: ?>
 
-<div class="numeros">
-    <div class="numero">
-        <strong><?= (int) $totais['itens'] ?></strong>
-        <span>itens</span>
-    </div>
-    <div class="numero">
-        <strong><?= (int) $totais['com_estoque'] ?></strong>
-        <span>com estoque</span>
-    </div>
-    <div class="numero">
+<div class="cartao">
+    <?= cartao_cabeca('caixa', 'Catálogo da loja',
+        number_format((int) $totais['itens'], 0, ',', '.') . ' itens · '
+        . number_format((int) $totais['com_estoque'], 0, ',', '.') . ' com estoque', '', true) ?>
+    <div class="destaque">
         <strong><?= moeda($totais['valor_venda']) ?></strong>
-        <span>na prateleira</span>
+        <span>na prateleira, a preço de venda</span>
     </div>
 </div>
 
 <?php
-// Os chips levam os outros filtros junto, senao trocar de estoque perde a
+// Os atalhos levam os outros filtros junto, senao trocar de estoque perde a
 // busca e o PDV escolhidos.
 $base = ['q' => $busca, 'pdv' => $pdv_id, 'ordem' => $ordem];
 $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
+$nome_pdv = 'todos';
+foreach ($pdvs as $p) {
+    if ($pdv_id === (int) $p['id']) {
+        $nome_pdv = $p['nome'];
+    }
+}
 ?>
-<div class="chips">
-    <?php foreach ($estoques as $chave => $rotulo): ?>
-        <a class="chip <?= $estoque === $chave ? 'ativo' : '' ?>"
-           href="/loja?<?= e(http_build_query($base + ['estoque' => $chave])) ?>"><?= e($rotulo) ?></a>
-    <?php endforeach; ?>
+<div class="cartao filtros-cartao">
+    <div class="chips vf-periodos">
+        <?php foreach ($estoques as $chave => $rotulo): ?>
+            <a class="chip <?= $estoque === $chave ? 'ativo' : '' ?>"
+               href="/loja?<?= e(http_build_query($base + ['estoque' => $chave])) ?>"><?= e($rotulo) ?></a>
+        <?php endforeach; ?>
+    </div>
+
+    <form method="get" action="/loja">
+        <input type="hidden" name="estoque" value="<?= e($estoque) ?>">
+        <div class="vf-linha">
+            <?= gaveta_inicio('lista', 'Ordem: ' . ($ordens[$ordem] ?? 'nome'), true) ?>
+                <label class="col-cheia">Ordenar por
+                    <select name="ordem" onchange="this.form.submit()">
+                        <?php foreach ($ordens as $chave => $rotulo): ?>
+                            <option value="<?= e($chave) ?>" <?= $ordem === $chave ? 'selected' : '' ?>><?= e($rotulo) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            <?= gaveta_fim() ?>
+            <?= gaveta_inicio('filtros', filtros_rotulo($pdv_id > 0 ? 1 : 0)) ?>
+                <label class="col-cheia">Ponto de venda
+                    <select name="pdv" onchange="this.form.submit()">
+                        <option value="0">todos</option>
+                        <?php foreach ($pdvs as $p): ?>
+                            <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>><?= e($p['nome']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            <?= gaveta_fim() ?>
+        </div>
+        <?= filtro_busca('q', $busca, 'Nome, código ou categoria') ?>
+    </form>
 </div>
-
-<form method="get" action="/loja">
-    <input type="hidden" name="estoque" value="<?= e($estoque) ?>">
-    <div class="linha-form">
-        <input type="text" name="q" value="<?= e($busca) ?>"
-               placeholder="buscar por nome, código ou categoria"
-               autocomplete="off" autocorrect="off" spellcheck="false">
-        <button type="submit" class="botao botao-alt">Buscar</button>
-    </div>
-
-    <div class="filtros">
-        <label>
-            Ponto de venda
-            <select name="pdv" onchange="this.form.submit()">
-                <option value="0">todos</option>
-                <?php foreach ($pdvs as $p): ?>
-                    <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>>
-                        <?= e($p['nome']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>
-            Ordenar por
-            <select name="ordem" onchange="this.form.submit()">
-                <?php foreach ($ordens as $chave => $rotulo): ?>
-                    <option value="<?= e($chave) ?>" <?= $ordem === $chave ? 'selected' : '' ?>>
-                        <?= e($rotulo) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-    </div>
-
-</form>
 
 <?php if (!$itens): ?>
     <p class="vazio">
@@ -125,6 +119,12 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
         ? loja_faixas_validade($itens)
         : [['rotulo' => null, 'classe' => '', 'itens' => $itens]];
     ?>
+    <?php $recolhe = $ordem !== 'validade' && count($itens) > 30; ?>
+    <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
+    <?= cartao_cabeca('lista', $ordem === 'validade' ? 'Por vencimento' : 'Itens',
+        number_format(count($itens), 0, ',', '.') . ' neste filtro',
+        $recolhe ? ver_mais_botao('Ver todos', 'Ver menos') : '') ?>
+    <?php $n_item = 0; ?>
     <?php foreach ($grupos as $g): ?>
     <?php if ($g['rotulo'] !== null): ?>
         <h2 class="faixa-validade <?= e($g['classe']) ?>">
@@ -132,8 +132,8 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
         </h2>
     <?php endif; ?>
     <ul class="lista">
-        <?php foreach ($g['itens'] as $l): ?>
-            <li>
+        <?php foreach ($g['itens'] as $l): $n_item++; ?>
+            <li class="<?= $recolhe && $n_item > 30 ? 'extra' : '' ?>">
                 <?php
                 // Produto ja conhecido leva para o historico; o resto e so leitura.
                 // Por vencimento a pergunta e outra — "por quanto ponho isto para
@@ -193,6 +193,7 @@ $estoques = ['' => 'Todos', 'com' => 'Com estoque', 'sem' => 'Sem estoque'];
         <?php endforeach; ?>
     </ul>
     <?php endforeach; ?>
+    </div>
 <?php endif; ?>
 
 <?php endif; ?>

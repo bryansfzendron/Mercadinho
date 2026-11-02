@@ -26,8 +26,13 @@ foreach ($historico as $h) {
 <a class="voltar" href="/produtos">‹ Produtos</a>
 
 <div class="cartao">
-    <h1><?= e($produto['descricao']) ?></h1>
-    <p class="mono"><?= $produto['ean'] ? e($produto['ean']) : 'sem GTIN' ?></p>
+    <div class="cartao-cabeca">
+        <span class="cartao-icone"><?= icone('produto') ?></span>
+        <div class="cartao-cabeca-texto">
+            <h1 class="sem-topo titulo-cartao"><?= e($produto['descricao']) ?></h1>
+            <p class="mono sem-margem"><?= $produto['ean'] ? e($produto['ean']) : 'sem GTIN' ?></p>
+        </div>
+    </div>
 
     <div class="numeros">
         <div class="numero"><strong><?= moeda($stats['ultimo']) ?></strong><span>último</span></div>
@@ -157,7 +162,8 @@ foreach ($historico as $h) {
 </div>
 
 <?php if ($loja): ?>
-    <h2>Na loja agora</h2>
+    <div class="cartao">
+    <?= cartao_cabeca('loja', 'Na loja agora', count($loja) . ' ponto(s) de venda') ?>
     <ul class="lista">
         <?php foreach ($loja as $l): ?>
             <li><div style="padding:.7rem .85rem">
@@ -186,12 +192,15 @@ foreach ($historico as $h) {
             </div></li>
         <?php endforeach; ?>
     </ul>
+    </div>
 <?php endif; ?>
 
-<h2><?= count($historico) ?> compra(s)</h2>
+<?php $recolhe = count($historico) > 10; ?>
+<div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
+<?= cartao_cabeca('nota', 'Compras', count($historico) . ' compra(s)', $recolhe ? ver_mais_botao('Ver todas', 'Ver menos') : '') ?>
 <ul class="lista">
-    <?php foreach ($historico as $h): ?>
-        <li>
+    <?php foreach ($historico as $k => $h): ?>
+        <li class="<?= $recolhe && $k >= 10 ? 'extra' : '' ?>">
             <a href="/notas/<?= (int) $h['nota_id'] ?>">
                 <div class="linha-topo">
                     <span class="forte"><?= e($h['loja'] ?? 'Sem loja') ?></span>
@@ -226,3 +235,4 @@ foreach ($historico as $h) {
         </li>
     <?php endforeach; ?>
 </ul>
+</div>

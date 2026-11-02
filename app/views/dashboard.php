@@ -7,8 +7,36 @@ $var_txt = static fn (float $v, string $un = '%'): string =>
 /** Em qual das abas a pilula do periodo para. */
 $indice = array_search($chave, array_keys($periodos), true) ?: 0;
 ?>
-<h1 class="titulo-painel">Dashboard</h1>
+<h1 class="titulo-painel titulo-icone"><?= icone('painel') ?>Dashboard</h1>
 <p class="inicio-sub"><?= e($rotulo) ?> · <?= data_fmt($de) ?> a <?= data_fmt($ate) ?></p>
+
+<?php
+$nome_pdv = 'Todos os pontos de venda';
+foreach ($pdvs as $p) {
+    if ($pdv_id === (int) $p['id']) {
+        $nome_pdv = $p['nome'];
+    }
+}
+?>
+<?php if (count($pdvs) > 1 || $pdv_id > 0): ?>
+<div class="cartao filtros-cartao">
+    <form method="get" action="/dashboard">
+        <input type="hidden" name="periodo" value="<?= e($chave) ?>">
+        <div class="vf-linha">
+            <?= gaveta_inicio('pdv', $nome_pdv, true) ?>
+                <label class="col-cheia">Ponto de venda
+                    <select name="pdv_id" onchange="this.form.submit()">
+                        <option value="">todos</option>
+                        <?php foreach ($pdvs as $p): ?>
+                            <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>><?= e($p['nome']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            <?= gaveta_fim() ?>
+        </div>
+    </form>
+</div>
+<?php endif; ?>
 
 <section class="painel">
     <?php // Mesmo controle segmentado da capa, so que cada aba e uma pagina:
@@ -73,19 +101,6 @@ $indice = array_search($chave, array_keys($periodos), true) ?: 0;
     </div>
 </section>
 
-<form method="get" action="/dashboard" class="filtro-pdv">
-    <label>Ponto de venda
-        <select name="pdv_id" onchange="this.form.submit()">
-            <option value="">todos</option>
-            <?php foreach ($pdvs as $p): ?>
-                <option value="<?= (int) $p['id'] ?>" <?= $pdv_id === (int) $p['id'] ? 'selected' : '' ?>>
-                    <?= e($p['nome']) ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-    </label>
-    <input type="hidden" name="periodo" value="<?= e($chave) ?>">
-</form>
 
 <?php // O faturamento e o lucro subiram para o painel; aqui fica o que sai do
       // meio dos dois. Em custo, subir e ruim: a moldura inverte. ?>
@@ -118,14 +133,14 @@ $indice = array_search($chave, array_keys($periodos), true) ?: 0;
 
 <?php if ($barras_dia): ?>
     <div class="cartao">
-        <h2 class="sem-topo">Faturamento por dia</h2>
+        <?= cartao_cabeca('grafico', 'Faturamento por dia', null, '', true) ?>
         <?= grafico_html_barras_dia($barras_dia, $de, $ate) ?>
     </div>
 <?php endif; ?>
 
 <div class="dashboard-grade">
 <div class="cartao">
-    <h2 class="sem-topo">Como pagaram no período</h2>
+    <?= cartao_cabeca('cartao', 'Como pagaram no período') ?>
     <?php if (!$r['por_forma']): ?>
         <p class="vazio">Sem venda no período.</p>
     <?php else: ?>
@@ -143,7 +158,7 @@ $indice = array_search($chave, array_keys($periodos), true) ?: 0;
 </div>
 
 <div class="cartao">
-    <h2 class="sem-topo">Top 5 produtos por contribuição</h2>
+    <?= cartao_cabeca('barras', 'Top 5 produtos', 'por contribuição no período') ?>
     <?php if (!$top): ?>
         <p class="vazio">Sem vendas no período.</p>
     <?php else: ?>
@@ -186,23 +201,26 @@ $indice = array_search($chave, array_keys($periodos), true) ?: 0;
 </div>
 
 <div class="cartao">
-    <h2 class="sem-topo">Resumo do período</h2>
-    <dl class="dados">
-        <div><dt>Período</dt><dd><?= e($rotulo) ?> (<?= data_fmt($de) ?> a <?= data_fmt($ate) ?>)</dd></div>
-        <div><dt>Dias</dt><dd><?= (int) $res['dias'] ?></dd></div>
-        <div><dt>Vendas</dt><dd><?= (int) $res['vendas'] ?></dd></div>
+    <?= cartao_cabeca('lista', 'Resumo do período', $rotulo . ' · ' . data_fmt($de) . ' a ' . data_fmt($ate)
+        . ' · ' . (int) $res['dias'] . ' dia(s) · ' . (int) $res['vendas'] . ' venda(s)') ?>
+    <dl class="dados dados-grandes">
         <div><dt>Faturamento</dt><dd class="valor"><?= moeda($res['receita']) ?></dd></div>
-        <div><dt>CMV</dt><dd class="valor negativo">− <?= moeda($res['cmv']) ?></dd></div>
-        <div><dt>Maquininha</dt><dd class="valor negativo">− <?= moeda($res['taxa']) ?></dd></div>
-        <div><dt>Condomínio</dt><dd class="valor negativo">− <?= moeda($res['condominio']) ?></dd></div>
-        <div><dt>Franquia</dt><dd class="valor negativo">− <?= moeda($res['franquia']) ?></dd></div>
-        <div><dt>Imposto (Simples Nacional)</dt><dd class="valor negativo">− <?= moeda($res['imposto']) ?></dd></div>
-        <div><dt>Energia, sistema e internet</dt><dd class="valor negativo">− <?= moeda($res['fixos']) ?></dd></div>
-        <div><dt>Lucro líquido</dt><dd class="valor <?= $res['lucro'] >= 0 ? '' : 'negativo' ?>">
+        <div><dt>Lucro líquido</dt><dd class="valor <?= $res['lucro'] >= 0 ? 'lucro-bom' : 'negativo' ?>">
             <?= $res['lucro'] >= 0 ? '+' : '−' ?><?= moeda(abs($res['lucro'])) ?>
         </dd></div>
         <div><dt>Margem</dt><dd class="valor"><?= number_format($res['margem'], 1, ',', '.') ?>%</dd></div>
     </dl>
+    <?= mais_inicio('Ver todos os custos (7)', 'Esconder custos') ?>
+        <dl class="dados dados-grandes">
+            <div><dt>CMV</dt><dd class="valor">− <?= moeda($res['cmv']) ?></dd></div>
+            <div><dt>Maquininha</dt><dd class="valor">− <?= moeda($res['taxa']) ?></dd></div>
+            <div><dt>Condomínio</dt><dd class="valor">− <?= moeda($res['condominio']) ?></dd></div>
+            <div><dt>Franquia</dt><dd class="valor">− <?= moeda($res['franquia']) ?></dd></div>
+            <div><dt>Imposto (Simples Nacional)</dt><dd class="valor">− <?= moeda($res['imposto']) ?></dd></div>
+            <div><dt>Energia, sistema e internet</dt><dd class="valor">− <?= moeda($res['fixos']) ?></dd></div>
+            <div><dt>Total de custos</dt><dd class="valor">− <?= moeda($res['cmv'] + $res['taxa'] + $res['condominio'] + $res['franquia'] + $res['imposto'] + $res['fixos']) ?></dd></div>
+        </dl>
+    <?= mais_fim() ?>
 </div>
 
 <p class="ajuda centro" style="margin-top:1rem">

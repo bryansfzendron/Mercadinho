@@ -76,6 +76,7 @@ function iniciar_sessao(): void
 }
 
 require APP . '/helpers.php';
+require APP . '/ui.php';
 require APP . '/db.php';
 require APP . '/auth.php';
 require APP . '/produtos.php';

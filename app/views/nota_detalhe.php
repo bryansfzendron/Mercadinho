@@ -63,22 +63,28 @@ $vale_filtrar = count($nota['itens']) >= 8;
 <a class="voltar" href="/notas">‹ Notas</a>
 
 <div class="cartao">
-    <h1><?= e($nota['loja'] ?? 'Sem loja identificada') ?></h1>
-    <p class="meta">
-        <?= cnpj_fmt($nota['cnpj']) ?><br>
-        <?= e(trim(($nota['municipio'] ?? '') . ' ' . ($nota['uf'] ?? ''))) ?>
-    </p>
-    <dl class="dados">
-        <div><dt>Emissão</dt><dd><?= data_fmt($nota['emissao'], true) ?></dd></div>
-        <div><dt>Número</dt><dd><?= e($nota['numero'] ?: '-') ?> / série <?= e($nota['serie'] ?: '-') ?></dd></div>
-        <div><dt>Produtos</dt><dd><?= moeda($nota['valor_produtos']) ?></dd></div>
-        <div><dt>Desconto</dt><dd><?= moeda($nota['desconto_total']) ?></dd></div>
-        <div><dt>Total</dt><dd class="valor"><?= moeda($nota['valor_total']) ?></dd></div>
-        <div><dt>Origem</dt><dd><?= e($nota['origem']) ?></dd></div>
-    </dl>
-    <?php if ($nota['chave']): ?>
-        <p class="chave"><?= e($nota['chave']) ?></p>
-    <?php endif; ?>
+    <div class="cartao-cabeca">
+        <span class="cartao-icone"><?= icone('nota') ?></span>
+        <div class="cartao-cabeca-texto">
+            <h1 class="sem-topo titulo-cartao"><?= e($nota['loja'] ?? 'Sem loja identificada') ?></h1>
+            <p class="meta sem-margem"><?= e(trim(cnpj_fmt($nota['cnpj']) . ' · ' . trim(($nota['municipio'] ?? '') . ' ' . ($nota['uf'] ?? '')), ' ·')) ?></p>
+        </div>
+    </div>
+    <div class="destaque">
+        <strong><?= moeda($nota['valor_total']) ?></strong>
+        <span><?= data_fmt($nota['emissao'], true) ?> · <?= count($nota['itens']) ?> itens</span>
+    </div>
+    <?= mais_inicio('Ver detalhes da nota', 'Esconder detalhes') ?>
+        <dl class="dados dados-grandes">
+            <div><dt>Número</dt><dd><?= e($nota['numero'] ?: '-') ?> / série <?= e($nota['serie'] ?: '-') ?></dd></div>
+            <div><dt>Produtos</dt><dd><?= moeda($nota['valor_produtos']) ?></dd></div>
+            <div><dt>Desconto</dt><dd><?= moeda($nota['desconto_total']) ?></dd></div>
+            <div><dt>Origem</dt><dd><?= e($nota['origem']) ?></dd></div>
+        </dl>
+        <?php if ($nota['chave']): ?>
+            <p class="chave"><?= e($nota['chave']) ?></p>
+        <?php endif; ?>
+    <?= mais_fim() ?>
     <?php if ($nota['status'] === 'erro' && $nota['erro_msg']): ?>
         <div class="aviso aviso-erro"><?= e($nota['erro_msg']) ?></div>
     <?php endif; ?>
@@ -108,19 +114,26 @@ $vale_filtrar = count($nota['itens']) >= 8;
     </div>
 <?php endif; ?>
 
-<h2><?= count($nota['itens']) ?> itens</h2>
+<div class="cartao">
+<?= cartao_cabeca('lista', 'Itens', count($nota['itens']) . ' item(ns) nesta nota') ?>
 <?php if ($nota['itens']): ?>
-    <p class="ajuda">
-        Comprou a caixa e vende a unidade? Abra <strong>Corrigir item</strong>, bipe o
-        código da unidade e diga quantas vêm na caixa. A caixa continua com o código e o
-        preço dela, e a unidade ganha o seu — o valor pago fica igual.
-    </p>
+    <?= mais_inicio('Comprou a caixa e vende a unidade?', 'Esconder') ?>
+        <p class="ajuda">
+            Abra <strong>Corrigir item</strong>, bipe o código da unidade e diga quantas vêm
+            na caixa. A caixa continua com o código e o preço dela, e a unidade ganha o
+            seu — o valor pago fica igual.
+        </p>
+    <?= mais_fim() ?>
 <?php endif; ?>
 
 <?php if ($vale_filtrar): ?>
-    <input type="search" id="busca-itens" class="busca-itens"
-           placeholder="filtrar por nome ou código" aria-controls="lista-itens"
-           autocomplete="off" autocorrect="off" spellcheck="false">
+    <div class="vf-linha itens-busca">
+        <label class="vf-busca"><?= icone('busca') ?>
+            <input type="search" id="busca-itens" class="busca-itens"
+                   placeholder="Filtrar por nome ou código" aria-controls="lista-itens" aria-label="Filtrar itens"
+                   autocomplete="off" autocorrect="off" spellcheck="false">
+        </label>
+    </div>
     <p class="ajuda" id="busca-conta" aria-live="polite" hidden></p>
 <?php endif; ?>
 
@@ -248,6 +261,7 @@ $vale_filtrar = count($nota['itens']) >= 8;
         </li>
     <?php endforeach; ?>
 </ul>
+</div>
 
 <?php if ($nota['itens']): ?>
 <script src="/assets/scanner.js?v=3"></script>

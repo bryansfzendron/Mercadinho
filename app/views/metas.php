@@ -11,29 +11,35 @@
 <?= titulo_loja() ?>
 <?= abas_loja('/metas') ?>
 
-<form method="get" action="/metas">
-    <div class="filtros">
-        <label>Mês
-            <select name="mes" onchange="this.form.submit()">
-                <?php foreach ($meses_disponiveis as $val => $lbl): ?>
-                    <option value="<?= e($val) ?>" <?= $mes_ref === $val ? 'selected' : '' ?>><?= e($lbl) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>Ponto de venda
-            <select name="pdv_id" onchange="this.form.submit()">
-                <option value="">todos</option>
-                <?php foreach ($pdvs as $pdv): ?>
-                    <option value="<?= (int) $pdv['id'] ?>" <?= $pdv_id === (int) $pdv['id'] ? 'selected' : '' ?>>
-                        <?= e($pdv['nome']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-    </div>
-</form>
-
-<p class="meta"><?= e($mes) ?> · dia <?= (int) $fat['dia'] ?> de <?= (int) $fat['no_mes'] ?></p>
+<?php
+$nome_mes = $meses_disponiveis[$mes_ref] ?? $mes;
+?>
+<div class="cartao filtros-cartao">
+    <form method="get" action="/metas">
+        <div class="vf-linha">
+            <?= gaveta_inicio('calendario', $nome_mes, true) ?>
+                <label class="col-cheia">Mês
+                    <select name="mes" onchange="this.form.submit()">
+                        <?php foreach ($meses_disponiveis as $val => $lbl): ?>
+                            <option value="<?= e($val) ?>" <?= $mes_ref === $val ? 'selected' : '' ?>><?= e($lbl) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            <?= gaveta_fim() ?>
+            <?= gaveta_inicio('filtros', filtros_rotulo($pdv_id > 0 ? 1 : 0)) ?>
+                <label class="col-cheia">Ponto de venda
+                    <select name="pdv_id" onchange="this.form.submit()">
+                        <option value="">todos</option>
+                        <?php foreach ($pdvs as $pdv): ?>
+                            <option value="<?= (int) $pdv['id'] ?>" <?= $pdv_id === (int) $pdv['id'] ? 'selected' : '' ?>><?= e($pdv['nome']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            <?= gaveta_fim() ?>
+        </div>
+    </form>
+    <p class="meta sem-margem vf-legenda"><?= e($mes) ?> · dia <?= (int) $fat['dia'] ?> de <?= (int) $fat['no_mes'] ?></p>
+</div>
 
 <?php if ($pdv_id > 0 && !$meta_propria): ?>
     <div class="aviso aviso-info">
@@ -49,18 +55,17 @@
 // Os dois cartoes sao o mesmo bloco com dados diferentes. Era uma funcao
 // declarada aqui dentro, o que faz a view explodir se ela for incluida duas
 // vezes na mesma requisicao; um foreach resolve sem esse risco.
-foreach ([['Faturamento do mês', $fat], ['Lucro do mês', $luc]] as [$titulo_cartao, $m]):
+foreach ([['Faturamento do mês', $fat, 'dinheiro'], ['Lucro do mês', $luc, 'alvo']] as [$titulo_cartao, $m, $icone_cartao]):
     $no_ritmo = $m['tem_meta'] && ($m['batida'] || $m['projecao'] >= $m['meta']);
 ?>
     <div class="cartao">
-        <div class="meta-topo">
-            <span class="forte"><?= e($titulo_cartao) ?></span>
-            <?php if ($m['tem_meta']): ?>
-                <span class="selo <?= $no_ritmo ? 'selo-ok' : 'selo-pendente' ?>">
-                    <?= $m['batida'] ? 'batida' : ($no_ritmo ? 'no ritmo' : 'abaixo do ritmo') ?>
-                </span>
-            <?php endif; ?>
-        </div>
+        <?php
+        $selo_meta = $m['tem_meta']
+            ? '<span class="selo ' . ($no_ritmo ? 'selo-ok' : 'selo-pendente') . '">'
+              . ($m['batida'] ? 'batida' : ($no_ritmo ? 'no ritmo' : 'abaixo do ritmo')) . '</span>'
+            : '';
+        ?>
+        <?= cartao_cabeca($icone_cartao, $titulo_cartao, null, $selo_meta, true) ?>
 
         <div class="meta-topo">
             <span class="meta-valor"><?= moeda($m['realizado']) ?></span>

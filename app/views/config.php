@@ -13,13 +13,13 @@
  * @var bool   $metas_novas conta nova que ainda nao disse as metas: campos vazios
  */
 ?>
-<h1>Configurações</h1>
+<?= titulo_icone('Configurações', 'engrenagem') ?>
 <?= abas_config($aba === 'sync' ? '/config' : '/config/' . $aba) ?>
 
 <?php if ($aba === 'sync'): ?>
 
     <div class="cartao">
-        <h2 class="sem-topo">Preços e estoque</h2>
+        <?= cartao_cabeca('caixa', 'Preços e estoque', 'Planograma e inventário de cada PDV', '', true) ?>
         <?php if ($loja): ?>
             <dl class="dados">
                 <?php foreach ($loja as $l): ?>
@@ -44,7 +44,7 @@
     </div>
 
     <div class="cartao">
-        <h2 class="sem-topo">Vendas</h2>
+        <?= cartao_cabeca('grafico', 'Vendas', 'Transações do TouchPay', '', true) ?>
         <?php if ((int) $vendas['vendas'] > 0): ?>
             <dl class="dados">
                 <div><dt>Gravadas</dt><dd><?= (int) $vendas['vendas'] ?> vendas</dd></div>
@@ -66,7 +66,7 @@
     </div>
 
     <div class="cartao">
-        <h2 class="sem-topo">Automático</h2>
+        <?= cartao_cabeca('relogio', 'Automático', 'A tarefa agendada (cron)', '', true) ?>
         <?php if ($cron['nunca']): ?>
             <p class="aviso aviso-info">
                 O cron nunca passou por aqui. Enquanto isso, preços, estoque e vendas só
@@ -91,12 +91,14 @@
                 </p>
             <?php endif; ?>
         <?php endif; ?>
-        <p class="ajuda">
-            A tarefa agendada chama <code>cron.php</code>, que dispara vendas a cada 5 minutos
-            e preços e estoque a cada 30 — e não dispara nada enquanto a carga anterior ainda
-            está correndo. Para ver o que ele responde:
-        </p>
-        <p class="ajuda"><code>php ~/domains/bryanzendron.com.br/public_html/mercadinho/cron.php</code></p>
+        <?= mais_inicio('Como funciona', 'Esconder') ?>
+            <p class="ajuda">
+                A tarefa agendada chama <code>cron.php</code>, que dispara vendas a cada 5 minutos
+                e preços e estoque a cada 30 — e não dispara nada enquanto a carga anterior ainda
+                está correndo. Para ver o que ele responde:
+            </p>
+            <p class="ajuda"><code>php ~/domains/bryanzendron.com.br/public_html/mercadinho/cron.php</code></p>
+        <?= mais_fim() ?>
     </div>
 
     <script>
@@ -187,7 +189,7 @@
 <?php elseif ($aba === 'pdvs'): ?>
 
     <div class="cartao">
-        <h2 class="sem-topo">Pontos de venda</h2>
+        <?= cartao_cabeca('pdv', 'Pontos de venda', 'Quais contam no app', '', true) ?>
         <p class="ajuda">
             Desmarcar tira o ponto de venda do app inteiro — catálogo, bipe, vendas e metas.
             Serve para o PDV que está na mesma conta do TouchPay mas não é seu: o sync
@@ -226,7 +228,7 @@
     </div>
 
     <div class="cartao">
-        <h2 class="sem-topo">Unificar dois pontos de venda</h2>
+        <?= cartao_cabeca('repor', 'Unificar dois pontos de venda', 'Quando um container foi recadastrado') ?>
         <p class="ajuda">
             Quando a máquina troca de dono, o TouchPay a cadastra de novo — id novo, às vezes
             nome novo — e o histórico nasce partido em dois. Aqui os dois viram um: as vendas
@@ -339,9 +341,8 @@
     <?php endif; ?>
 
     <div class="cartao">
-        <h2 class="sem-topo">
-            <?= $editando_pdv ? e($ativos[$pdv_taxas]) : 'Meta da empresa' ?>
-        </h2>
+        <?= cartao_cabeca('alvo', $editando_pdv ? (string) $ativos[$pdv_taxas] : 'Meta da empresa',
+            $editando_pdv ? 'Meta só deste ponto de venda' : 'Faturamento e lucro por mês', '', true) ?>
         <form method="post" action="/config/metas">
             <?= csrf_campo() ?>
             <?php if ($editando_pdv): ?>
@@ -415,9 +416,8 @@
     <?php endif; ?>
 
     <div class="cartao">
-        <h2 class="sem-topo">
-            <?= $por_pdv ? e((string) $ativos[$pdv_taxas]) : 'Custos e taxas' ?>
-        </h2>
+        <?= cartao_cabeca('percentual', $por_pdv ? (string) $ativos[$pdv_taxas] : 'Custos e taxas',
+            $por_pdv ? 'Só o que for diferente neste PDV' : 'Maquininha, condomínio, franquia e fixos', '', true) ?>
         <?php if ($por_pdv): ?>
             <p class="ajuda">
                 Só o que for diferente neste ponto de venda. Campo em branco segue o padrão —
@@ -474,7 +474,7 @@
         $hoje = date('Y-m-d');
         ?>
         <div class="cartao">
-            <h2 class="sem-topo">Mudanças de taxa</h2>
+            <?= cartao_cabeca('calendario', 'Mudanças de taxa', 'Cada troca vale a partir do dia dela') ?>
             <p class="ajuda">
                 Cada linha vale do dia dela até a próxima mudança da mesma taxa. Antes da
                 primeira, vale o valor sem data. Apagar uma mudança devolve aquele período à
@@ -507,7 +507,10 @@
         <?php $imposto_ligado = custos_imposto_ativo(); ?>
         <div class="cartao">
             <div class="linha-topo imposto-topo">
-                <h2 class="sem-topo">Imposto (Simples Nacional)</h2>
+                <div class="cartao-cabeca sem-margem-baixo">
+                    <span class="cartao-icone"><?= icone('dinheiro') ?></span>
+                    <h2 class="sem-topo">Imposto (Simples Nacional)</h2>
+                </div>
                 <form method="post" action="/config/taxas">
                     <?= csrf_campo() ?>
                     <input type="hidden" name="imposto_ativo" value="<?= $imposto_ligado ? '0' : '1' ?>">

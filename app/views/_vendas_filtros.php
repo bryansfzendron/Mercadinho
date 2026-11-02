@@ -24,7 +24,7 @@ $base = array_filter([
 ], static fn ($v): bool => $v !== null);
 $ativos = count(array_intersect_key($base, array_flip(['pdv_id', 'forma', 'categoria', 'agrupar'])));
 ?>
-<div class="cartao vendas-filtros">
+<div class="cartao filtros-cartao">
     <div class="chips vf-periodos">
         <?php foreach (vendas_periodos() as [$rotulo, $de, $ate]): ?>
             <a class="chip <?= $f['de'] === $de && $f['ate'] === $ate ? 'ativo' : '' ?>"
