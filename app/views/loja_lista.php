@@ -18,7 +18,7 @@ $ordens = [
     'validade'     => 'vencimento',
 ];
 ?>
-<h1>Loja</h1>
+<?= titulo_loja() ?>
 <?= abas_loja('/loja') ?>
 
 <?php if (!$pdvs): ?>

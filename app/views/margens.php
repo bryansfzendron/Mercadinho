@@ -1,5 +1,5 @@
 <?php /** @var array $itens @var array $conta @var array $min @var string $filtro @var string $busca */ ?>
-<h1>Loja</h1>
+<?= titulo_loja() ?>
 <?= abas_loja('/margens') ?>
 
 <div class="cartao">

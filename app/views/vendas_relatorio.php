@@ -1,69 +1,14 @@
 <?php /** @var array $r @var array $f @var array $pdvs @var array $formas @var array $categorias */ ?>
-<h1>Loja</h1>
+<?= titulo_loja() ?>
 <?= abas_loja('/vendas') ?>
 <?= abas(['/vendas' => 'Resumo', '/vendas/transacoes' => 'Transações'], '/vendas') ?>
 
-<div class="chips">
-    <?php foreach (vendas_periodos() as $chave => [$rotulo, $de, $ate]): ?>
-        <a class="chip <?= $f['de'] === $de && $f['ate'] === $ate ? 'ativo' : '' ?>"
-           href="/vendas?<?= e(http_build_query(['de' => $de, 'ate' => $ate] + $f)) ?>"><?= e($rotulo) ?></a>
-    <?php endforeach; ?>
-</div>
-
-<form method="get" action="/vendas">
-    <div class="filtros">
-        <label>De
-            <input type="date" name="de" value="<?= e($f['de']) ?>">
-        </label>
-        <label>Até
-            <input type="date" name="ate" value="<?= e($f['ate']) ?>">
-        </label>
-        <label>Ponto de venda
-            <select name="pdv_id">
-                <option value="">todos</option>
-                <?php foreach ($pdvs as $p): ?>
-                    <option value="<?= (int) $p['id'] ?>" <?= (int) $f['pdv_id'] === (int) $p['id'] ? 'selected' : '' ?>>
-                        <?= e($p['nome']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>Pagamento
-            <select name="forma">
-                <option value="">todas</option>
-                <?php foreach ($formas as $nome => $rotulo): ?>
-                    <option value="<?= e($nome) ?>" <?= $f['forma'] === $nome ? 'selected' : '' ?>><?= e($rotulo) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>Categoria
-            <select name="categoria">
-                <option value="">todas</option>
-                <?php foreach ($categorias as $cat): ?>
-                    <option value="<?= e($cat) ?>" <?= $f['categoria'] === $cat ? 'selected' : '' ?>><?= e($cat) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label class="col-cheia">Agrupar por
-            <select name="agrupar">
-                <?php foreach (vendas_agrupamentos() as $chave => [$rot, $_]): ?>
-                    <option value="<?= e($chave) ?>" <?= $r['agrupar'] === $chave ? 'selected' : '' ?>><?= e($rot) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-    </div>
-    <div class="linha-form">
-        <input type="text" name="q" value="<?= e($f['busca']) ?>" placeholder="produto, código ou categoria"
-               autocomplete="off" autocorrect="off" spellcheck="false">
-        <button type="submit" class="botao">Filtrar</button>
-    </div>
-</form>
-
-<p class="ajuda">
-    <strong>Arraste a tela para baixo</strong> para rebuscar este período no TouchPay e
-    regravar. Serve quando o número não bate com o painel deles: o sync automático só volta
-    3 dias, então buraco no meio do mês só sai daqui. Regravar não duplica.
-</p>
+<?php
+$acao = '/vendas';
+$agrupar_atual = $r['agrupar'];
+$busca_dica = 'Produto, código ou categoria';
+include __DIR__ . '/_vendas_filtros.php';
+?>
 
 <script>
 // A unica tela que pede uma janela especifica. O gesto de arrastar le isto e
@@ -72,31 +17,55 @@
 window.SYNC_JANELA = <?= json_encode(['de' => $f['de'], 'ate' => $f['ate']]) ?>;
 </script>
 
-<?php $res = $r['resultado']; ?>
-<div class="cartao">
-    <h2 class="sem-topo">Resultado do período</h2>
-    <p class="meta">
-        <?= (int) $res['vendas'] ?> venda(s) em <?= (int) $res['dias'] ?> dia(s) ·
-        custos fixos rateados por dia
-    </p>
+<?php
+$res = $r['resultado'];
+// Os tres custos que mais pesam ficam a vista; o resto recolhe em "Ver todos".
+$custos_extra = [
+    'Condomínio'                  => $res['condominio'],
+    'Franquia'                    => $res['franquia'],
+    'Imposto (Simples Nacional)'  => $res['imposto'],
+    'Energia, sistema e internet' => $res['fixos'],
+];
+?>
+<div class="cartao resultado">
+    <div class="cartao-cabeca">
+        <span class="cartao-icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 19v-5M12 19V9M18 19V5"/></svg>
+        </span>
+        <div>
+            <h2 class="sem-topo">Resultado do período</h2>
+            <p class="meta sem-margem">
+                <?= number_format((int) $res['vendas'], 0, ',', '.') ?> venda(s) em <?= (int) $res['dias'] ?> dia(s) ·
+                custos fixos rateados por dia
+            </p>
+        </div>
+    </div>
 
-    <dl class="dados">
-        <div><dt>Faturamento</dt><dd class="valor"><?= moeda($res['receita']) ?></dd></div>
-        <div><dt>Mercadoria (CMV)</dt><dd class="valor negativo">− <?= moeda($res['cmv']) ?></dd></div>
-        <div><dt>Maquininha</dt><dd class="valor negativo">− <?= moeda($res['taxa']) ?></dd></div>
-        <div><dt>Condomínio</dt><dd class="valor negativo">− <?= moeda($res['condominio']) ?></dd></div>
-        <div><dt>Franquia</dt><dd class="valor negativo">− <?= moeda($res['franquia']) ?></dd></div>
-        <div><dt>Imposto (Simples Nacional)</dt><dd class="valor negativo">− <?= moeda($res['imposto']) ?></dd></div>
-        <div><dt>Energia, sistema e internet</dt><dd class="valor negativo">− <?= moeda($res['fixos']) ?></dd></div>
-    </dl>
-
-    <div class="margem <?= $res['lucro'] >= 0 ? 'margem-boa' : 'margem-ruim' ?>">
+    <div class="margem margem-grande <?= $res['lucro'] >= 0 ? 'margem-boa' : 'margem-ruim' ?>">
         <strong class="margem-fator"><?= number_format($res['margem'], 1, ',', '.') ?><span>%</span></strong>
         <div class="margem-conta">
             <span class="margem-lucro"><?= $res['lucro'] >= 0 ? '+' : '−' ?><?= moeda(abs($res['lucro'])) ?></span>
             <span class="margem-linha">sobra depois de tudo, no período filtrado</span>
         </div>
     </div>
+
+    <dl class="dados dados-grandes">
+        <div><dt>Faturamento</dt><dd class="valor"><?= moeda($res['receita']) ?></dd></div>
+        <div><dt>Mercadoria (CMV)</dt><dd class="valor">− <?= moeda($res['cmv']) ?></dd></div>
+        <div><dt>Maquininha</dt><dd class="valor">− <?= moeda($res['taxa']) ?></dd></div>
+    </dl>
+    <details class="mais-custos">
+        <summary>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            <span class="fechado">Ver todos os custos (<?= count($custos_extra) ?> mais)</span>
+            <span class="aberto">Esconder custos</span>
+        </summary>
+        <dl class="dados dados-grandes">
+            <?php foreach ($custos_extra as $rot => $v): ?>
+                <div><dt><?= e($rot) ?></dt><dd class="valor">− <?= moeda($v) ?></dd></div>
+            <?php endforeach; ?>
+        </dl>
+    </details>
 
     <?php if ($r['cobertura'] < 99.5): ?>
         <p class="ajuda">
@@ -107,23 +76,54 @@ window.SYNC_JANELA = <?= json_encode(['de' => $f['de'], 'ate' => $f['ate']]) ?>;
     <?php endif; ?>
 </div>
 
-<?php if ($r['por_forma']): ?>
-    <h2>Como pagaram</h2>
-    <ul class="lista">
-        <?php foreach ($r['por_forma'] as $pf): ?>
-            <li><div class="linha-cartao">
-                <div class="linha-topo">
-                    <span class="forte"><?= e($formas[$pf['forma']] ?? $pf['forma']) ?></span>
-                    <span class="valor"><?= moeda($pf['total']) ?></span>
-                </div>
-                <div class="linha-baixo">
-                    <span><?= (int) $pf['n'] ?> venda(s)</span>
-                    <span><?= e(vendas_taxa_texto($pf)) ?></span>
-                </div>
-            </div></li>
-        <?php endforeach; ?>
-    </ul>
+<?php if ($r['por_forma']): $mostrar = 2; $extras = max(0, count($r['por_forma']) - $mostrar); ?>
+    <div class="cartao como-pagaram<?= $extras ? ' recolhido' : '' ?>" id="como-pagaram">
+        <div class="cartao-cabeca">
+            <span class="cartao-icone cartao-icone-plano" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
+            </span>
+            <h2 class="sem-topo">Como pagaram</h2>
+            <?php if ($extras): ?>
+                <button type="button" class="ver-mais" aria-controls="como-pagaram" aria-expanded="false">
+                    <span class="fechado">Ver mais</span><span class="aberto">Ver menos</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                </button>
+            <?php endif; ?>
+        </div>
+        <ul class="lista">
+            <?php foreach ($r['por_forma'] as $i => $pf): ?>
+                <li class="<?= $i >= $mostrar ? 'extra' : '' ?>"><div class="linha-cartao">
+                    <div class="linha-topo">
+                        <span class="forte"><?= e($formas[$pf['forma']] ?? $pf['forma']) ?></span>
+                        <span class="valor"><?= moeda($pf['total']) ?></span>
+                    </div>
+                    <div class="linha-baixo">
+                        <span><?= (int) $pf['n'] ?> venda(s)</span>
+                        <span><?= e(vendas_taxa_texto($pf)) ?></span>
+                    </div>
+                </div></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+    <?php if ($extras): ?>
+        <script>
+        (function () {
+            const caixa = document.getElementById('como-pagaram');
+            const botao = caixa.querySelector('.ver-mais');
+            botao.addEventListener('click', () => {
+                const aberto = !caixa.classList.toggle('recolhido');
+                botao.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+            });
+        })();
+        </script>
+    <?php endif; ?>
 <?php endif; ?>
+
+<p class="ajuda">
+    <strong>Arraste a tela para baixo</strong> para rebuscar este período no TouchPay e
+    regravar. Serve quando o número não bate com o painel deles: o sync automático só volta
+    3 dias, então buraco no meio do mês só sai daqui. Regravar não duplica.
+</p>
 
 <h2><?= e($r['rotulo']) ?></h2>
 <p class="ajuda">

@@ -17,59 +17,21 @@ $query = static fn (array $extra = []): string => http_build_query($extra + [
     'forma' => $f['forma'], 'categoria' => $f['categoria'], 'q' => $f['busca'],
 ]);
 ?>
-<h1>Loja</h1>
+<?= titulo_loja() ?>
 <?= abas_loja('/vendas') ?>
 <?= abas(['/vendas' => 'Resumo', '/vendas/transacoes' => 'Transações'], '/vendas/transacoes') ?>
 
-<div class="chips">
-    <?php foreach (vendas_periodos() as [$rotulo, $de, $ate]): ?>
-        <a class="chip <?= $f['de'] === $de && $f['ate'] === $ate ? 'ativo' : '' ?>"
-           href="/vendas/transacoes?<?= e($query(['de' => $de, 'ate' => $ate])) ?>"><?= e($rotulo) ?></a>
-    <?php endforeach; ?>
-</div>
-
-<form method="get" action="/vendas/transacoes">
-    <div class="filtros">
-        <label>De <input type="date" name="de" value="<?= e($f['de']) ?>"></label>
-        <label>Até <input type="date" name="ate" value="<?= e($f['ate']) ?>"></label>
-        <label>Ponto de venda
-            <select name="pdv_id">
-                <option value="">todos</option>
-                <?php foreach ($pdvs as $p): ?>
-                    <option value="<?= (int) $p['id'] ?>" <?= (int) $f['pdv_id'] === (int) $p['id'] ? 'selected' : '' ?>>
-                        <?= e($p['nome']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>Pagamento
-            <select name="forma">
-                <option value="">todas</option>
-                <?php foreach ($formas as $nome => $rotulo): ?>
-                    <option value="<?= e($nome) ?>" <?= $f['forma'] === $nome ? 'selected' : '' ?>><?= e($rotulo) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>Categoria
-            <select name="categoria">
-                <option value="">todas</option>
-                <?php foreach ($categorias as $cat): ?>
-                    <option value="<?= e($cat) ?>" <?= $f['categoria'] === $cat ? 'selected' : '' ?>><?= e($cat) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-    </div>
-    <div class="linha-form">
-        <input type="text" name="q" value="<?= e($f['busca']) ?>" placeholder="produto ou código da compra"
-               autocomplete="off" autocorrect="off" spellcheck="false">
-        <button type="submit" class="botao">Filtrar</button>
-    </div>
-    <p class="ajuda">
-        A busca procura dentro da compra: digitar um produto traz as compras que o levaram,
-        e com ele o que mais foi junto. A categoria funciona igual: filtra a compra inteira,
-        não só o item daquela categoria.
-    </p>
-</form>
+<?php
+$acao = '/vendas/transacoes';
+$agrupar_atual = null;
+$busca_dica = 'Produto ou código da compra';
+include __DIR__ . '/_vendas_filtros.php';
+?>
+<p class="ajuda">
+    A busca procura dentro da compra: digitar um produto traz as compras que o levaram,
+    e com ele o que mais foi junto. A categoria funciona igual: filtra a compra inteira,
+    não só o item daquela categoria.
+</p>
 
 <?php if (!$linhas): ?>
     <p class="vazio">Nenhuma compra no período.</p>

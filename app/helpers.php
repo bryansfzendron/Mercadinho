@@ -584,8 +584,10 @@ function url(string $caminho = '/'): string
  *
  * @param array<string,string> $abas    href => rotulo
  * @param array<string,string> $extras  href => atributos a mais no <a> (ja escapados)
+ * @param array<string,string> $icones  href => SVG (confiavel, do proprio app): vira a
+ *                                      grade de blocos com icone em cima do rotulo
  */
-function abas(array $abas, string $atual, array $extras = []): string
+function abas(array $abas, string $atual, array $extras = [], array $icones = []): string
 {
     // A pilula da aba ativa ganha nome de transicao de view: trocando de aba,
     // o navegador ve a mesma pilula nas duas paginas e a faz *deslizar* ate a
@@ -598,12 +600,16 @@ function abas(array $abas, string $atual, array $extras = []): string
     static $grupo = 0;
     $grupo++;
 
-    $html = '<nav class="abas">';
+    $html = '<nav class="abas' . ($icones ? ' abas-icones' : '') . '"'
+          . ($icones ? ' style="--abas-n:' . count($abas) . '"' : '') . '>';
     foreach ($abas as $href => $rotulo) {
         $eAtual = $href === $atual;
+        $miolo = isset($icones[$href])
+            ? '<span class="aba-icone" aria-hidden="true">' . $icones[$href] . '</span><span class="aba-rotulo">' . e($rotulo) . '</span>'
+            : e($rotulo);
         $html .= '<a class="aba' . ($eAtual ? ' ativo' : '') . '"'
                . ($eAtual ? ' style="--nome-aba:aba-ativa-' . $grupo . '"' : '')
-               . ' href="' . e($href) . '"' . ($extras[$href] ?? '') . '>' . e($rotulo) . '</a>';
+               . ' href="' . e($href) . '"' . ($extras[$href] ?? '') . '>' . $miolo . '</a>';
     }
     return $html . '</nav>';
 }
@@ -618,7 +624,29 @@ function abas_loja(string $atual): string
         '/margens'    => 'Margens',
         '/vendas'     => 'Vendas',
         '/metas'      => 'Metas',
-    ], $atual, ['/planograma' => ' data-pedir-pdv']) . conta_aviso_loja() . folha_pedir_pdv();
+    ], $atual, ['/planograma' => ' data-pedir-pdv'], icones_loja()) . conta_aviso_loja() . folha_pedir_pdv();
+}
+
+/** Os icones das abas da Loja, no traco dos icones da barra de baixo. */
+function icones_loja(): array
+{
+    $svg = static fn (string $miolo): string =>
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
+        . 'stroke-linecap="round" stroke-linejoin="round">' . $miolo . '</svg>';
+    return [
+        // caixa
+        '/loja'       => $svg('<path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="m4 7 8 4 8-4"/><path d="M12 11v10"/>'),
+        // setas girando
+        '/planograma' => $svg('<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>'),
+        // etiqueta
+        '/promocoes'  => $svg('<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.4"/>'),
+        // barras
+        '/margens'    => $svg('<rect x="4" y="13" width="3.5" height="7" rx="1"/><rect x="10.25" y="8" width="3.5" height="12" rx="1"/><rect x="16.5" y="4" width="3.5" height="16" rx="1"/>'),
+        // carrinho
+        '/vendas'     => $svg('<path d="M3 4h2.2l2 10.5a1.5 1.5 0 0 0 1.5 1.2h7.9a1.5 1.5 0 0 0 1.5-1.2L19.5 8H6"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="16.5" cy="19.5" r="1.3"/>'),
+        // alvo
+        '/metas'      => $svg('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.8"/><circle cx="12" cy="12" r="1.2"/><path d="m15.5 8.5 4-4"/>'),
+    ];
 }
 
 /**
@@ -739,7 +767,30 @@ function abas_config(string $atual): string
         '/config/metas'   => 'Metas',
         '/config/taxas'   => 'Taxas',
         '/config/touchpay' => 'TouchPay',
+        '/config/aparencia' => 'Aparência',
     ], $atual);
+}
+
+/** Os temas que a pessoa pode escolher: chave => [rotulo, explicacao]. */
+function temas(): array
+{
+    return [
+        'auto'   => ['Automático', 'Segue o celular: claro de dia, escuro quando ele estiver no modo escuro.'],
+        'claro'  => ['Claro', 'Sempre claro.'],
+        'escuro' => ['Escuro', 'Sempre escuro, em cinza.'],
+        'alpha'  => ['Alpha', 'Azul-marinho com brilho ciano, nas cores do logo. Sempre escuro.'],
+    ];
+}
+
+/**
+ * O tema deste aparelho. Mora num cookie, e nao no banco: e gosto de quem
+ * segura o celular, e o mesmo usuario pode querer um no telefone e outro no
+ * computador. Lido no servidor para a pagina ja chegar pintada, sem piscar.
+ */
+function tema_atual(): string
+{
+    $t = (string) ($_COOKIE['tema'] ?? 'auto');
+    return array_key_exists($t, temas()) ? $t : 'auto';
 }
 
 /**
@@ -757,4 +808,52 @@ function kpi_moldura(?float $variacao, bool $menor_melhor = false): string
     }
     $bom = $menor_melhor ? $variacao <= 0 : $variacao >= 0;
     return $bom ? 'kpi-up' : 'kpi-down';
+}
+
+/** O titulo das telas da Loja, com o icone da loja na frente. */
+function titulo_loja(): string
+{
+    return '<h1 class="titulo-icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" '
+         . 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+         . '<path d="M4 9.5V19a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9.5"/>'
+         . '<path d="M3 9.5 4.6 4.7A1 1 0 0 1 5.5 4h13a1 1 0 0 1 .9.7L21 9.5"/>'
+         . '<path d="M3 9.5a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/>'
+         . '<path d="M9.5 20v-5h5v5"/></svg>Loja</h1>';
+}
+
+/** "2026-10-03" -> "3 de out. de 2026". Funcao pura. */
+function data_curta_extenso(string $iso): string
+{
+    $t = strtotime($iso);
+    if ($t === false) {
+        return $iso;
+    }
+    $meses = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
+    return (int) date('j', $t) . ' de ' . $meses[(int) date('n', $t) - 1] . ' de ' . date('Y', $t);
+}
+
+/** O periodo escrito por extenso, para o campo de datas das telas de vendas. Funcao pura. */
+function periodo_texto(?string $de, ?string $ate): string
+{
+    $de = $de ?: null;
+    $ate = $ate ?: null;
+    if ($de === null && $ate === null) {
+        return 'Todo o período';
+    }
+    if ($de !== null && $de === $ate) {
+        return data_curta_extenso($de);
+    }
+    if ($de === null) {
+        return 'até ' . data_curta_extenso((string) $ate);
+    }
+    if ($ate === null) {
+        return 'desde ' . data_curta_extenso($de);
+    }
+    // Mesmo ano: ele aparece uma vez so, no fim — e, sendo o ano de agora, nem
+    // isso. Senao o campo nao cabe no celular ao lado do botao de filtros.
+    if (substr($de, 0, 4) === substr((string) $ate, 0, 4)) {
+        $sem_ano = static fn (string $d): string => (string) preg_replace('/ de \d{4}$/', '', data_curta_extenso($d));
+        return $sem_ano($de) . ' – ' . (substr($de, 0, 4) === date('Y') ? $sem_ano((string) $ate) : data_curta_extenso((string) $ate));
+    }
+    return data_curta_extenso($de) . ' – ' . data_curta_extenso($ate);
 }

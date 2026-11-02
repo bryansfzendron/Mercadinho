@@ -8,7 +8,7 @@
  * @var bool   $meta_propria o PDV escolhido tem meta propria
  */
 ?>
-<h1>Loja</h1>
+<?= titulo_loja() ?>
 <?= abas_loja('/metas') ?>
 
 <form method="get" action="/metas">

@@ -2,12 +2,13 @@
 $usuario = usuario_atual();
 $rota    = rota_atual();
 $flashes = flash_pegar();
+$tema    = tema_atual();
 ?><!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR"<?= $tema !== 'auto' ? ' data-tema="' . e($tema) . '"' : '' ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#071c3d">
+<meta name="theme-color" content="<?= $tema === 'alpha' ? '#050d1f' : '#071c3d' ?>">
 <title><?= e($titulo) ?> · Alpha Market</title>
 <?php // O puxar-para-atualizar pede a sincronizacao por POST, e toda rota que
       // grava exige o token. So sai para quem esta logado. ?>
@@ -20,7 +21,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=60">
+<link rel="stylesheet" href="/assets/app.css?v=64">
 </head>
 <body>
 
