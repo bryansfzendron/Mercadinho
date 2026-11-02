@@ -392,3 +392,108 @@ function produto_do_ean(string $ean, ?int $produto_atual, string $descricao, ?st
         'unidade'        => $unidade,
     ]);
 }
+
+/**
+ * Produtos da base que batem com um nome digitado, cada um com o codigo de
+ * barras — o caminho de volta do "codigo -> nome" da nota manual.
+ *
+ * Duas fontes, so com codigo de barras (sem ele nao ha o que sugerir):
+ *  - as notas desta pessoa, com o preco da ultima compra;
+ *  - o catalogo da loja da conta dela no TouchPay.
+ * Cada palavra digitada tem de aparecer no nome, em qualquer ordem; a
+ * collation da tabela ja ignora acento e maiuscula.
+ *
+ * @return array<int, array{nome:string, ean:string, ultimo:?float, fonte:string}>
+ */
+function produtos_sugerir(string $busca, int $usuario_id, int $limite = 8): array
+{
+    $palavras = produtos_palavras($busca);
+    if (!$palavras) {
+        return [];
+    }
+
+    $onde_nota = [];
+    $args_nota = [$usuario_id, 'ok'];
+    $onde_loja = [];
+    $args_loja = [];
+    foreach ($palavras as $w) {
+        $curinga = '%' . $w . '%';
+        $onde_nota[] = '(p.descricao LIKE ? OR i.descricao_original LIKE ?)';
+        array_push($args_nota, $curinga, $curinga);
+        $onde_loja[] = 'li.descricao LIKE ?';
+        $args_loja[] = $curinga;
+    }
+
+    // Da mais nova para a mais velha: o primeiro de cada codigo e o preco que vale.
+    $das_notas = q(
+        'SELECT p.descricao AS nome, p.ean, i.valor_unitario_liquido AS ultimo
+           FROM itens i
+           JOIN notas n    ON n.id = i.nota_id
+           JOIN produtos p ON p.id = i.produto_id
+          WHERE n.usuario_id = ? AND n.status = ? AND p.ean IS NOT NULL AND p.ean <> \'\'
+            AND ' . implode(' AND ', $onde_nota) . '
+       ORDER BY n.emissao DESC, n.id DESC
+          LIMIT 300',
+        $args_nota
+    );
+    $da_loja = q(
+        'SELECT li.descricao AS nome, li.ean
+           FROM loja_itens li
+           JOIN loja_pdvs pv ON pv.id = li.pdv_id
+          WHERE li.ean IS NOT NULL AND li.ean <> \'\' AND ' . conta_sql('pv.conta_id') . '
+            AND ' . implode(' AND ', $onde_loja) . '
+          LIMIT 300',
+        $args_loja
+    );
+
+    return produtos_sugestoes_juntar($das_notas, $da_loja, $busca, $limite);
+}
+
+/** As palavras de uma busca, sem as de uma letra so (o "e" de "arroz e feijao"). Funcao pura. */
+function produtos_palavras(string $busca): array
+{
+    $palavras = preg_split('/\s+/u', trim($busca)) ?: [];
+    $palavras = array_filter($palavras, static fn (string $w): bool => mb_strlen($w) >= 2);
+    return array_slice(array_values(array_unique($palavras)), 0, 6);
+}
+
+/**
+ * Um produto por codigo de barras, na ordem que a tela mostra. Funcao pura.
+ *
+ * O nome da nota ganha do da loja (e como voce compra), e o que voce ja
+ * comprou vem antes do que so esta na prateleira. Dentro disso, quem comeca
+ * com o que foi digitado sobe.
+ */
+function produtos_sugestoes_juntar(array $das_notas, array $da_loja, string $busca, int $limite = 8): array
+{
+    $por_ean = [];
+    foreach ($das_notas as $l) {
+        $ean = (string) $l['ean'];
+        if ($ean === '' || isset($por_ean[$ean])) {
+            continue;
+        }
+        $por_ean[$ean] = ['nome' => (string) $l['nome'], 'ean' => $ean,
+                          'ultimo' => $l['ultimo'] === null ? null : (float) $l['ultimo'], 'fonte' => 'nota'];
+    }
+    foreach ($da_loja as $l) {
+        $ean = (string) $l['ean'];
+        if ($ean === '' || isset($por_ean[$ean])) {
+            continue;
+        }
+        $por_ean[$ean] = ['nome' => (string) $l['nome'], 'ean' => $ean, 'ultimo' => null, 'fonte' => 'loja'];
+    }
+
+    $inicio = mb_strtolower(trim($busca));
+    $lista = array_values($por_ean);
+    usort($lista, static function (array $a, array $b) use ($inicio): int {
+        $fa = $a['fonte'] === 'nota' ? 0 : 1;
+        $fb = $b['fonte'] === 'nota' ? 0 : 1;
+        if ($fa !== $fb) {
+            return $fa <=> $fb;
+        }
+        $ca = str_starts_with(mb_strtolower($a['nome']), $inicio) ? 0 : 1;
+        $cb = str_starts_with(mb_strtolower($b['nome']), $inicio) ? 0 : 1;
+        return $ca <=> $cb ?: strcmp($a['nome'], $b['nome']);
+    });
+    return array_slice($lista, 0, $limite);
+}

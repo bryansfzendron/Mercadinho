@@ -1414,3 +1414,18 @@ details.animando { overflow: hidden; }
 }
 .interruptor.ligado { background: #34c759; }
 .interruptor.ligado span { transform: translateX(20px); }
+
+/* Nota manual: produtos da base que batem com o nome digitado. */
+.sugestoes {
+    list-style: none; margin: -.4rem 0 .7rem; padding: .25rem; border-radius: 12px;
+    background: var(--cartao); border: 1px solid var(--vidro-borda);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .12); max-height: 18rem; overflow-y: auto;
+}
+.sugestoes button {
+    display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; width: 100%;
+    padding: .55rem .6rem; border: 0; border-radius: 9px; background: none; color: inherit;
+    font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.sugestoes button:hover, .sugestoes button:active { background: rgba(127, 127, 127, .1); }
+.sugestao-nome { font-size: .95rem; }
+.sugestao-meta { font-size: .76rem; color: var(--suave); font-variant-numeric: tabular-nums; }

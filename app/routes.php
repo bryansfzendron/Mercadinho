@@ -69,6 +69,10 @@ function despachar(string $rota): void
     if ($rota === '/api/notas' && $m === 'POST')   { rota_api_nota_nova($u); return; }
     if ($rota === '/api/produto' && $m === 'GET')  { rota_api_produto($u); return; }
     if ($rota === '/api/ean' && $m === 'GET')     { rota_api_ean($u); return; }
+    if ($rota === '/api/produtos/sugerir' && $m === 'GET') {
+        // Nome digitado -> produtos da base com codigo de barras (nota manual).
+        json_resposta(['itens' => produtos_sugerir((string) ($_GET['q'] ?? ''), (int) $u['id'])]);
+    }
     if ($rota === '/api/ean' && $m === 'POST')    { rota_api_ean_gravar($u); return; }
     if ($rota === '/api/sync/estado' && $m === 'GET') { rota_api_sync_estado($u); return; }
     if ($rota === '/api/sincronizar' && $m === 'POST') { rota_api_sincronizar($u); return; }

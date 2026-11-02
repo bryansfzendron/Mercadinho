@@ -94,8 +94,9 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
             '</div>' +
             '<label>Descrição' +
               '<input type="text" name="itens[' + i + '][descricao]" class="campo-desc" required ' +
-                     'placeholder="Arroz 5kg">' +
+                     'placeholder="Arroz 5kg" autocomplete="off">' +
             '</label>' +
+            '<ul class="sugestoes" hidden></ul>' +
             '<p class="ajuda dica-nome"></p>' +
             '<div class="tres">' +
               '<label>Qtd<input type="text" name="itens[' + i + '][quantidade]" class="qtd" ' +
@@ -116,6 +117,7 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
         div.querySelector('.bipar').addEventListener('click', () => ligarCamera(div.querySelector('.campo-ean')));
         div.querySelectorAll('.qtd, .vu').forEach(c => c.addEventListener('input', recalcular));
         procurarNome(div);
+        sugerirPorNome(div);
         itens.appendChild(div);
         if (ean) avisarCodigo(div.querySelector('.campo-ean'));
         return div;
@@ -180,6 +182,83 @@ $ean_inicial = ean_normalizado($_GET['ean'] ?? '') ?? '';
 
         campoEan.addEventListener('change', buscar);
         campoEan.addEventListener('blur', buscar);
+    }
+
+    /*
+     * O caminho de volta: digitando o nome, os produtos da sua base que batem
+     * aparecem com o codigo de barras (das suas notas e do catalogo da loja).
+     * Tocar num deles preenche nome e codigo; o codigo novo dispara a procura
+     * de cima, que traz o preco da ultima nota. Nada e obrigatorio: quem nao
+     * escolhe segue digitando como antes.
+     */
+    function sugerirPorNome(div) {
+        const campoEan  = div.querySelector('.campo-ean');
+        const campoDesc = div.querySelector('.campo-desc');
+        const lista     = div.querySelector('.sugestoes');
+        let relogio = null;
+        let pedido = null;
+        let ultimaBusca = '';
+
+        function fechar() {
+            lista.hidden = true;
+            lista.innerHTML = '';
+        }
+
+        function moeda(v) {
+            return 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+        }
+
+        function desenhar(itensAchados) {
+            lista.innerHTML = '';
+            if (!itensAchados.length) { fechar(); return; }
+            itensAchados.forEach((s) => {
+                const li = document.createElement('li');
+                const b = document.createElement('button');
+                b.type = 'button';
+                const nome = document.createElement('span');
+                nome.className = 'sugestao-nome';
+                nome.textContent = s.nome;
+                const meta = document.createElement('span');
+                meta.className = 'sugestao-meta';
+                meta.textContent = s.ean + (s.ultimo ? ' · ' + moeda(s.ultimo) + ' na última nota' : ' · na loja');
+                b.appendChild(nome);
+                b.appendChild(meta);
+                // pointerdown, e nao click: o blur do campo fecharia a lista
+                // antes de o toque chegar ao botao.
+                b.addEventListener('pointerdown', (ev) => {
+                    ev.preventDefault();
+                    campoDesc.value = s.nome;
+                    campoEan.value = s.ean;
+                    fechar();
+                    avisarCodigo(campoEan);
+                });
+                li.appendChild(b);
+                lista.appendChild(li);
+            });
+            lista.hidden = false;
+        }
+
+        async function procurar(q) {
+            if (pedido) pedido.abort();
+            pedido = new AbortController();
+            try {
+                const r = await fetch('/api/produtos/sugerir?q=' + encodeURIComponent(q), { signal: pedido.signal });
+                const d = await Resposta.ler(r);
+                // Resposta atrasada de uma busca velha nao desenha por cima.
+                if (q !== ultimaBusca || document.activeElement !== campoDesc) return;
+                desenhar((d && d.itens) || []);
+            } catch (e) { /* abortada ou sem rede: fica sem sugestao */ }
+        }
+
+        campoDesc.addEventListener('input', () => {
+            clearTimeout(relogio);
+            const q = campoDesc.value.trim();
+            ultimaBusca = q;
+            if (q.length < 3) { fechar(); return; }
+            relogio = setTimeout(() => procurar(q), 250);
+        });
+        campoDesc.addEventListener('blur', () => setTimeout(fechar, 150));
+        campoDesc.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') fechar(); });
     }
 
     /*
