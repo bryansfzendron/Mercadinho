@@ -195,12 +195,12 @@ foreach ($historico as $h) {
     </div>
 <?php endif; ?>
 
-<?php $recolhe = count($historico) > 10; ?>
+<?php $recolhe = count($historico) > LISTA_A_VISTA; ?>
 <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
-<?= cartao_cabeca('nota', 'Compras', count($historico) . ' compra(s)', $recolhe ? ver_mais_botao('Ver todas', 'Ver menos') : '') ?>
+<?= cartao_cabeca('nota', 'Compras', count($historico) . ' compra(s)') ?>
 <ul class="lista">
     <?php foreach ($historico as $k => $h): ?>
-        <li class="<?= $recolhe && $k >= 10 ? 'extra' : '' ?>">
+        <li class="<?= $recolhe && $k >= LISTA_A_VISTA ? 'extra' : '' ?>">
             <a href="/notas/<?= (int) $h['nota_id'] ?>">
                 <div class="linha-topo">
                     <span class="forte"><?= e($h['loja'] ?? 'Sem loja') ?></span>
@@ -235,4 +235,5 @@ foreach ($historico as $h) {
         </li>
     <?php endforeach; ?>
 </ul>
+<?= $recolhe ? ver_mais_baixo('Ver todas (' . count($historico) . ')') : '' ?>
 </div>

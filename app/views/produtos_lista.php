@@ -12,13 +12,12 @@
     <p class="vazio">
         <?= $busca !== '' ? 'Nada encontrado para essa busca.' : 'Nenhum produto ainda.' ?>
     </p>
-<?php else: $recolhe = count($produtos) > 30; ?>
+<?php else: $recolhe = count($produtos) > LISTA_A_VISTA; ?>
     <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
-    <?= cartao_cabeca('produto', 'Comprados', count($produtos) . ' produto(s)' . ($busca !== '' ? ' nesta busca' : ''),
-        $recolhe ? ver_mais_botao('Ver todos', 'Ver menos') : '') ?>
+    <?= cartao_cabeca('produto', 'Comprados', count($produtos) . ' produto(s)' . ($busca !== '' ? ' nesta busca' : '')) ?>
     <ul class="lista">
         <?php foreach ($produtos as $k => $p): ?>
-            <li class="<?= $recolhe && $k >= 30 ? 'extra' : '' ?>">
+            <li class="<?= $recolhe && $k >= LISTA_A_VISTA ? 'extra' : '' ?>">
                 <a href="/produtos/<?= (int) $p['id'] ?>">
                     <div class="linha-topo">
                         <span class="forte"><?= e($p['descricao']) ?></span>
@@ -52,5 +51,6 @@
             </li>
         <?php endforeach; ?>
     </ul>
+    <?= $recolhe ? ver_mais_baixo('Ver todos (' . count($produtos) . ')') : '' ?>
     </div>
 <?php endif; ?>

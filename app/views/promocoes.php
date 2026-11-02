@@ -37,10 +37,9 @@ $hoje = date('Y-m-d');
     </div>
 <?php endif; ?>
 
-<?php $mostrar = 8; $recolhe = count($sugeridas) > $mostrar; ?>
+<?php $mostrar = LISTA_A_VISTA; $recolhe = count($sugeridas) > $mostrar; ?>
 <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
-    <?= cartao_cabeca('etiqueta', 'Pedem promoção', count($sugeridas) . ' item(ns) que não saem a tempo no preço de hoje',
-        $recolhe ? ver_mais_botao('Ver todos', 'Ver menos') : '', true) ?>
+    <?= cartao_cabeca('etiqueta', 'Pedem promoção', count($sugeridas) . ' item(ns) que não saem a tempo no preço de hoje', '', true) ?>
     <?php if (!$sugeridas): ?>
         <p class="vazio">
             Nada pedindo promoção agora.<br>
@@ -77,6 +76,7 @@ $hoje = date('Y-m-d');
                 </a></li>
             <?php endforeach; ?>
         </ul>
+        <?= $recolhe ? ver_mais_baixo('Ver todos (' . count($sugeridas) . ')') : '' ?>
     <?php endif; ?>
 </div>
 
@@ -104,14 +104,14 @@ $linha_tp = static function (array $l, string $hoje, bool $extra = false): strin
 <?php if ($tp_ok): ?>
     <?php $recolhe = count($valendo) > $mostrar; ?>
     <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
-        <?= cartao_cabeca('repor', 'No TouchPay', count($valendo) . ' no ar ou agendada(s)',
-            $recolhe ? ver_mais_botao('Ver todas', 'Ver menos') : '') ?>
+        <?= cartao_cabeca('repor', 'No TouchPay', count($valendo) . ' no ar ou agendada(s)') ?>
         <?php if (!$valendo): ?>
             <p class="vazio">Nenhuma promoção no ar ou agendada.</p>
         <?php else: ?>
             <ul class="lista">
                 <?php foreach ($valendo as $n => $l) { echo $linha_tp($l, $hoje, $recolhe && $n >= $mostrar); } ?>
             </ul>
+            <?= $recolhe ? ver_mais_baixo('Ver todas (' . count($valendo) . ')') : '' ?>
         <?php endif; ?>
         <?php if ($encerradas): ?>
             <?= mais_inicio('Ver encerradas nos últimos 30 dias (' . count($encerradas) . ')', 'Esconder encerradas') ?>

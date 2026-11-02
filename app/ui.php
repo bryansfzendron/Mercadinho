@@ -10,6 +10,13 @@ declare(strict_types=1);
  * proprio app.
  */
 
+/**
+ * Quantos itens uma lista mostra antes do "Ver mais". Pouco de proposito: o
+ * botao fica perto do que esta a vista e ninguem desce a lista inteira para
+ * ter de voltar ao topo e abrir o resto.
+ */
+const LISTA_A_VISTA = 5;
+
 /** Um icone de traco, no feitio dos da barra de baixo. */
 function icone(string $nome, string $classe = ''): string
 {
@@ -30,6 +37,8 @@ function icone(string $nome, string $classe = ''): string
         'cartao'    => '<rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/>',
         'nota'      => '<path d="M6.5 3h7l4 4v13a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M13.5 3v4h4"/><path d="M8.5 12.5h7M8.5 16h5"/>',
         'produto'   => '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+        // A casa com porta da barra de baixo, para o titulo da Inicio.
+        'inicio'    => '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v8.5a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4h4v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1V10"/>',
         'casa'      => '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/>',
         'painel'    => '<rect x="4" y="12" width="4" height="8" rx="1"/><rect x="10" y="8" width="4" height="12" rx="1"/><rect x="16" y="4" width="4" height="16" rx="1"/>',
         'engrenagem'=> '<circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
@@ -79,6 +88,16 @@ function cartao_cabeca(string $icone, string $titulo, ?string $legenda = null, s
  * O liga/desliga e do assets/ver-mais.js; sem JS, nada fica escondido
  * (a classe .recolhido so entra pelo proprio script).
  */
+/**
+ * O "Ver mais" embaixo da lista, onde termina a leitura: quem chega ao fim
+ * dos itens a vista nao tem de subir para abrir o resto. Vai dentro do
+ * .recolhivel, logo depois da lista.
+ */
+function ver_mais_baixo(string $mais = 'Ver mais', string $menos = 'Ver menos'): string
+{
+    return '<div class="ver-mais-baixo">' . ver_mais_botao($mais, $menos) . '</div>';
+}
+
 function ver_mais_botao(string $mais = 'Ver mais', string $menos = 'Ver menos'): string
 {
     return '<button type="button" class="ver-mais" data-ver-mais aria-expanded="false">'

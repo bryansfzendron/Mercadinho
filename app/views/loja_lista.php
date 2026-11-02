@@ -111,21 +111,22 @@ foreach ($pdvs as $p) {
         ? loja_faixas_validade($itens)
         : [['rotulo' => null, 'classe' => '', 'itens' => $itens]];
     ?>
-    <?php // A lista vai inteira: com 30 a vista e o "Ver todos" no topo,
-          // quem chegava ao fim tinha de subir tudo para abrir o resto. A
-          // busca e os filtros la em cima e que encurtam a lista. ?>
-    <div class="cartao">
+    <?php // Poucos a vista e o "Ver todos" logo abaixo deles. Por vencimento
+          // a conta corre pelas faixas: a faixa que fica toda escondida
+          // esconde o titulo junto. ?>
+    <?php $recolhe = count($itens) > LISTA_A_VISTA; $n_item = 0; ?>
+    <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
     <?= cartao_cabeca('lista', $ordem === 'validade' ? 'Por vencimento' : 'Itens',
         number_format(count($itens), 0, ',', '.') . ' neste filtro') ?>
-    <?php foreach ($grupos as $g): ?>
+    <?php foreach ($grupos as $g): $g_extra = $recolhe && $n_item >= LISTA_A_VISTA ? ' extra' : ''; ?>
     <?php if ($g['rotulo'] !== null): ?>
-        <h2 class="faixa-validade <?= e($g['classe']) ?>">
+        <h2 class="faixa-validade <?= e($g['classe']) . $g_extra ?>">
             <?= e($g['rotulo']) ?> <span><?= count($g['itens']) ?></span>
         </h2>
     <?php endif; ?>
-    <ul class="lista">
-        <?php foreach ($g['itens'] as $l): ?>
-            <li>
+    <ul class="lista<?= $g_extra ?>">
+        <?php foreach ($g['itens'] as $l): $n_item++; ?>
+            <li class="<?= $recolhe && $n_item > LISTA_A_VISTA ? 'extra' : '' ?>">
                 <?php
                 // Produto ja conhecido leva para o historico; o resto e so leitura.
                 // Por vencimento a pergunta e outra — "por quanto ponho isto para
@@ -185,6 +186,7 @@ foreach ($pdvs as $p) {
         <?php endforeach; ?>
     </ul>
     <?php endforeach; ?>
+    <?= $recolhe ? ver_mais_baixo('Ver todos (' . count($itens) . ')') : '' ?>
     </div>
 <?php endif; ?>
 

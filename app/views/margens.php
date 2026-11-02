@@ -63,13 +63,12 @@ $chips = [
             Nada aqui. Sincronize preços e estoque, ou afine a busca.
         <?php endif; ?>
     </p>
-<?php else: $recolhe = count($itens) > 30; ?>
+<?php else: $recolhe = count($itens) > LISTA_A_VISTA; ?>
     <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
-        <?= cartao_cabeca('barras', 'Produtos', number_format(count($itens), 0, ',', '.') . ' neste filtro',
-            $recolhe ? ver_mais_botao('Ver todos', 'Ver menos') : '') ?>
+        <?= cartao_cabeca('barras', 'Produtos', number_format(count($itens), 0, ',', '.') . ' neste filtro') ?>
         <ul class="lista">
             <?php foreach ($itens as $n => $i): [$rotulo, $classe, $selo] = custo_veredito_rotulo($i['veredito']); ?>
-                <li class="<?= $recolhe && $n >= 30 ? 'extra' : '' ?>"><div class="linha-cartao">
+                <li class="<?= $recolhe && $n >= LISTA_A_VISTA ? 'extra' : '' ?>"><div class="linha-cartao">
                     <div class="linha-topo">
                         <span class="forte"><?= e($i['descricao']) ?></span>
                         <span class="valor"><?= $i['fator'] === null ? '—' : number_format($i['fator'], 2, ',', '.') . 'x' ?></span>
@@ -104,5 +103,6 @@ $chips = [
                 </div></li>
             <?php endforeach; ?>
         </ul>
+        <?= $recolhe ? ver_mais_baixo('Ver todos (' . count($itens) . ')') : '' ?>
     </div>
 <?php endif; ?>

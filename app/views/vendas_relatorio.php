@@ -64,7 +64,7 @@ $custos_extra = [
 
 <?php if ($r['por_forma']): $mostrar = 2; ?>
     <div class="cartao como-pagaram recolhivel">
-        <?= cartao_cabeca('cartao', 'Como pagaram', null, count($r['por_forma']) > $mostrar ? ver_mais_botao() : '') ?>
+        <?= cartao_cabeca('cartao', 'Como pagaram') ?>
         <ul class="lista">
             <?php foreach ($r['por_forma'] as $i => $pf): ?>
                 <li class="<?= $i >= $mostrar ? 'extra' : '' ?>"><div class="linha-cartao">
@@ -79,6 +79,7 @@ $custos_extra = [
                 </div></li>
             <?php endforeach; ?>
         </ul>
+        <?= count($r['por_forma']) > $mostrar ? ver_mais_baixo('Ver todas (' . count($r['por_forma']) . ')') : '' ?>
     </div>
 <?php endif; ?>
 
@@ -109,10 +110,11 @@ $filtro_detalhe = array_filter([
 ?>
 <?php if (!$r['linhas']): ?>
     <p class="vazio">Nenhuma venda no período. Importe as vendas na tela inicial.</p>
-<?php else: ?>
+<?php else: $recolhe = count($r['linhas']) > LISTA_A_VISTA; ?>
+    <div class="<?= $recolhe ? 'recolhivel' : '' ?>">
     <ul class="lista">
-        <?php foreach ($r['linhas'] as $l): ?>
-            <li><?php if ($abre): ?><details class="compra"
+        <?php foreach (array_values($r['linhas']) as $n_linha => $l): ?>
+            <li class="<?= $recolhe && $n_linha >= LISTA_A_VISTA ? 'extra' : '' ?>"><?php if ($abre): ?><details class="compra"
                     data-detalhe="/vendas/produto?<?= e(http_build_query(['grupo' => (string) $l['grupo']] + $filtro_detalhe)) ?>">
                 <summary><?php else: ?><div class="linha-cartao"><?php endif; ?>
                 <div class="linha-topo">
@@ -138,6 +140,8 @@ $filtro_detalhe = array_filter([
             </details><?php else: ?></div><?php endif; ?></li>
         <?php endforeach; ?>
     </ul>
+    <?= $recolhe ? ver_mais_baixo('Ver todos (' . count($r['linhas']) . ')') : '' ?>
+    </div>
 <?php endif; ?>
 
 <p class="ajuda centro">

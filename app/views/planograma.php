@@ -118,10 +118,10 @@
 
     <?php if ($log): ?>
         <div class="cartao recolhivel">
-        <?= cartao_cabeca('relogio', 'Últimas alterações', count($log) . ' mais recentes', count($log) > 5 ? ver_mais_botao() : '') ?>
+        <?= cartao_cabeca('relogio', 'Últimas alterações', count($log) . ' mais recentes') ?>
         <ul class="lista" id="pg-log">
             <?php foreach ($log as $n_log => $l): ?>
-                <li class="<?= $n_log >= 5 ? 'extra' : '' ?>"><div class="linha-cartao">
+                <li class="<?= $n_log >= LISTA_A_VISTA ? 'extra' : '' ?>"><div class="linha-cartao">
                     <div class="linha-topo">
                         <span class="forte"><?= e($l['descricao'] ?: ('produto ' . $l['produto_externo_id'])) ?></span>
                         <span class="valor<?= $l['ok'] ? '' : ' negativo' ?>">
@@ -146,6 +146,7 @@
                 </div></li>
             <?php endforeach; ?>
         </ul>
+        <?= count($log) > LISTA_A_VISTA ? ver_mais_baixo('Ver todas (' . count($log) . ')') : '' ?>
         </div>
     <?php endif; ?>
 </div>

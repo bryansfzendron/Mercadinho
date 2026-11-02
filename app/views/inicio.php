@@ -87,7 +87,7 @@ $lista_vendidos = static function (array $produtos, string $vazio, string $de, s
         $detalhe = '/vendas/produto?' . http_build_query([
             'grupo' => (string) $p['grupo'], 'de' => $de, 'ate' => $ate, 'pdv_id' => $pdv_id ?: null,
         ]);
-        $html .= '<li' . ($n_prod >= 10 ? ' class="extra"' : '') . '><details class="compra" data-detalhe="' . e($detalhe) . '">'
+        $html .= '<li' . ($n_prod >= LISTA_A_VISTA ? ' class="extra"' : '') . '><details class="compra" data-detalhe="' . e($detalhe) . '">'
                . '<summary>' . $linha . '</summary>'
                . '<div data-detalhe-corpo><p class="ajuda">Carregando…</p></div>'
                . '</details></li>';
@@ -95,6 +95,7 @@ $lista_vendidos = static function (array $produtos, string $vazio, string $de, s
     return $html . '</ul>';
 };
 ?>
+<h1 class="titulo-painel titulo-icone"><?= icone('inicio') ?>Início</h1>
 <p class="inicio-sub">Gestão do seu negócio</p>
 
 <?php // O mesmo aviso do topo da Loja: sem conta TouchPay, a capa fica zerada. ?>
@@ -214,20 +215,23 @@ foreach ($pdvs as $p) {
         ?>
         <?php $lista = $vendidos[$b['data']] ?? []; ?>
         <section class="cartao recolhivel" data-lista="<?= e($b['data']) ?>" <?= $b['hoje'] ? '' : 'hidden' ?>>
-            <?= cartao_cabeca('carrinho', $titulo, count($lista) . ' produto(s)', count($lista) > 10 ? ver_mais_botao('Ver todos', 'Ver menos') : '', true) ?>
+            <?= cartao_cabeca('carrinho', $titulo, count($lista) . ' produto(s)', '', true) ?>
             <?= $lista_vendidos($lista, $vazio, $b['data'], $b['data']) ?>
+            <?= count($lista) > LISTA_A_VISTA ? ver_mais_baixo('Ver todos (' . count($lista) . ')') : '' ?>
         </section>
     <?php endforeach; ?>
 
     <?php $lista = $vendidos['semana'] ?? []; ?>
     <section class="cartao recolhivel" data-lista="semana" hidden>
-        <?= cartao_cabeca('carrinho', 'Vendidos na semana', count($lista) . ' produto(s)', count($lista) > 10 ? ver_mais_botao('Ver todos', 'Ver menos') : '', true) ?>
+        <?= cartao_cabeca('carrinho', 'Vendidos na semana', count($lista) . ' produto(s)', '', true) ?>
         <?= $lista_vendidos($lista, 'Nenhum produto vendido nesta semana.', $s['de'], $s['ate']) ?>
+        <?= count($lista) > LISTA_A_VISTA ? ver_mais_baixo('Ver todos (' . count($lista) . ')') : '' ?>
     </section>
 
     <?php $lista = $vendidos['mes'] ?? []; ?>
     <section class="cartao recolhivel" data-lista="mes" hidden>
-        <?= cartao_cabeca('carrinho', 'Vendidos no mês', count($lista) . ' produto(s)', count($lista) > 10 ? ver_mais_botao('Ver todos', 'Ver menos') : '', true) ?>
+        <?= cartao_cabeca('carrinho', 'Vendidos no mês', count($lista) . ' produto(s)', '', true) ?>
         <?= $lista_vendidos($lista, 'Nenhum produto vendido neste mês.', $m['de'], $m['ate']) ?>
+        <?= count($lista) > LISTA_A_VISTA ? ver_mais_baixo('Ver todos (' . count($lista) . ')') : '' ?>
     </section>
 </div>

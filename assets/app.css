@@ -1646,3 +1646,8 @@ details.animando { overflow: hidden; }
 @media (max-width: 420px) {
     .vf-linha > .vf-escolha:not(:only-child) .vf-seta { display: none; }
 }
+/* O "Ver todos" embaixo da lista, centrado, colado nos itens. Numa lista
+   solta (fora de cartao) ganha folga embaixo antes do que vem depois. */
+.ver-mais-baixo { display: flex; justify-content: center; margin-top: .55rem; }
+.ver-mais-baixo .ver-mais { padding: .45rem .8rem; }
+.recolhivel:not(.cartao) > .ver-mais-baixo { margin-bottom: 1rem; }

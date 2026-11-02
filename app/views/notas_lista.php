@@ -53,12 +53,12 @@
 
 <?php if (!$notas): ?>
     <p class="vazio">Nenhuma nota ainda. Escaneie o QR Code de um cupom para começar.</p>
-<?php else: $recolhe = count($notas) > 15; ?>
+<?php else: $recolhe = count($notas) > LISTA_A_VISTA; ?>
     <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
-    <?= cartao_cabeca('nota', 'Notas', count($notas) . ' lançada(s)', $recolhe ? ver_mais_botao('Ver todas', 'Ver menos') : '') ?>
+    <?= cartao_cabeca('nota', 'Notas', count($notas) . ' lançada(s)') ?>
     <ul class="lista">
         <?php foreach ($notas as $k => $n): ?>
-            <li class="<?= $recolhe && $k >= 15 ? 'extra' : '' ?>">
+            <li class="<?= $recolhe && $k >= LISTA_A_VISTA ? 'extra' : '' ?>">
                 <a href="/notas/<?= (int) $n['id'] ?>">
                     <div class="linha-topo">
                         <span class="forte"><?= e($n['loja'] ?? 'Sem loja identificada') ?></span>
@@ -84,6 +84,7 @@
             </li>
         <?php endforeach; ?>
     </ul>
+    <?= $recolhe ? ver_mais_baixo('Ver todas (' . count($notas) . ')') : '' ?>
     </div>
 <?php endif; ?>
 

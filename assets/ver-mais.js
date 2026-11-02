@@ -28,6 +28,12 @@
         if (!caixa) return;
         const aberto = !caixa.classList.toggle('recolhido');
         botao.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+        // O "Ver menos" fica no fim da lista aberta. Ao recolher, a lista
+        // encolhe por cima de quem tocou e a tela cairia la embaixo, longe
+        // dela: volta para o comeco da caixa se ele saiu da tela.
+        if (!aberto && caixa.getBoundingClientRect().top < 0) {
+            caixa.scrollIntoView({ block: 'start' });
+        }
     });
 
     if (doc.readyState === 'loading') {
