@@ -767,31 +767,9 @@ function abas_config(string $atual): string
         '/config/metas'   => 'Metas',
         '/config/taxas'   => 'Taxas',
         '/config/touchpay' => 'TouchPay',
-        '/config/aparencia' => 'Aparência',
     ], $atual);
 }
 
-/** Os temas que a pessoa pode escolher: chave => [rotulo, explicacao]. */
-function temas(): array
-{
-    return [
-        'auto'   => ['Automático', 'Segue o celular: claro de dia, escuro quando ele estiver no modo escuro.'],
-        'claro'  => ['Claro', 'Sempre claro.'],
-        'escuro' => ['Escuro', 'Sempre escuro, em cinza.'],
-        'alpha'  => ['Alpha', 'Azul-marinho com brilho ciano, nas cores do logo. Sempre escuro.'],
-    ];
-}
-
-/**
- * O tema deste aparelho. Mora num cookie, e nao no banco: e gosto de quem
- * segura o celular, e o mesmo usuario pode querer um no telefone e outro no
- * computador. Lido no servidor para a pagina ja chegar pintada, sem piscar.
- */
-function tema_atual(): string
-{
-    $t = (string) ($_COOKIE['tema'] ?? 'auto');
-    return array_key_exists($t, temas()) ? $t : 'auto';
-}
 
 /**
  * A cor da moldura de um KPI do dashboard.

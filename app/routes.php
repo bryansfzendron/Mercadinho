@@ -59,7 +59,6 @@ function despachar(string $rota): void
     if ($rota === '/vendas/produto') { rota_vendas_produto($u); return; }
     if ($rota === '/metas')     { rota_metas($u); return; }
     if ($rota === '/config/touchpay') { rota_config_touchpay($u, $m); return; }
-    if ($rota === '/config/aparencia') { rota_config_aparencia($m); return; }
     if ($rota === '/config' || str_starts_with($rota, '/config/')) { rota_config($u, $m); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
     if ($rota === '/importar')  { rota_importar($u, $m); return; }
@@ -1922,25 +1921,4 @@ function rota_config_touchpay(array $u, string $m): void
         'erro'           => $erro,
         'email_digitado' => $email_digitado,
     ], 'TouchPay');
-}
-
-/** Configuracoes > Aparencia: o tema deste aparelho, num cookie de um ano. */
-function rota_config_aparencia(string $m): void
-{
-    if ($m === 'POST') {
-        exigir_csrf();
-        $tema = (string) ($_POST['tema'] ?? 'auto');
-        if (array_key_exists($tema, temas())) {
-            $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-                || str_starts_with((string) cfg('base_url', ''), 'https://');
-            setcookie('tema', $tema, [
-                'expires' => time() + 365 * 86400, 'path' => '/',
-                'secure' => $https, 'httponly' => false, 'samesite' => 'Lax',
-            ]);
-            $_COOKIE['tema'] = $tema;
-            flash('ok', 'Tema ' . temas()[$tema][0] . ' neste aparelho.');
-        }
-        redirecionar('/config/aparencia');
-    }
-    ver('config_aparencia', ['atual' => tema_atual()], 'Aparência');
 }

@@ -1468,9 +1468,9 @@ details.animando { overflow: hidden; }
 .sugestao-meta { font-size: .76rem; color: var(--suave); font-variant-numeric: tabular-nums; }
 
 /* =====================================================================
-   Tema Alpha (Configuracoes > Aparencia): marinho profundo com brilho
-   ciano, da paleta do logo. Escuro de proposito, nos dois modos do
-   celular — e escolha da pessoa, nao do sistema.
+   Visual Alpha: marinho profundo com brilho ciano, da paleta do logo. E o
+   visual do app (layout.php poe data-tema="alpha" sempre); os blocos de
+   claro/escuro acima ficam como base dos tokens.
 
    Os tokens mudam e quase tudo acompanha sozinho; o resto sao os brilhos:
    o que esta ativo (aba, chip, item da barra) ganha contorno ciano e um
@@ -1582,30 +1582,6 @@ details.animando { overflow: hidden; }
     box-shadow: 0 0 0 1px rgba(255, 123, 123, .5), 0 0 18px rgba(255, 123, 123, .12);
 }
 
-/* Configuracoes > Aparencia: uma linha por tema, com amostra das cores. */
-.temas { display: grid; gap: .5rem; margin-top: .6rem; }
-.tema-opcao {
-    display: flex; align-items: center; gap: .8rem; width: 100%; padding: .7rem .8rem;
-    border: 1px solid var(--vidro-borda); border-radius: 14px; background: none;
-    color: inherit; font: inherit; text-align: left; cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-}
-.tema-opcao.ativo { border-color: var(--marca); background: var(--tinta-marca); }
-.tema-texto { flex: 1; display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
-.tema-texto .ajuda { font-size: .8rem; }
-.tema-marca { color: var(--marca); font-weight: 700; width: 1rem; text-align: center; }
-.tema-amostra {
-    flex: none; width: 46px; height: 34px; border-radius: 9px; overflow: hidden;
-    display: grid; grid-template-columns: 1fr 1fr; border: 1px solid rgba(127, 127, 127, .3);
-}
-.tema-amostra-auto i:first-child, .tema-amostra-claro i { background: #faf9f7; }
-.tema-amostra-auto i:last-child, .tema-amostra-escuro i { background: #1c1a19; }
-.tema-amostra-alpha { background: linear-gradient(135deg, #0e2a5c, #050d1f); grid-template-columns: 1fr; }
-.tema-amostra-alpha i:first-child {
-    margin: 9px 7px; border-radius: 6px; border: 1px solid #3cc7ff;
-    box-shadow: 0 0 8px rgba(24, 180, 255, .7);
-}
-.tema-amostra-alpha i:last-child { display: none; }
 
 /* Abas com icone (Loja): uma grade de blocos, o icone em cima do rotulo. Cabe
    numa linha so no celular, sem rolar para o lado como o trilho de texto. */
@@ -1658,7 +1634,11 @@ details.animando { overflow: hidden; }
 .vf-periodos .chip { flex: 1 0 auto; text-align: center; padding: .45rem .9rem; font-size: .9rem; }
 .vf-linha { display: flex; gap: .5rem; align-items: stretch; }
 .vf-linha + .vf-linha { margin-top: .5rem; }
-.vf-gaveta > summary { list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+/* A summary fica crua (bloco, sem marcador): quem tem forma e o span de
+   dentro. Safari antigo ignora display:flex na propria summary. */
+.vf-gaveta > summary, .mais-custos > summary {
+    display: block; list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
 .vf-gaveta > summary::-webkit-details-marker { display: none; }
 .vf-datas { flex: 1; min-width: 0; }
 .vf-campo, .vf-botao, .vf-busca {
@@ -1672,7 +1652,7 @@ details.animando { overflow: hidden; }
 .vf-gaveta[open] .vf-seta { transform: rotate(180deg); }
 .vf-mais { flex: none; }
 .vf-botao { font-weight: 600; }
-.vf-gaveta[open] > summary { border-color: var(--marca); }
+.vf-gaveta[open] .vf-campo, .vf-gaveta[open] .vf-botao { border-color: var(--marca); }
 /* O painel abre por baixo da linha, na largura do cartao inteiro. */
 .vf-painel {
     position: absolute; left: .8rem; right: .8rem; z-index: 6; margin-top: .4rem;
@@ -1709,15 +1689,15 @@ details.animando { overflow: hidden; }
 .dados-grandes dd { font-size: 1rem; }
 
 .mais-custos { margin-top: .6rem; }
-.mais-custos > summary {
-    list-style: none; display: flex; align-items: center; gap: .5rem; cursor: pointer;
+.mc-botao {
+    display: flex; align-items: center; gap: .5rem;
     padding: .65rem .8rem; border-radius: 12px; border: 1px solid var(--vidro-borda);
     background: var(--tinta-marca); color: var(--marca); font-weight: 600; font-size: .92rem;
     -webkit-tap-highlight-color: transparent;
 }
 .mais-custos > summary::-webkit-details-marker { display: none; }
-.mais-custos > summary svg { width: 18px; height: 18px; transition: transform .2s ease; }
-.mais-custos[open] > summary svg { transform: rotate(180deg); }
+.mc-botao svg { width: 18px; height: 18px; transition: transform .2s ease; }
+.mais-custos[open] .mc-botao svg { transform: rotate(180deg); }
 .mais-custos .aberto, .mais-custos[open] .fechado { display: none; }
 .mais-custos[open] .aberto { display: inline; }
 .mais-custos > .dados { margin-top: .3rem; }
@@ -1740,7 +1720,7 @@ details.animando { overflow: hidden; }
 :root[data-tema="alpha"] .vf-botao,
 :root[data-tema="alpha"] .vf-busca { background: rgba(6, 16, 38, .75); border-color: rgba(96, 165, 255, .26); }
 :root[data-tema="alpha"] .vf-painel { background: #0b1932; }
-:root[data-tema="alpha"] .mais-custos > summary { background: rgba(24, 180, 255, .08); border-color: rgba(96, 165, 255, .28); color: #7fdcff; }
+:root[data-tema="alpha"] .mc-botao { background: rgba(24, 180, 255, .08); border-color: rgba(96, 165, 255, .28); color: #7fdcff; }
 :root[data-tema="alpha"] .ver-mais { color: #3cc7ff; }
 :root[data-tema="alpha"] .cartao-icone { color: #3cc7ff; filter: drop-shadow(0 0 6px rgba(24, 180, 255, .5)); }
 :root[data-tema="alpha"] .cartao-icone-plano { color: #e8f1ff; filter: none; }
@@ -1767,3 +1747,24 @@ details.animando { overflow: hidden; }
     .abas-icones .aba { font-size: .58rem; }
     .vf-periodos .chip { padding: .4rem .4rem; font-size: .78rem; }
 }
+
+/* Fidelidade com a tela de referencia. */
+.botao, .ver-mais, .tema-opcao { font-family: inherit; }
+:root[data-tema="alpha"] .marca::after {
+    content: ''; display: block; width: 1px; height: 22px; margin-left: .8rem;
+    background: rgba(150, 190, 240, .35);
+}
+:root[data-tema="alpha"] .topo-dir { gap: 1rem; }
+:root[data-tema="alpha"] .quem { opacity: 1; }
+:root[data-tema="alpha"] .barra { background: rgba(7, 17, 38, .96); }
+.abas-icones .aba { font-weight: 400; color: var(--texto); }
+.abas-icones .aba.ativo { font-weight: 600; }
+:root[data-tema="alpha"] .chip { background: transparent; border-color: rgba(150, 180, 220, .32); color: var(--texto); }
+.resultado .cartao-cabeca h2 { font-size: 1.35rem; }
+.margem-grande .margem-fator { font-size: 2.7rem; }
+:root[data-tema="alpha"] .margem-grande .margem-linha { color: #c3d2e8; opacity: 1; }
+.dados-grandes > div:not(:first-child) dd, .mais-custos .dados-grandes dd { font-weight: 500; }
+.dados-grandes > div:first-child dd { font-weight: 700; }
+.como-pagaram .cartao-cabeca h2 { font-size: 1.3rem; }
+.como-pagaram .linha-baixo { font-size: .82rem; }
+:root[data-tema="alpha"] .topo { background: rgba(5, 14, 33, .96); }

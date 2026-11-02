@@ -35,11 +35,11 @@ $ativos = count(array_intersect_key($base, array_flip(['pdv_id', 'forma', 'categ
     <form method="get" action="<?= e($acao) ?>">
         <div class="vf-linha">
             <details class="vf-gaveta vf-datas">
-                <summary class="vf-campo">
+                <summary><span class="vf-campo">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
                     <span class="vf-texto"><?= e(periodo_texto($f['de'], $f['ate'])) ?></span>
                     <svg class="vf-seta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-                </summary>
+                </span></summary>
                 <div class="vf-painel filtros">
                     <label>De <input type="date" name="de" value="<?= e($f['de']) ?>"></label>
                     <label>Até <input type="date" name="ate" value="<?= e($f['ate']) ?>"></label>
@@ -47,10 +47,10 @@ $ativos = count(array_intersect_key($base, array_flip(['pdv_id', 'forma', 'categ
             </details>
 
             <details class="vf-gaveta vf-mais">
-                <summary class="vf-botao">
+                <summary><span class="vf-botao">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
                     Filtros<?= $ativos > 0 ? ' (' . $ativos . ')' : '' ?>
-                </summary>
+                </span></summary>
                 <div class="vf-painel filtros">
                     <label>Ponto de venda
                         <select name="pdv_id">

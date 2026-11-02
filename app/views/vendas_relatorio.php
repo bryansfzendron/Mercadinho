@@ -55,11 +55,11 @@ $custos_extra = [
         <div><dt>Maquininha</dt><dd class="valor">− <?= moeda($res['taxa']) ?></dd></div>
     </dl>
     <details class="mais-custos">
-        <summary>
+        <summary><span class="mc-botao">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             <span class="fechado">Ver todos os custos (<?= count($custos_extra) ?> mais)</span>
             <span class="aberto">Esconder custos</span>
-        </summary>
+        </span></summary>
         <dl class="dados dados-grandes">
             <?php foreach ($custos_extra as $rot => $v): ?>
                 <div><dt><?= e($rot) ?></dt><dd class="valor">− <?= moeda($v) ?></dd></div>
