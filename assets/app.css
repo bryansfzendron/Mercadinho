@@ -47,7 +47,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-    :root:not([data-tema="claro"]):not([data-tema="alpha"]) {
+    :root {
         --fundo: #121110;
         --cartao: #1c1a19;
         --texto: #e7e5e4;
@@ -78,38 +78,6 @@
         --grafico-3: #199e70;
         --grafico-4: #c98500;
     }
-}
-/* O mesmo escuro, escolhido a mao em Configuracoes > Aparencia. */
-:root[data-tema="escuro"] {
-    --fundo: #121110;
-    --cartao: #1c1a19;
-    --texto: #e7e5e4;
-    --suave: #a8a29e;
-    --borda: #302c2a;
-    /* No escuro o azul precisa ser mais claro para o texto ter contraste. */
-    --marca: #38bdf8;
-    --marca-forte: #12aefb;
-    --marca-escura: #071c3d;
-    --sobre-marca: #071c3d;
-    --positivo: #4ade80;
-    --tinta-positiva: rgba(74, 222, 128, .16);
-    --vermelho: #f87171;
-    --ambar: #fb923c;
-    --tinta-marca: rgba(18, 174, 251, .2);
-    --elevado: #2c2825;
-    --tinta-vermelha: rgba(248, 113, 113, .14);
-    --tinta-ambar: rgba(251, 146, 60, .18);
-    --vidro: rgba(28, 26, 25, .6);
-    --vidro-borda: rgba(255, 255, 255, .1);
-    --vidro-sombra: rgba(0, 0, 0, .4);
-    --vidro-brilho: rgba(255, 255, 255, .07);
-    /* No escuro a sombra separa menos (preto sobre preto): quem levanta o
-       cartao e o brilho da borda, entao a sombra fica so de apoio. */
-    --sombra-cartao: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .22);
-    --grafico-1: #3987e5;
-    --grafico-2: #d95926;
-    --grafico-3: #199e70;
-    --grafico-4: #c98500;
 }
 
 * { box-sizing: border-box; }
@@ -929,15 +897,10 @@ html, body { overscroll-behavior-y: none; }   /* sem o "elastico" do iOS competi
 }
 
 @media (prefers-color-scheme: dark) {
-    :root:not([data-tema="claro"]):not([data-tema="alpha"]) {
+    :root {
         --painel: #0b3f7e;
         --painel-fundo-aba: rgba(255, 255, 255, .1);
     }
-}
-/* O mesmo escuro, escolhido a mao em Configuracoes > Aparencia. */
-:root[data-tema="escuro"] {
-    --painel: #0b3f7e;
-    --painel-fundo-aba: rgba(255, 255, 255, .1);
 }
 
 .inicio-sub { color: var(--suave); margin: -.2rem 0 .8rem; }
@@ -1324,7 +1287,7 @@ details.animando { overflow: hidden; }
 
 /* No escuro o apoio vai pro outro lado: clareia em vez de escurecer. */
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
-    :root:not([data-tema="claro"]):not([data-tema="alpha"]) { --suave: #d6d3d1; }
+    :root { --suave: #d6d3d1; }
 }
 
 /* Repor itens da nota: um cartao por item, pensado para o celular. */
@@ -1467,121 +1430,13 @@ details.animando { overflow: hidden; }
 .sugestao-nome { font-size: .95rem; }
 .sugestao-meta { font-size: .76rem; color: var(--suave); font-variant-numeric: tabular-nums; }
 
-/* =====================================================================
-   Visual Alpha: marinho profundo com brilho ciano, da paleta do logo. E o
-   visual do app (layout.php poe data-tema="alpha" sempre); os blocos de
-   claro/escuro acima ficam como base dos tokens.
-
-   Os tokens mudam e quase tudo acompanha sozinho; o resto sao os brilhos:
-   o que esta ativo (aba, chip, item da barra) ganha contorno ciano e um
-   halo, que e o que a tela da imagem faz para dizer "voce esta aqui".
-   ===================================================================== */
 :root { color-scheme: light dark; }
-:root[data-tema="claro"] { color-scheme: light; }
-:root[data-tema="escuro"], :root[data-tema="alpha"] { color-scheme: dark; }
-
-:root[data-tema="alpha"] {
-    --fundo: #050d1f;
-    --cartao: #0b1932;
-    --texto: #e8f1ff;
-    --suave: #8fa6c8;
-    --borda: #1a2c50;
-    --marca: #3cc7ff;
-    --marca-forte: #18b4ff;
-    --marca-escura: #071c3d;
-    --sobre-marca: #04162f;
-    --positivo: #3ddc84;
-    --tinta-positiva: rgba(61, 220, 132, .13);
-    --vermelho: #ff7b7b;
-    --ambar: #ffab52;
-    --tinta-marca: rgba(24, 180, 255, .16);
-    --elevado: #12305e;
-    --tinta-vermelha: rgba(255, 123, 123, .14);
-    --tinta-ambar: rgba(255, 171, 82, .16);
-    --vidro: rgba(12, 27, 56, .82);
-    --vidro-borda: rgba(96, 165, 255, .2);
-    --vidro-sombra: rgba(0, 0, 0, .55);
-    --vidro-brilho: rgba(150, 205, 255, .07);
-    --sombra-cartao: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px rgba(0, 0, 0, .35);
-    --grafico-1: #3987e5;
-    --grafico-2: #d95926;
-    --grafico-3: #199e70;
-    --grafico-4: #c98500;
-    --painel: #0b3f7e;
-    --painel-fundo-aba: rgba(255, 255, 255, .1);
-    /* O halo do que esta ativo. */
-    --brilho: rgba(24, 180, 255, .55);
-    --brilho-suave: rgba(24, 180, 255, .22);
-    --contorno-ativo: rgba(60, 199, 255, .85);
-}
-
-:root[data-tema="alpha"] body {
-    background:
-        radial-gradient(120% 60% at 50% -10%, #0e2a5c 0%, rgba(14, 42, 92, 0) 60%),
-        var(--fundo);
-    background-attachment: fixed;
-}
-:root[data-tema="alpha"] .topo {
-    background: rgba(5, 16, 38, .86);
-    border-bottom-color: rgba(60, 199, 255, .28);
-    box-shadow: 0 1px 0 rgba(60, 199, 255, .12), 0 6px 18px rgba(24, 180, 255, .08);
-}
-:root[data-tema="alpha"] .cartao,
-:root[data-tema="alpha"] .lista li {
-    background: linear-gradient(180deg, rgba(16, 34, 68, .9), rgba(10, 23, 48, .9));
-    border-color: rgba(96, 165, 255, .18);
-}
-:root[data-tema="alpha"] input,
-:root[data-tema="alpha"] select,
-:root[data-tema="alpha"] textarea {
-    background: rgba(6, 16, 38, .8);
-    border-color: rgba(96, 165, 255, .24);
-}
 
 /* Botao principal: ciano cheio, com halo. */
-:root[data-tema="alpha"] .botao:not(.botao-alt):not(.botao-perigo) {
-    background: linear-gradient(180deg, #2fc6ff, #0a96e8);
-    border-color: rgba(160, 225, 255, .55);
-    color: #03142e;
-    box-shadow: 0 0 0 1px rgba(24, 180, 255, .25), 0 6px 22px var(--brilho-suave), inset 0 1px 0 rgba(255, 255, 255, .45);
-}
-:root[data-tema="alpha"] .botao-alt {
-    background: rgba(24, 180, 255, .1);
-    border-color: rgba(96, 165, 255, .3);
-}
 
 /* Ativos com contorno ciano e halo: aba, chip, segmento, item da barra. */
-:root[data-tema="alpha"] .chip { background: rgba(10, 24, 50, .7); border-color: rgba(96, 165, 255, .22); }
-:root[data-tema="alpha"] .chip.ativo {
-    background: rgba(24, 180, 255, .16); color: #7fdcff;
-    border-color: var(--contorno-ativo);
-    box-shadow: 0 0 12px var(--brilho-suave), inset 0 0 8px rgba(24, 180, 255, .12);
-}
-:root[data-tema="alpha"] .abas { background: rgba(8, 20, 44, .7); border-color: rgba(96, 165, 255, .2); }
-:root[data-tema="alpha"] .aba.ativo { color: #fff; }
-:root[data-tema="alpha"] .aba.ativo::before {
-    background: linear-gradient(180deg, #0f63c4, #0a3f86);
-    box-shadow: 0 0 0 1px rgba(60, 199, 255, .6), 0 0 14px var(--brilho-suave);
-}
-:root[data-tema="alpha"] .barra {
-    background: rgba(8, 20, 44, .82);
-    border-color: rgba(96, 165, 255, .22);
-}
-:root[data-tema="alpha"] .barra a.ativo { color: #7fdcff; }
-:root[data-tema="alpha"] .barra a.ativo::before {
-    background: rgba(24, 180, 255, .16);
-    box-shadow: 0 0 0 1px rgba(60, 199, 255, .7), 0 0 16px var(--brilho-suave);
-}
 
 /* O resultado do periodo: a caixa verde com contorno e brilho. */
-:root[data-tema="alpha"] .margem-boa {
-    background: linear-gradient(180deg, rgba(34, 160, 90, .28), rgba(20, 110, 60, .22));
-    box-shadow: 0 0 0 1px rgba(61, 220, 132, .55), 0 0 18px rgba(61, 220, 132, .14);
-}
-:root[data-tema="alpha"] .margem-ruim {
-    box-shadow: 0 0 0 1px rgba(255, 123, 123, .5), 0 0 18px rgba(255, 123, 123, .12);
-}
-
 
 /* Abas com icone (Loja): uma grade de blocos, o icone em cima do rotulo. Cabe
    numa linha so no celular, sem rolar para o lado como o trilho de texto. */
@@ -1603,18 +1458,6 @@ details.animando { overflow: hidden; }
 .abas-icones .aba.ativo { color: var(--marca); border-color: var(--marca); }
 .abas-icones .aba.ativo::before { border-radius: 14px; background: var(--tinta-marca); box-shadow: none; }
 @media (max-width: 380px) { .abas-icones .aba { font-size: .64rem; } .abas-icones .aba-icone svg { width: 21px; height: 21px; } }
-:root[data-tema="alpha"] .abas-icones .aba {
-    background: linear-gradient(180deg, rgba(16, 34, 68, .9), rgba(10, 23, 48, .9));
-    border-color: rgba(96, 165, 255, .2);
-}
-:root[data-tema="alpha"] .abas-icones .aba.ativo {
-    color: #7fdcff; border-color: var(--contorno-ativo);
-    box-shadow: 0 0 14px var(--brilho), inset 0 0 10px rgba(24, 180, 255, .15);
-}
-:root[data-tema="alpha"] .abas-icones .aba.ativo::before {
-    background: linear-gradient(180deg, rgba(24, 120, 220, .35), rgba(10, 50, 110, .35));
-    box-shadow: none;
-}
 
 /* ---------- Vendas, no arranjo novo ---------- */
 .titulo-icone { display: flex; align-items: center; gap: .55rem; font-size: 1.7rem; }
@@ -1716,16 +1559,6 @@ details.animando { overflow: hidden; }
 .como-pagaram .linha-cartao { padding: .7rem .85rem; }
 .como-pagaram .linha-topo .forte, .como-pagaram .linha-topo .valor { font-size: 1.05rem; }
 
-:root[data-tema="alpha"] .vf-campo,
-:root[data-tema="alpha"] .vf-botao,
-:root[data-tema="alpha"] .vf-busca { background: rgba(6, 16, 38, .75); border-color: rgba(96, 165, 255, .26); }
-:root[data-tema="alpha"] .vf-painel { background: #0b1932; }
-:root[data-tema="alpha"] .mc-botao { background: rgba(24, 180, 255, .08); border-color: rgba(96, 165, 255, .28); color: #7fdcff; }
-:root[data-tema="alpha"] .ver-mais { color: #3cc7ff; }
-:root[data-tema="alpha"] .cartao-icone { color: #3cc7ff; filter: drop-shadow(0 0 6px rgba(24, 180, 255, .5)); }
-:root[data-tema="alpha"] .cartao-icone-plano { color: #e8f1ff; filter: none; }
-:root[data-tema="alpha"] .como-pagaram .lista li { background: rgba(8, 20, 44, .6); }
-
 /* Ajustes finos da Vendas nova. */
 .abas-icones { gap: .35rem; }
 .abas-icones .aba { font-size: .68rem; letter-spacing: -.01em; padding-left: .1rem; padding-right: .1rem; }
@@ -1749,22 +1582,21 @@ details.animando { overflow: hidden; }
 }
 
 /* Fidelidade com a tela de referencia. */
-.botao, .ver-mais, .tema-opcao { font-family: inherit; }
-:root[data-tema="alpha"] .marca::after {
+.botao, .ver-mais { font-family: inherit; }
+/* O fio entre a marca e o resto do topo, como na tela de referencia. */
+.marca::after {
     content: ''; display: block; width: 1px; height: 22px; margin-left: .8rem;
-    background: rgba(150, 190, 240, .35);
+    background: rgba(255, 255, 255, .28);
 }
-:root[data-tema="alpha"] .topo-dir { gap: 1rem; }
-:root[data-tema="alpha"] .quem { opacity: 1; }
-:root[data-tema="alpha"] .barra { background: rgba(7, 17, 38, .96); }
+
 .abas-icones .aba { font-weight: 400; color: var(--texto); }
 .abas-icones .aba.ativo { font-weight: 600; }
-:root[data-tema="alpha"] .chip { background: transparent; border-color: rgba(150, 180, 220, .32); color: var(--texto); }
+
 .resultado .cartao-cabeca h2 { font-size: 1.35rem; }
 .margem-grande .margem-fator { font-size: 2.7rem; }
-:root[data-tema="alpha"] .margem-grande .margem-linha { color: #c3d2e8; opacity: 1; }
+
 .dados-grandes > div:not(:first-child) dd, .mais-custos .dados-grandes dd { font-weight: 500; }
 .dados-grandes > div:first-child dd { font-weight: 700; }
 .como-pagaram .cartao-cabeca h2 { font-size: 1.3rem; }
 .como-pagaram .linha-baixo { font-size: .82rem; }
-:root[data-tema="alpha"] .topo { background: rgba(5, 14, 33, .96); }
+
