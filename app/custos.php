@@ -503,7 +503,31 @@ function custos_rbt12(?string $ate = null): float
  */
 function custos_imposto_pct(): float
 {
+    if (!custos_imposto_ativo()) {
+        return 0.0;
+    }
     return custos_aliquota_efetiva_simples(custos_rbt12());
+}
+
+/**
+ * O imposto entra nas contas? Uma chave da conta, ligada por padrao (era
+ * sempre assim). Desligar tira o Simples de lucro, margens e do minimo de
+ * cada produto — a tela de Taxas continua mostrando a faixa, so avisa que
+ * esta fora da conta.
+ */
+function custos_imposto_ativo(): bool
+{
+    try {
+        $v = qv("SELECT valor FROM custos_parametros WHERE chave = 'imposto_ativo' AND " . conta_sql());
+    } catch (PDOException $e) {
+        return true;
+    }
+    return $v === null || $v === false || (float) $v > 0;
+}
+
+function custos_imposto_definir(bool $ativo): void
+{
+    custos_parametro_gravar('imposto_ativo', $ativo ? 1.0 : 0.0, date('Y-m-d H:i:s'));
 }
 
 // ---------------------------------------------------------------------

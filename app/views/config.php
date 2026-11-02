@@ -504,8 +504,25 @@
     <?php endif; ?>
 
     <?php if ($imposto): ?>
+        <?php $imposto_ligado = custos_imposto_ativo(); ?>
         <div class="cartao">
-            <h2 class="sem-topo">Imposto (Simples Nacional)</h2>
+            <div class="linha-topo imposto-topo">
+                <h2 class="sem-topo">Imposto (Simples Nacional)</h2>
+                <form method="post" action="/config/taxas">
+                    <?= csrf_campo() ?>
+                    <input type="hidden" name="imposto_ativo" value="<?= $imposto_ligado ? '0' : '1' ?>">
+                    <button type="submit" class="interruptor<?= $imposto_ligado ? ' ligado' : '' ?>"
+                            role="switch" aria-checked="<?= $imposto_ligado ? 'true' : 'false' ?>"
+                            aria-label="Considerar o imposto no cálculo">
+                        <span></span>
+                    </button>
+                </form>
+            </div>
+            <p class="<?= $imposto_ligado ? 'ajuda' : 'aviso aviso-info' ?>">
+                <?= $imposto_ligado
+                    ? '<strong>Ligado:</strong> entra no lucro, nas margens e no mínimo de cada produto.'
+                    : '<strong>Desligado:</strong> lucro, margens e o mínimo de cada produto estão sem o imposto. Os números abaixo são só informação.' ?>
+            </p>
             <p class="ajuda">
                 CNAE 4712-1/00, Anexo I do Simples. Não dá para editar aqui porque não é um
                 palpite — é calculado do seu faturamento real desde <?= data_fmt(custos_inicio_atividade()) ?>

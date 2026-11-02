@@ -1398,3 +1398,19 @@ details.animando { overflow: hidden; }
 .passo.agora .passo-marca { background: var(--marca); color: #fff; }
 .passo.feito .passo-marca { background: var(--tinta-positiva); color: var(--positivo); }
 .passo.feito strong { color: var(--suave); font-weight: 500; text-decoration: line-through; }
+
+/* Interruptor no feitio do iOS (o liga/desliga do imposto). */
+.imposto-topo { align-items: center; }
+.imposto-topo form { margin: 0; }
+.interruptor {
+    position: relative; width: 51px; height: 31px; padding: 0; border: 0; border-radius: 31px;
+    background: rgba(120, 120, 128, .32); cursor: pointer; flex: none;
+    transition: background .2s ease; -webkit-tap-highlight-color: transparent;
+}
+.interruptor span {
+    position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+    background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 1px 1px rgba(0, 0, 0, .16);
+    transition: transform .25s cubic-bezier(.32, .72, 0, 1);
+}
+.interruptor.ligado { background: #34c759; }
+.interruptor.ligado span { transform: translateX(20px); }

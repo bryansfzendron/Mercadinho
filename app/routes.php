@@ -1652,6 +1652,15 @@ function rota_config(array $u, string $metodo): void
             $n = metas_salvar_pdv($id, $_POST);
             flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Salvo.' : 'Nada para salvar.');
             redirecionar('/config/metas?pdv=' . $id);
+        } elseif ($aba === 'taxas' && isset($_POST['imposto_ativo'])) {
+            // O botao liga/desliga do imposto: so a chave, nada mais do formulario.
+            if (!(conta_separada() && conta_atual() === null)) {
+                $ativo = $_POST['imposto_ativo'] === '1';
+                custos_imposto_definir($ativo);
+                flash('ok', $ativo ? 'Imposto ligado: volta a entrar no lucro e nas margens.'
+                                   : 'Imposto desligado: lucro e margens agora sem o Simples.');
+            }
+            redirecionar('/config/taxas');
         } elseif ($aba === 'taxas' && isset($_POST['excluir_vigencia'])) {
             // Desfaz uma troca de taxa: daquele dia em diante volta a anterior.
             custos_excluir_vigencia((int) $_POST['excluir_vigencia']);
