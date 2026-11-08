@@ -3,15 +3,18 @@
  *
  * Tres coisas, so:
  *
- *  - a troca entre "Atual" e "Semana", com a pilula deslizando de um lado
- *    para o outro em vez de apagar aqui e acender la;
- *  - tocar num dia do grafico para ver aquele dia; tocar de novo (ou no dia
- *    ja escolhido) volta para a semana inteira;
+ *  - a troca entre "Atual", "Semana" e "Mes", com a pilula deslizando de um
+ *    lado para o outro em vez de apagar aqui e acender la;
+ *  - tocar num dia do grafico (da semana ou do mes) para ver aquele dia;
+ *    tocar de novo no dia ja escolhido volta para o periodo inteiro. No mes,
+ *    arrastar o dedo de lado corre os dias, que la sao finos demais para
+ *    acertar um por um;
  *  - a lista de produtos vendidos seguindo o que esta escolhido: hoje na aba
- *    "Atual", a semana inteira na aba "Semana" e o dia escolhido quando ha um.
+ *    "Atual", o periodo inteiro na aba "Semana" ou "Mes" e o dia escolhido
+ *    quando ha um.
  *
  * Nenhum numero e calculado aqui, e nenhuma lista e montada aqui. O PHP manda
- * cada valor formatado em data-moeda e os oito blocos de produtos ja prontos;
+ * cada valor formatado em data-moeda e os blocos de produtos ja prontos;
  * este arquivo so escolhe qual aparece. Formatar dinheiro em dois lugares e
  * garantir que um dia os dois vao discordar.
  */
@@ -22,8 +25,6 @@
     const painel = doc.querySelector('[data-painel]');
     if (!painel) return;
 
-    const barras = painel.querySelector('.painel-barras');
-
     const Mov = global.Movimento;
     const menosMovimento = () =>
         Mov ? Mov.menosMovimento()
@@ -32,9 +33,9 @@
     /* ---------------------------------------------------------------
        A lista de produtos vendidos.
 
-       Um bloco por dia da semana mais o da semana inteira, todos ja no HTML.
-       Trocar e so esconder sete e mostrar um — nada de rede, nada de montar
-       linha no navegador.
+       Um bloco por dia que o grafico deixa escolher, mais o da semana e o do
+       mes inteiros, todos ja no HTML. Trocar e so esconder os outros e
+       mostrar um — nada de rede, nada de montar linha no navegador.
        --------------------------------------------------------------- */
     const caixaVendidos = doc.querySelector('[data-vendidos]');
     const blocos = caixaVendidos
@@ -47,7 +48,111 @@
     }
 
     /* ---------------------------------------------------------------
-       Atual / Semana.
+       Um dia do grafico.
+
+       Sem dia escolhido o cartao mostra o periodo inteiro (a semana, o mes),
+       que e a resposta padrao. Escolher um dia troca o rotulo junto com o
+       numero: "R$ 7,50" sozinho nao diz de quando e.
+
+       Arrastar: o dedo que desce no grafico e corre de lado vai escolhendo
+       o dia que estiver embaixo dele. So conta como arrasto se andou mais de
+       lado do que para baixo — senao e a pagina rolando, e o navegador fica
+       com o gesto (touch-action: pan-y no CSS).
+       --------------------------------------------------------------- */
+    const FOLGA = 8; // px de lado antes de virar arrasto
+
+    function ligarGrafico(corpo, chavePeriodo) {
+        const faixa = corpo ? corpo.querySelector('[data-barras]') : null;
+        const rotulo = corpo ? corpo.querySelector('[data-rotulo]') : null;
+        const valor = corpo ? corpo.querySelector('[data-valor]') : null;
+        const colunas = faixa
+            ? Array.prototype.slice.call(faixa.querySelectorAll('[data-data]'))
+            : [];
+        let atual = null;
+
+        function escolher(coluna) {
+            colunas.forEach((c) => {
+                const essa = c === coluna;
+                c.classList.toggle('ativo', essa);
+                c.setAttribute('aria-pressed', essa ? 'true' : 'false');
+            });
+            atual = coluna;
+            faixa.classList.toggle('escolhido', !!coluna);
+            if (rotulo) rotulo.textContent = coluna ? coluna.dataset.dia : rotulo.dataset.padrao;
+            if (valor) valor.textContent = coluna ? coluna.dataset.moeda : valor.dataset.padrao;
+            mostrarVendidos(coluna ? coluna.dataset.data : chavePeriodo);
+        }
+
+        const api = { escolhido: () => (atual ? atual.dataset.data : null) };
+        if (!faixa || !colunas.length) return api;
+
+        // A coluna mais perto do dedo, mesmo que ele esteja um pouco fora do
+        // grafico: arrastar alem da ponta fica no primeiro ou no ultimo dia.
+        function colunaEm(x) {
+            let melhor = null;
+            let distancia = Infinity;
+            colunas.forEach((c) => {
+                const r = c.getBoundingClientRect();
+                const d = Math.abs(x - (r.left + r.width / 2));
+                if (d < distancia) { distancia = d; melhor = c; }
+            });
+            return melhor;
+        }
+
+        let x0 = 0;
+        let y0 = 0;
+        let apertado = false;
+        let arrastando = false;
+        let engolirClique = false;
+
+        faixa.addEventListener('pointerdown', (ev) => {
+            if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+            apertado = true;
+            arrastando = false;
+            x0 = ev.clientX;
+            y0 = ev.clientY;
+        });
+        faixa.addEventListener('pointermove', (ev) => {
+            if (!apertado) return;
+            if (!arrastando) {
+                const dx = Math.abs(ev.clientX - x0);
+                if (dx <= FOLGA || dx < Math.abs(ev.clientY - y0)) return;
+                arrastando = true;
+                try { faixa.setPointerCapture(ev.pointerId); } catch (e) { /* sem captura, segue */ }
+            }
+            const c = colunaEm(ev.clientX);
+            if (c && c !== atual) escolher(c);
+        });
+        faixa.addEventListener('pointerup', () => {
+            if (arrastando) {
+                // O clique que vem logo depois do arrasto nao pode desfazer o
+                // dia em que o dedo parou.
+                engolirClique = true;
+                setTimeout(() => { engolirClique = false; }, 0);
+            }
+            apertado = false;
+            arrastando = false;
+        });
+        faixa.addEventListener('pointercancel', () => { apertado = false; arrastando = false; });
+
+        // Toque simples e teclado passam pelo clique do botao.
+        colunas.forEach((coluna) => {
+            coluna.addEventListener('click', () => {
+                if (engolirClique) return;
+                escolher(coluna === atual ? null : coluna);
+            });
+        });
+
+        return api;
+    }
+
+    const graficos = {
+        semana: ligarGrafico(painel.querySelector('[data-corpo="semana"]'), 'semana'),
+        mes: ligarGrafico(painel.querySelector('[data-corpo="mes"]'), 'mes'),
+    };
+
+    /* ---------------------------------------------------------------
+       Atual / Semana / Mes.
        --------------------------------------------------------------- */
     const abas = Array.prototype.slice.call(painel.querySelectorAll('.segmento-aba'));
     const pilula = painel.querySelector('.segmento-pilula');
@@ -89,11 +194,11 @@
         // estava olhando faria o numero de cima e a lista de baixo contarem
         // coisas diferentes.
         const qual = abas[indice] ? abas[indice].dataset.aba : 'atual';
-        if (qual === 'semana') {
-            const escolhido = barras ? barras.querySelector('.painel-coluna.ativo') : null;
-            mostrarVendidos(escolhido ? escolhido.dataset.data : 'semana');
+        const grafico = graficos[qual];
+        if (grafico) {
+            mostrarVendidos(grafico.escolhido() || qual);
         } else {
-            mostrarVendidos(qual === 'atual' ? hoje : qual);
+            mostrarVendidos(hoje);
         }
     }
 
@@ -101,47 +206,4 @@
         aba.addEventListener('click', () => mostrar(i));
     });
 
-    /* ---------------------------------------------------------------
-       Um dia da semana.
-
-       Sem dia escolhido o cartao mostra a semana inteira, que e a resposta
-       padrao. Escolher um dia troca o rotulo junto com o numero: "R$ 7,50"
-       sozinho nao diz de quando e.
-       --------------------------------------------------------------- */
-    const rotulo = painel.querySelector('[data-semana-rotulo]');
-    const valor = painel.querySelector('[data-semana-valor]');
-
-    if (barras && rotulo && valor) {
-        const colunas = Array.prototype.slice.call(barras.querySelectorAll('.painel-coluna'));
-
-        function limpar() {
-            colunas.forEach((c) => {
-                c.classList.remove('ativo');
-                c.setAttribute('aria-pressed', 'false');
-            });
-            barras.classList.remove('escolhido');
-            rotulo.textContent = rotulo.dataset.padrao;
-            valor.textContent = valor.dataset.padrao;
-            mostrarVendidos('semana');
-        }
-
-        colunas.forEach((coluna) => {
-            coluna.addEventListener('click', () => {
-                if (coluna.classList.contains('ativo')) {
-                    limpar();
-                    return;
-                }
-                colunas.forEach((c) => {
-                    c.classList.remove('ativo');
-                    c.setAttribute('aria-pressed', 'false');
-                });
-                coluna.classList.add('ativo');
-                coluna.setAttribute('aria-pressed', 'true');
-                barras.classList.add('escolhido');
-                rotulo.textContent = coluna.dataset.dia;
-                valor.textContent = coluna.dataset.moeda;
-                mostrarVendidos(coluna.dataset.data);
-            });
-        });
-    }
 })(window);

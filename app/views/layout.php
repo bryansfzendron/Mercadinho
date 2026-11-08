@@ -20,7 +20,7 @@ $flashes = flash_pegar();
 <meta name="apple-mobile-web-app-title" content="Alpha Market">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="stylesheet" href="/assets/app.css?v=70">
+<link rel="stylesheet" href="/assets/app.css?v=71">
 </head>
 <body>
 
@@ -120,7 +120,7 @@ $flashes = flash_pegar();
 <script src="/assets/pedir-pdv.js?v=1" defer></script>
 <script src="/assets/ver-mais.js?v=2" defer></script>
 <?php // inicio.js so faz algo onde existe o cartao de vendas; nas outras telas sai fora. ?>
-<script src="/assets/inicio.js?v=3" defer></script>
+<script src="/assets/inicio.js?v=4" defer></script>
 <script src="/assets/puxar-atualizar.js?v=6" defer></script>
 <script>
 // O trilho de abas rola para o lado quando nao cabe; a aba ativa tem de

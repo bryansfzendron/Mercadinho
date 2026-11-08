@@ -7,25 +7,26 @@
  * tocar num dia para ver aquele dia — sem dia escolhido, o numero e a semana
  * inteira; "Mes" mostra o mes ate hoje, dia a dia.
  *
- * So a semana e tocavel: sete colunas gordas sao alvo de dedo, trinta e uma
- * barras finas nao — o mes e panorama, e quem quer um dia dele tem o filtro
- * de periodo em Loja > Vendas.
+ * O mes tambem e tocavel, do mesmo jeito: tocar num dia mostra aquele dia,
+ * tocar de novo volta para o mes. Trinta e uma barras finas sao alvo ruim de
+ * dedo, entao cada dia ocupa a faixa inteira do grafico (sem vao) e da para
+ * arrastar o dedo de lado para correr os dias.
  *
  * Embaixo do cartao, o que saiu hoje. Escanear e bipar nao moram mais aqui:
  * os dois botoes ja estao na tela de notas, e repetidos na capa so empurravam
  * a lista do dia para baixo da dobra.
  *
  * A lista segue o grafico: tocar num dia troca os produtos junto com o numero.
- * Os oito blocos (sete dias + a semana) ja vem prontos do servidor e o JS so
- * troca qual esta visivel — assim o preco continua sendo formatado num lugar
- * so, e trocar de dia nao espera rede.
+ * Os blocos (cada dia da semana e do mes, mais a semana e o mes inteiros) ja
+ * vem prontos do servidor e o JS so troca qual esta visivel — assim o preco
+ * continua sendo formatado num lugar so, e trocar de dia nao espera rede.
  *
  * @var array $painel   de vendas_painel()
  * Cada produto mostra o que sobrou depois da mercadoria e dos percentuais
  * que acompanham o faturamento (maquininha, condominio, franquia, imposto),
  * e quanto custou — a mesma conta e os mesmos numeros da aba de vendas.
  *
- * @var array $vendidos 'Y-m-d' => produtos daquele dia, mais 'semana'
+ * @var array $vendidos 'Y-m-d' => produtos daquele dia, mais 'semana' e 'mes'
  * @var array $pdvs     os PDVs com venda, para o filtro
  * @var int   $pdv_id   o PDV mostrado; 0 e todos
  */
@@ -33,8 +34,7 @@ $h = $painel['hoje'];
 $m = $painel['mes'];
 $s = $painel['semana'];
 
-/** Nome cheio do dia, para o rotulo que aparece ao tocar numa barra. */
-$longos  = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+/** "no Domingo" e "na Segunda": o artigo segue o genero do dia. */
 $artigos = ['no', 'na', 'na', 'na', 'na', 'na', 'no'];
 
 /**
@@ -156,19 +156,19 @@ foreach ($pdvs as $p) {
 
     <div class="painel-corpo" id="painel-semana" role="tabpanel" aria-labelledby="aba-semana"
          data-corpo="semana" hidden>
-        <p class="painel-rotulo" data-semana-rotulo
+        <p class="painel-rotulo" data-rotulo
            data-padrao="Vendas desta semana">Vendas desta semana</p>
-        <p class="painel-valor" data-semana-valor
+        <p class="painel-valor" data-valor
            data-padrao="<?= e(moeda($s['total'])) ?>"><?= moeda($s['total']) ?></p>
 
         <div class="painel-grafico">
-            <div class="painel-barras">
+            <div class="painel-barras" data-barras>
                 <?php foreach ($s['barras'] as $i => $b): ?>
                     <?php
                     $classe = 'painel-coluna'
                             . ($b['hoje'] ? ' hoje' : '')
                             . ($b['futuro'] ? ' futuro' : '');
-                    $rotulo = $longos[$i] . ', ' . date('d/m', strtotime($b['data']));
+                    $rotulo = dia_semana_longo($b['data']) . ', ' . date('d/m', strtotime($b['data']));
                     ?>
                     <button type="button" class="<?= $classe ?>" aria-pressed="false"
                             data-data="<?= e($b['data']) ?>"
@@ -185,13 +185,15 @@ foreach ($pdvs as $p) {
 
     <div class="painel-corpo" id="painel-mes" role="tabpanel" aria-labelledby="aba-mes"
          data-corpo="mes" hidden>
-        <p class="painel-rotulo">Vendas deste mês</p>
-        <p class="painel-valor"><?= moeda($m['total']) ?></p>
+        <p class="painel-rotulo" data-rotulo
+           data-padrao="Vendas deste mês">Vendas deste mês</p>
+        <p class="painel-valor" data-valor
+           data-padrao="<?= e(moeda($m['total'])) ?>"><?= moeda($m['total']) ?></p>
 
         <?php
         // Mesmo grafico do dashboard, vestido de painel. Vazio com menos de
         // dois dias: no dia 1 do mes uma barra sozinha nao e um grafico.
-        $grafico_mes = grafico_html_barras_dia($m['barras'], $m['de'], $m['ate']);
+        $grafico_mes = grafico_html_barras_dia($m['barras'], $m['de'], $m['ate'], true);
         ?>
         <?php if ($grafico_mes !== ''): ?>
             <div class="painel-grafico painel-mes"><?= $grafico_mes ?></div>
@@ -201,22 +203,27 @@ foreach ($pdvs as $p) {
     </div>
 </section>
 
-<?php // Oito blocos, um visivel por vez: os sete dias e a semana inteira. Quem
-      // troca e o inicio.js, junto com a aba e com a barra escolhida no grafico. ?>
+<?php // Um bloco por dia que o grafico deixa escolher (a semana pode comecar no
+      // mes passado, e o mes tem dias fora desta semana), mais a semana e o mes
+      // inteiros. Um visivel por vez: quem troca e o inicio.js, junto com a aba
+      // e com a barra escolhida no grafico.
+$dias = array_unique(array_merge(array_column($s['barras'], 'data'), array_column($m['barras'], 'data')));
+sort($dias);
+?>
 <div data-vendidos data-hoje="<?= e($h['data']) ?>">
-    <?php foreach ($s['barras'] as $i => $b): ?>
+    <?php foreach ($dias as $dia): ?>
         <?php
-        // "no Domingo" e "na Segunda": o artigo segue o genero do dia.
-        $titulo = $b['hoje']
+        $e_hoje = $dia === $h['data'];
+        $titulo = $e_hoje
             ? 'Vendidos hoje'
-            : 'Vendidos ' . $artigos[$i] . ' ' . $longos[$i]
-              . ', ' . date('d/m', strtotime($b['data']));
-        $vazio = $b['hoje'] ? 'Nenhum produto vendido hoje ainda.' : 'Nenhum produto vendido nesse dia.';
+            : 'Vendidos ' . $artigos[(int) date('w', strtotime($dia))] . ' ' . dia_semana_longo($dia)
+              . ', ' . date('d/m', strtotime($dia));
+        $vazio = $e_hoje ? 'Nenhum produto vendido hoje ainda.' : 'Nenhum produto vendido nesse dia.';
         ?>
-        <?php $lista = $vendidos[$b['data']] ?? []; ?>
-        <section class="cartao recolhivel" data-lista="<?= e($b['data']) ?>" <?= $b['hoje'] ? '' : 'hidden' ?>>
+        <?php $lista = $vendidos[$dia] ?? []; ?>
+        <section class="cartao recolhivel" data-lista="<?= e($dia) ?>" <?= $e_hoje ? '' : 'hidden' ?>>
             <?= cartao_cabeca('carrinho', $titulo, count($lista) . ' produto(s)', '', true) ?>
-            <?= $lista_vendidos($lista, $vazio, $b['data'], $b['data']) ?>
+            <?= $lista_vendidos($lista, $vazio, $dia, $dia) ?>
             <?= count($lista) > LISTA_A_VISTA ? ver_mais_baixo('Ver todos (' . count($lista) . ')') : '' ?>
         </section>
     <?php endforeach; ?>

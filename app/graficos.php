@@ -73,29 +73,57 @@ function grafico_alturas_diarias(array $serie): array
 }
 
 /**
+ * Nome cheio do dia da semana de uma data 'Y-m-d' ("Domingo", "Terça").
+ */
+function dia_semana_longo(string $data): string
+{
+    $nomes = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    return $nomes[(int) date('w', strtotime($data))];
+}
+
+/**
  * O HTML do grafico de barras diario, a partir de grafico_alturas_diarias().
  * So o dia de pico ganha rotulo direto — numero em cada barra vira ruido e
  * ninguem le; os outros dias ficam disponiveis no title (o dedo/mouse
  * revela), e o total do periodo ja esta no card de faturamento ali em cima.
  *
+ * Tocavel (o mes da capa), cada dia vira um botao da altura inteira do
+ * grafico e sem vao entre um e outro: a barra desenhada tem 3px num dia
+ * fraco, e o alvo tem que ser a faixa toda. O botao leva o dia e o valor ja
+ * formatados (data-dia, data-moeda), como as colunas da semana — o JS so
+ * troca texto, nunca formata dinheiro.
+ *
  * @param array<int,array{data:string,valor:float,altura:float,pico:bool}> $barras
  */
-function grafico_html_barras_dia(array $barras, string $de, string $ate): string
+function grafico_html_barras_dia(array $barras, string $de, string $ate, bool $tocavel = false): string
 {
     if (count($barras) < 2) {
         return '';
     }
 
-    $html = '<div class="grafico-dia" role="img" aria-label="Faturamento por dia, de '
-          . e(data_fmt($de)) . ' a ' . e(data_fmt($ate)) . '">';
+    $periodo = 'Faturamento por dia, de ' . data_fmt($de) . ' a ' . data_fmt($ate);
+    // Com botoes dentro, role="img" esconderia os dias do leitor de tela.
+    $html = $tocavel
+        ? '<div class="grafico-dia tocavel" role="group" aria-label="' . e($periodo) . '" data-barras>'
+        : '<div class="grafico-dia" role="img" aria-label="' . e($periodo) . '">';
     foreach ($barras as $b) {
         $classe = 'grafico-barra' . ($b['pico'] ? ' pico' : '') . ($b['valor'] <= 0 ? ' vazio' : '');
-        $titulo = e(data_fmt($b['data'])) . ': ' . ($b['valor'] > 0 ? e(moeda($b['valor'])) : 'sem venda');
-        $html .= '<div class="' . $classe . '" style="height:' . number_format($b['altura'], 1, '.', '') . '%" title="' . $titulo . '">';
-        if ($b['pico']) {
-            $html .= '<span class="grafico-rotulo">' . e(moeda_compacta($b['valor'])) . '</span>';
+        $altura = number_format($b['altura'], 1, '.', '');
+        $quanto = $b['valor'] > 0 ? moeda($b['valor']) : 'sem venda';
+        $rotulo = $b['pico'] ? '<span class="grafico-rotulo">' . e(moeda_compacta($b['valor'])) . '</span>' : '';
+
+        if (!$tocavel) {
+            $html .= '<div class="' . $classe . '" style="height:' . $altura . '%" title="'
+                   . e(data_fmt($b['data']) . ': ' . $quanto) . '">' . $rotulo . '</div>';
+            continue;
         }
-        $html .= '</div>';
+
+        $dia = dia_semana_longo($b['data']) . ', ' . date('d/m', strtotime($b['data']));
+        $html .= '<button type="button" class="grafico-coluna" aria-pressed="false"'
+               . ' data-data="' . e($b['data']) . '" data-dia="' . e($dia) . '"'
+               . ' data-moeda="' . e(moeda($b['valor'])) . '" title="' . e($dia . ': ' . $quanto) . '">'
+               . '<span class="' . $classe . '" style="height:' . $altura . '%">' . $rotulo . '</span>'
+               . '</button>';
     }
     $html .= '</div><div class="grafico-eixo"><span>' . e(data_fmt($de)) . '</span><span>' . e(data_fmt($ate)) . '</span></div>';
     return $html;

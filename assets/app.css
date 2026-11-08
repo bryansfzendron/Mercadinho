@@ -640,7 +640,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--marca); out
     min-height: 2px;
 }
 /* Dia sem venda: um tracinho no chao, pra marcar presenca sem inventar barra. */
-.grafico-barra.vazio { min-height: 2px; background: var(--vidro-borda); }
+/* padding: 0 porque o .vazio generico (o "nenhum produto" das listas) tem
+   padding de mensagem, que fazia o dia sem venda virar um bloco largo. */
+.grafico-barra.vazio { min-height: 2px; padding: 0; background: var(--vidro-borda); }
 .grafico-barra.pico { background: var(--marca); }
 .grafico-rotulo {
     position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
@@ -1015,6 +1017,8 @@ html, body { overscroll-behavior-y: none; }   /* sem o "elastico" do iOS competi
     background: var(--painel-tinta); opacity: .95;
 }
 .painel-coluna.futuro .painel-barra { opacity: .35; }
+/* Arrastar de lado corre os dias, como no mes; a vertical continua rolando a pagina. */
+.painel-barras { touch-action: pan-y; }
 .painel-dia {
     font-size: .72rem; color: var(--painel-apoio); margin-top: .5rem;
     height: 1rem; line-height: 1rem;
@@ -1036,6 +1040,27 @@ html, body { overscroll-behavior-y: none; }   /* sem o "elastico" do iOS competi
 .painel-mes .grafico-barra.vazio { background: var(--painel-linha); }
 .painel-mes .grafico-rotulo { color: var(--painel-tinta); }
 .painel-mes .grafico-eixo { color: var(--painel-apoio); }
+
+/* O mes tocavel: cada dia e um botao da altura inteira do grafico, colado no
+   vizinho (o vao vira padding dentro do botao), para que o dedo acerte a
+   faixa do dia e nao a barra de 3px. pan-y deixa a pagina rolar na vertical
+   e entrega o arrasto de lado para o inicio.js correr os dias. */
+.grafico-dia.tocavel { gap: 0; touch-action: pan-y; }
+.grafico-coluna {
+    appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
+    flex: 1; min-width: 0; align-self: stretch; padding: 0 1.5px;
+    display: flex; align-items: flex-end; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.grafico-coluna .grafico-barra { flex: none; width: 100%; max-width: 16px; min-width: 2px; }
+/* Igual a semana: o dia escolhido fica, os outros apagam. */
+.grafico-dia.escolhido .grafico-barra { opacity: .35; transition: opacity .15s ease-out; }
+/* O pico perde o branco enquanto ha dia escolhido: senao ele disputa com o
+   dia escolhido pelo olho. */
+.painel-mes .grafico-dia.escolhido .grafico-barra.pico { background: rgba(255, 255, 255, .55); }
+.grafico-dia.escolhido .grafico-coluna.ativo .grafico-barra { opacity: 1; background: var(--painel-tinta); }
+.grafico-dia.escolhido .grafico-rotulo { visibility: hidden; }
+.grafico-coluna:focus-visible { outline: 2px solid var(--painel-tinta); outline-offset: -2px; border-radius: 3px; }
 .painel-rodape { margin: 1.2rem 0 0; color: var(--painel-apoio); font-size: .85rem; }
 
 /* ---------------------------------------------------------------
