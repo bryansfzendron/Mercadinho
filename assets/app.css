@@ -1532,6 +1532,9 @@ details.animando { overflow: hidden; }
     flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; background: none;
     -webkit-backdrop-filter: none; backdrop-filter: none; outline: none; font-size: .95rem;
 }
+/* Filtro que aplica sozinho (filtro-direto.js): enquanto a pagina nova nao
+   chega, o cartao apaga um pouco para dizer que o toque foi aceito. */
+form.enviando { opacity: .6; pointer-events: none; transition: opacity .15s ease-out; }
 .vf-filtrar { width: auto; flex: none; display: flex; align-items: center; gap: .4rem; height: 46px; padding: 0 1.1rem; }
 .vf-filtrar svg { width: 19px; height: 19px; }
 @media (max-width: 380px) {

@@ -3,8 +3,10 @@
  * Os filtros das duas telas de Vendas (Resumo e Transacoes), no mesmo cartao:
  * os atalhos de periodo, o campo de datas que abre o De/Ate, o botao
  * "Filtros (N)" que abre PDV, pagamento, categoria (e o agrupamento, no
- * Resumo), e a busca. Fechados, os campos continuam no formulario — o
- * "Filtrar" manda tudo.
+ * Resumo), e a busca. Sem botao "Filtrar": cada campo aplica ao ser
+ * escolhido (assets/filtro-direto.js), e a gaveta de onde veio a mudanca
+ * reabre depois da recarga. Fechados, os campos continuam no formulario e
+ * vao junto.
  *
  * @var string $acao          '/vendas' ou '/vendas/transacoes'
  * @var array  $f             vendas_filtros_da_url()
@@ -32,7 +34,7 @@ $ativos = count(array_intersect_key($base, array_flip(['pdv_id', 'forma', 'categ
         <?php endforeach; ?>
     </div>
 
-    <form method="get" action="<?= e($acao) ?>">
+    <form method="get" action="<?= e($acao) ?>" data-filtro-direto>
         <div class="vf-linha">
             <details class="vf-gaveta vf-datas">
                 <summary><span class="vf-campo">
@@ -95,12 +97,9 @@ $ativos = count(array_intersect_key($base, array_flip(['pdv_id', 'forma', 'categ
             <label class="vf-busca">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
                 <input type="text" name="q" value="<?= e($f['busca']) ?>" placeholder="<?= e($busca_dica) ?>"
-                       aria-label="Buscar" autocomplete="off" autocorrect="off" spellcheck="false">
+                       aria-label="Buscar" enterkeyhint="search"
+                       autocomplete="off" autocorrect="off" spellcheck="false">
             </label>
-            <button type="submit" class="botao vf-filtrar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/></svg>
-                Filtrar
-            </button>
         </div>
     </form>
 </div>
