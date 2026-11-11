@@ -413,7 +413,10 @@ function alexa_fala_validade(array $faixas, ?string $hoje = null): string
     foreach ($faixas as $f) {
         $por[$f['chave']] = $f['itens'];
     }
-    $nomes = static function (array $itens, bool $com_prazo) use ($hoje): string {
+    // O mesmo produto em dois PDVs e uma linha por PDV, mas para quem ouve e
+    // um produto so: conta e fala cada nome uma vez, com o prazo mais curto
+    // (a lista ja vem em ordem de validade).
+    $unicos = static function (array $itens, bool $com_prazo) use ($hoje): array {
         $vistos = [];
         foreach ($itens as $l) {
             $nome = alexa_nome_produto((string) $l['descricao']);
@@ -422,25 +425,28 @@ function alexa_fala_validade(array $faixas, ?string $hoje = null): string
             }
             $e = validade_estado($l['validade'] ?? null, $hoje);
             $vistos[$nome] = $com_prazo && $e['dias'] !== null
-                ? $nome . ($e['dias'] === 0 ? ', hoje' : ($e['dias'] === 1 ? ', amanhã' : ', em ' . $e['dias'] . ' dias'))
+                ? $nome . ($e['dias'] === 0 ? ' vence hoje' : ($e['dias'] === 1 ? ' vence amanhã' : ' vence em ' . $e['dias'] . ' dias'))
                 : $nome;
         }
-        $lista = array_values($vistos);
+        return array_values($vistos);
+    };
+    $falar = static function (array $lista): string {
         $resto = count($lista) - 5;
-        $lista = array_slice($lista, 0, 5);
-        return alexa_lista($lista) . ($resto > 0 ? ', e mais ' . $resto : '');
+        return alexa_lista(array_slice($lista, 0, 5)) . ($resto > 0 ? ', e mais ' . $resto : '');
     };
 
     $txt = [];
     if (!empty($por['vencido'])) {
-        $n = count($por['vencido']);
+        $lista = $unicos($por['vencido'], false);
+        $n = count($lista);
         $txt[] = ($n === 1 ? 'Tem 1 produto vencido em estoque: ' : 'Tem ' . $n . ' produtos vencidos em estoque: ')
-               . $nomes($por['vencido'], false) . '.';
+               . $falar($lista) . '.';
     }
     if (!empty($por['semana'])) {
-        $n = count($por['semana']);
-        $txt[] = ($n === 1 ? 'Vence nos próximos 7 dias: ' : 'Vencem nos próximos 7 dias ' . $n . ' produtos: ')
-               . $nomes($por['semana'], true) . '.';
+        $lista = $unicos($por['semana'], true);
+        $n = count($lista);
+        $txt[] = ($n === 1 ? 'Nos próximos 7 dias, ' : 'Nos próximos 7 dias vencem ' . $n . ' produtos: ')
+               . $falar($lista) . '.';
     }
     if (!$txt) {
         $mes = count($por['mes'] ?? []);

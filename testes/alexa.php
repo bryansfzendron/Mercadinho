@@ -243,7 +243,10 @@ $itens = [
 ];
 checar('validade: vencido e semana',
     alexa_fala_validade(loja_faixas_validade($itens, $hoje), $hoje),
-    'Tem 2 produtos vencidos em estoque: iogurte. Vencem nos próximos 7 dias 3 produtos: leite, hoje, pao, amanhã e queijo, em 5 dias.');
+    'Tem 1 produto vencido em estoque: iogurte. Nos próximos 7 dias vencem 3 produtos: leite vence hoje, pao vence amanhã e queijo vence em 5 dias.');
+checar('validade: um so na semana',
+    alexa_fala_validade(loja_faixas_validade([['descricao' => 'PAO', 'validade' => '2026-11-12']], $hoje), $hoje),
+    'Nos próximos 7 dias, pao vence amanhã.');
 checar('validade: so o mes',
     alexa_fala_validade(loja_faixas_validade([['descricao' => 'SUCO', 'validade' => '2026-11-30']], $hoje), $hoje),
     'Nenhum produto vencido nem vencendo esta semana. 1 produto vence nos próximos 30 dias.');
