@@ -98,3 +98,4 @@ require APP . '/planilha_repor.php';
 require APP . '/repor_nota.php';
 require APP . '/discrepancias.php';
 require APP . '/promocao.php';
+require APP . '/alexa.php';

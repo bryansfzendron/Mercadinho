@@ -96,6 +96,21 @@ return [
     'cron_loja_min'   => 15,
 
     // ---------------------------------------------------------------
+    // Skill da Alexa ("Alexa, pergunta pro mercadinho quanto vendeu hoje")
+    // ---------------------------------------------------------------
+    // A Amazon chama POST /alexa. Os dois campos abaixo sao obrigatorios;
+    // vazios, a rota recusa tudo.
+    //  - alexa_skill_id: o ID da skill no console da Alexa
+    //    (amzn1.ask.skill....). Pedido de outra skill e recusado.
+    //  - alexa_usuario_id: o id (tabela usuarios) de quem e a loja que a
+    //    Alexa le — a mesma conta TouchPay que esse usuario ve no app.
+    //  - alexa_user_ids (opcional): userIds da Alexa aceitos. So precisa se
+    //    a skill sair do modo de desenvolvimento.
+    'alexa_skill_id'   => '',
+    'alexa_usuario_id' => 0,
+    'alexa_user_ids'   => [],
+
+    // ---------------------------------------------------------------
     // Token da pagina de instalacao/diagnostico (setup.php).
     // Acesse: /setup.php?token=SEU-TOKEN
     // Depois de instalar, troque por uma string aleatoria ou remova o arquivo.

@@ -13,6 +13,8 @@ function despachar(string $rota): void
     if ($rota === '/api/callback' && $m === 'POST') { rota_callback(); return; }
     if ($rota === '/api/loja/callback' && $m === 'POST') { rota_loja_callback(); return; }
     if ($rota === '/api/vendas/callback' && $m === 'POST') { rota_vendas_callback(); return; }
+    // Skill da Alexa: autenticada pela assinatura da Amazon (app/alexa.php).
+    if ($rota === '/alexa' && $m === 'POST') { rota_alexa(); return; }
 
     // ---------------- exige login ----------------
     $u = exigir_login();
