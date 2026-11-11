@@ -1,0 +1,42 @@
+{
+  "manifest": {
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "locales": {
+        "pt-BR": {
+          "name": "Mercadinho",
+          "summary": "Vendas, meta e validade do mercadinho por voz.",
+          "description": "Responde quanto o mercadinho vendeu hoje ou num período, como está a meta do mês, o que mais vendeu e o que está vencendo, com os dados sincronizados do TouchPay.",
+          "examplePhrases": [
+            "Alexa, abrir mercadinho",
+            "Alexa, pergunta pro mercadinho quanto vendeu hoje",
+            "Alexa, pergunta pro mercadinho como está a meta"
+          ],
+          "keywords": ["vendas", "mercadinho", "touchpay"]
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": ["BR"],
+      "testingInstructions": "Skill de uso pessoal, só em desenvolvimento.",
+      "category": "BUSINESS_AND_FINANCE"
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "https://mercadinho.bryanzendron.com.br/alexa",
+          "sslCertificateType": "Trusted"
+        }
+      }
+    },
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "locales": {
+        "pt-BR": {}
+      }
+    }
+  }
+}

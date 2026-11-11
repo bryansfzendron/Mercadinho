@@ -1,0 +1,101 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "mercadinho",
+      "intents": [
+        {
+          "name": "VendasHojeIntent",
+          "slots": [],
+          "samples": [
+            "quanto vendeu hoje",
+            "quanto vendemos hoje",
+            "quanto a gente vendeu hoje",
+            "quanto entrou hoje",
+            "como estão as vendas",
+            "como estão as vendas hoje",
+            "como está o dia",
+            "como está o movimento",
+            "qual o faturamento de hoje",
+            "as vendas de hoje",
+            "o faturamento",
+            "quanto vendeu"
+          ]
+        },
+        {
+          "name": "VendasPeriodoIntent",
+          "slots": [
+            { "name": "periodo", "type": "AMAZON.DATE" }
+          ],
+          "samples": [
+            "quanto vendeu {periodo}",
+            "quanto vendemos {periodo}",
+            "quanto a gente vendeu {periodo}",
+            "quanto entrou {periodo}",
+            "quanto vendeu em {periodo}",
+            "quanto vendeu na {periodo}",
+            "quanto vendeu no {periodo}",
+            "qual foi o faturamento {periodo}",
+            "qual foi o faturamento de {periodo}",
+            "qual o faturamento de {periodo}",
+            "as vendas de {periodo}",
+            "como foram as vendas {periodo}",
+            "como foram as vendas de {periodo}"
+          ]
+        },
+        {
+          "name": "MetaIntent",
+          "slots": [],
+          "samples": [
+            "como está a meta",
+            "como está a meta do mês",
+            "como anda a meta",
+            "quanto falta para a meta",
+            "quanto falta pra meta",
+            "quanto falta pra bater a meta",
+            "vamos bater a meta",
+            "qual a meta do mês",
+            "a meta"
+          ]
+        },
+        {
+          "name": "MaisVendidosIntent",
+          "slots": [
+            { "name": "periodo", "type": "AMAZON.DATE" }
+          ],
+          "samples": [
+            "qual produto mais vendeu",
+            "qual produto mais vendeu {periodo}",
+            "qual foi o produto que mais vendeu {periodo}",
+            "o que mais vendeu",
+            "o que mais vendeu {periodo}",
+            "quais os mais vendidos",
+            "quais foram os mais vendidos {periodo}",
+            "quais os produtos mais vendidos {periodo}",
+            "qual o campeão de vendas {periodo}"
+          ]
+        },
+        {
+          "name": "ValidadeIntent",
+          "slots": [],
+          "samples": [
+            "o que está vencendo",
+            "o que vai vencer",
+            "o que vence essa semana",
+            "tem produto vencido",
+            "tem alguma coisa vencida",
+            "quais produtos estão vencendo",
+            "quais produtos vão vencer",
+            "como estão as validades",
+            "a validade dos produtos"
+          ]
+        },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] }
+      ],
+      "types": []
+    }
+  }
+}

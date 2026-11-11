@@ -19,6 +19,7 @@ DirectoryIndex index.php
     RewriteRule ^\.git(/|$)      - [F,L]
     RewriteRule ^app(/|$)        - [F,L]
     RewriteRule ^sql(/|$)        - [F,L]
+    RewriteRule ^skill-alexa(/|$) - [F,L]
     RewriteRule ^\.env           - [F,L]
     RewriteRule (^|/)\.          - [F,L]
 
