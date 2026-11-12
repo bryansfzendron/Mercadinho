@@ -260,6 +260,39 @@ checar('validade: corta em cinco nomes',
     'Tem 8 produtos vencidos em estoque: item 1, item 2, item 3, item 4 e item 5, e mais 3.');
 
 // ---------------------------------------------------------------------
+// Compra num dia e horario
+// ---------------------------------------------------------------------
+checar('hora: 15:30', alexa_hora('15:30'), '15:30');
+checar('hora: 9:05', alexa_hora('9:05'), '09:05');
+checar('hora: periodo do dia', alexa_hora('AF'), null);
+checar('hora: vazio', alexa_hora(''), null);
+checar('hora falada: cheia', alexa_hora_falada('15:00'), '15 horas');
+checar('hora falada: minutos', alexa_hora_falada('15:32'), '15 e 32');
+$v1 = ['data_hora' => '2026-11-10 15:32:10', 'valor_pago' => '18.50', 'forma_pagamento' => 'PIX'];
+$it = [
+    ['descricao' => 'COCA COLA LATA', 'quantidade' => '2'],
+    ['descricao' => 'PAO DE QUEIJO', 'quantidade' => '1'],
+];
+checar('compra: uma venda',
+    alexa_fala_compra([$v1], $it, 'ontem', '15:30'),
+    'Às 15 e 32 ontem, uma venda de 18 reais e 50 centavos no pix: 2 coca cola lata e 1 pao de queijo.');
+checar('compra: varias na janela',
+    alexa_fala_compra([$v1, $v1], $it, 'ontem', '15:30'),
+    'Às 15 e 32 ontem, uma venda de 18 reais e 50 centavos no pix: 2 coca cola lata e 1 pao de queijo.'
+    . ' Tem mais 1 venda nessa janela. Diga o horário mais exato para escolher outra.');
+checar('compra: nenhuma',
+    alexa_fala_compra([], [], 'ontem', '15:30'),
+    'Não achei nenhuma venda perto das 15 e 30 ontem, numa janela de 10 minutos.');
+checar('compra: sem itens',
+    alexa_fala_compra([$v1], [], 'hoje', '15:30'),
+    'Às 15 e 32 hoje, uma venda de 18 reais e 50 centavos no pix, mas sem a lista de itens.');
+$muitos = [];
+foreach (range(1, 7) as $i) { $muitos[] = ['descricao' => 'ITEM ' . $i, 'quantidade' => '1']; }
+checar('compra: corta em cinco itens',
+    alexa_fala_compra([$v1], $muitos, 'hoje', '15:30'),
+    'Às 15 e 32 hoje, uma venda de 18 reais e 50 centavos no pix: 1 item 1, 1 item 2, 1 item 3, 1 item 4 e 1 item 5, e mais 2.');
+
+// ---------------------------------------------------------------------
 // Despacho dos pedidos
 // ---------------------------------------------------------------------
 $vistos = [];
@@ -269,6 +302,7 @@ $fontes = [
     'meta'          => static function () use (&$vistos) { $vistos[] = 'meta'; return 'META'; },
     'mais_vendidos' => static function (array $p) use (&$vistos) { $vistos[] = 'mais ' . $p['de']; return 'MAIS'; },
     'validade'      => static function () use (&$vistos) { $vistos[] = 'validade'; return 'VALIDADE'; },
+    'compra'        => static function (array $p, string $h) use (&$vistos) { $vistos[] = 'compra ' . $p['de'] . ' ' . $h; return 'COMPRA'; },
 ];
 $pedir = static function (string $intent, array $slots = []) use ($fontes, $hoje): array {
     $s = [];
@@ -294,8 +328,15 @@ checar('periodo: sem entender', $fala($pedir('VendasPeriodoIntent', ['periodo' =
 checar('mais vendidos: sem periodo e hoje', $fala($pedir('MaisVendidosIntent')), 'MAIS');
 checar('meta', $fala($pedir('MetaIntent')), 'META');
 checar('validade', $fala($pedir('ValidadeIntent')), 'VALIDADE');
+checar('compra: dia e hora', $fala($pedir('CompraIntent', ['dia' => '2026-11-10', 'hora' => '15:30'])), 'COMPRA');
+checar('compra: sem dia vale hoje', $fala($pedir('CompraIntent', ['hora' => '09:05'])), 'COMPRA');
+checar('compra: sem hora pergunta', $pedir('CompraIntent', ['dia' => '2026-11-10'])['response']['shouldEndSession'], false);
+checar('compra: periodo do dia pergunta', $fala($pedir('CompraIntent', ['hora' => 'AF'])),
+    'Preciso do horário da compra, por exemplo: às 15 e 30. Qual o horário?');
+checar('compra: semana nao e dia', str_starts_with((string) $fala($pedir('CompraIntent', ['dia' => '2026-W45', 'hora' => '15:30'])), 'Não entendi o dia'), true);
 checar('consultas chamadas', $vistos,
-    ['hoje', 'hoje', 'periodo 2026-11-10', 'hoje', 'mais 2026-11-11', 'meta', 'validade']);
+    ['hoje', 'hoje', 'periodo 2026-11-10', 'hoje', 'mais 2026-11-11', 'meta', 'validade',
+     'compra 2026-11-10 15:30', 'compra 2026-11-11 09:05']);
 checar('ajuda: sessao aberta', $pedir('AMAZON.HelpIntent')['response']['shouldEndSession'], false);
 checar('parar', $fala($pedir('AMAZON.StopIntent')), 'Até mais!');
 checar('fallback: explica', str_starts_with((string) $fala($pedir('AMAZON.FallbackIntent')), 'Isso eu ainda não sei'), true);

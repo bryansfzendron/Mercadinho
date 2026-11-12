@@ -456,6 +456,69 @@ function alexa_fala_validade(array $faixas, ?string $hoje = null): string
     return implode(' ', $txt);
 }
 
+/**
+ * Hora do slot AMAZON.TIME ("15:30") em "HH:MM". Funcao pura.
+ *
+ * "MO", "AF", "EV", "NI" (manha, tarde...) e "15" sozinho nao dizem a hora
+ * certa: null, e a Alexa pede o horario.
+ */
+function alexa_hora(string $valor): ?string
+{
+    if (!preg_match('/^([01]?\d|2[0-3]):([0-5]\d)$/', trim($valor), $m)) {
+        return null;
+    }
+    return sprintf('%02d:%s', (int) $m[1], $m[2]);
+}
+
+/** "15:32" -> "15 e 32", "15:00" -> "15 horas". Funcao pura. */
+function alexa_hora_falada(string $hhmm): string
+{
+    [$h, $m] = array_map('intval', explode(':', $hhmm));
+    return $m === 0 ? $h . ' horas' : $h . ' e ' . $m;
+}
+
+/** Janela de busca da compra, em minutos para cada lado da hora pedida. */
+const ALEXA_JANELA_MIN = 10;
+
+/**
+ * Fala de uma compra: hora, valor, forma de pagamento e itens. Funcao pura.
+ *
+ * @param array  $vendas linhas de vendas ja ordenadas da mais proxima da hora
+ *                       pedida para a mais distante (data_hora, valor_pago, forma_pagamento)
+ * @param array  $itens  itens da primeira venda (descricao, quantidade)
+ * @param string $quando "hoje", "ontem" ou "em 5 de novembro"
+ */
+function alexa_fala_compra(array $vendas, array $itens, string $quando, string $hora_pedida): string
+{
+    if (!$vendas) {
+        return 'Não achei nenhuma venda perto das ' . alexa_hora_falada($hora_pedida) . ' ' . $quando
+             . ', numa janela de ' . ALEXA_JANELA_MIN . ' minutos.';
+    }
+    $v = $vendas[0];
+    $hhmm = date('H:i', strtotime((string) $v['data_hora']));
+    $txt = 'Às ' . alexa_hora_falada($hhmm) . ' ' . $quando . ', uma venda de ' . alexa_reais((float) $v['valor_pago']);
+    $forma = mb_strtolower(trim((string) ($v['forma_pagamento'] ?? '')));
+    if ($forma !== '') {
+        $txt .= ' no ' . $forma;
+    }
+    if (!$itens) {
+        $txt .= ', mas sem a lista de itens.';
+    } else {
+        $partes = [];
+        foreach ($itens as $i) {
+            $q = (float) $i['quantidade'];
+            $partes[] = qtd_fmt($q) . ' ' . alexa_nome_produto((string) $i['descricao']);
+        }
+        $resto = count($partes) - 5;
+        $txt .= ': ' . alexa_lista(array_slice($partes, 0, 5)) . ($resto > 0 ? ', e mais ' . $resto : '') . '.';
+    }
+    if (count($vendas) > 1) {
+        $txt .= ' Tem mais ' . alexa_qtd(count($vendas) - 1, 'venda', 'vendas')
+              . ' nessa janela. Diga o horário mais exato para escolher outra.';
+    }
+    return $txt;
+}
+
 // ---------------------------------------------------------------------
 // Periodo falado (AMAZON.DATE)
 // ---------------------------------------------------------------------
@@ -569,7 +632,7 @@ function alexa_resposta(string $texto, ?string $pergunta = null): array
 }
 
 const ALEXA_AJUDA = 'Você pode perguntar quanto vendeu hoje, ontem ou no mês, como está a meta, '
-                  . 'o que mais vendeu, ou o que está vencendo.';
+                  . 'o que mais vendeu, o que está vencendo, ou o que foi comprado num dia e horário.';
 
 /** O valor de um slot, ou ''. Funcao pura. */
 function alexa_slot(array $pedido, string $nome): string
@@ -581,7 +644,7 @@ function alexa_slot(array $pedido, string $nome): string
  * Decide o que responder. As consultas entram por $fontes para o teste poder
  * trocar o banco por numeros fixos.
  *
- * @param array<string,callable> $fontes hoje, periodo, meta, mais_vendidos, validade
+ * @param array<string,callable> $fontes hoje, periodo, meta, mais_vendidos, validade, compra
  */
 function alexa_atender(array $pedido, array $fontes, string $hoje): array
 {
@@ -614,6 +677,16 @@ function alexa_atender(array $pedido, array $fontes, string $hoje): array
                 return alexa_resposta($fontes['hoje']());
             }
             return alexa_resposta($fontes['periodo']($p));
+        case 'CompraIntent':
+            $hora = alexa_hora(alexa_slot($pedido, 'hora'));
+            if ($hora === null) {
+                return alexa_resposta('Preciso do horário da compra, por exemplo: às 15 e 30.', 'Qual o horário?');
+            }
+            $p = alexa_periodo(alexa_slot($pedido, 'dia'), $hoje);
+            if (!$p || $p['de'] !== $p['ate']) {
+                return alexa_resposta('Não entendi o dia. Tente hoje, ontem ou uma data.', 'Qual o dia?');
+            }
+            return alexa_resposta($fontes['compra']($p, $hora));
         case 'MetaIntent':
             return alexa_resposta($fontes['meta']());
         case 'ValidadeIntent':
@@ -680,6 +753,22 @@ function alexa_fontes(int $agora): array
         'mais_vendidos' => static function (array $p): string {
             $cru = vendas_produtos_por_dia($p['de'], $p['ate']);
             return alexa_fala_mais_vendidos($p['rotulo'], vendas_produtos_juntar($cru, $p['de'], $p['ate'], 3));
+        },
+        'compra' => static function (array $p, string $hora): string {
+            $alvo = strtotime($p['de'] . ' ' . $hora . ':00');
+            $j = ALEXA_JANELA_MIN * 60;
+            [$onde, $args] = vendas_filtro_sql([]);
+            $onde .= ' AND v.data_hora BETWEEN ? AND ?';
+            array_push($args, date('Y-m-d H:i:s', $alvo - $j), date('Y-m-d H:i:59', $alvo + $j));
+            // Hora cheia pedida ("15 e 30") vale o minuto inteiro: 15:30:00 a 15:30:59.
+            $vendas = q(
+                'SELECT v.id, v.data_hora, v.valor_pago, v.forma_pagamento
+                   FROM vendas v WHERE ' . $onde . '
+               ORDER BY ABS(TIMESTAMPDIFF(SECOND, v.data_hora, ?)), v.id LIMIT 10',
+                array_merge($args, [date('Y-m-d H:i:30', $alvo)])
+            );
+            $itens = $vendas ? (vendas_itens_das([(int) $vendas[0]['id']])[(int) $vendas[0]['id']] ?? []) : [];
+            return alexa_fala_compra($vendas, $itens, $p['rotulo'], $hora);
         },
         'validade' => static function () use ($hoje): string {
             // So o que tem estoque: produto vencido que ja saiu da prateleira

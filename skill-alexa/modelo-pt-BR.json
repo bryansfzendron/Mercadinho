@@ -89,6 +89,28 @@
             "a validade dos produtos"
           ]
         },
+        {
+          "name": "CompraIntent",
+          "slots": [
+            { "name": "dia", "type": "AMAZON.DATE" },
+            { "name": "hora", "type": "AMAZON.TIME" }
+          ],
+          "samples": [
+            "o que foi comprado {dia} às {hora}",
+            "o que foi comprado às {hora}",
+            "o que foi vendido {dia} às {hora}",
+            "o que foi vendido às {hora}",
+            "o que comprou {dia} às {hora}",
+            "o que o cliente comprou {dia} às {hora}",
+            "o que o cliente comprou às {hora}",
+            "qual foi a compra {dia} às {hora}",
+            "qual foi a compra das {hora} {dia}",
+            "me fala a compra das {hora}",
+            "me fala a compra {dia} às {hora}",
+            "o que saiu {dia} às {hora}",
+            "a compra {dia} às {hora}"
+          ]
+        },
         { "name": "AMAZON.HelpIntent", "samples": [] },
         { "name": "AMAZON.CancelIntent", "samples": [] },
         { "name": "AMAZON.StopIntent", "samples": [] },
