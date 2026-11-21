@@ -615,7 +615,8 @@
         function blocoValidade(atual) {
             return '<div class="pg-validade">' +
                      '<label>Validade do que estou repondo' +
-                       '<input type="date" data-data="validade" ' +
+                       '<input type="text" data-data="validade" inputmode="numeric" ' +
+                              'placeholder="dd/mm/aaaa" maxlength="10" ' +
                               'autocomplete="off" spellcheck="false">' +
                      '</label>' +
                      '<p class="ajuda" id="pg-val-atual">' +
@@ -669,6 +670,14 @@
                     '</label>';
             }
 
+            // Digitando so os numeros, as barras entram sozinhas: 14022027 -> 14/02/2027.
+            el.addEventListener('input', () => {
+                const n = el.value.replace(/\D/g, '').slice(0, 8);
+                let t = n.slice(0, 2);
+                if (n.length > 2) t += '/' + n.slice(2, 4);
+                if (n.length > 4) t += '/' + n.slice(4);
+                if (t !== el.value) el.value = t;
+            });
             el.addEventListener('input', refazer);
             el.addEventListener('change', refazer);
         }
