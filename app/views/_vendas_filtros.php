@@ -22,9 +22,10 @@ $base = array_filter([
     'forma'     => $f['forma'] !== '' ? $f['forma'] : null,
     'categoria' => $f['categoria'] !== '' ? $f['categoria'] : null,
     'agrupar'   => $com_agrupar && $agrupar_atual !== 'produto' ? $agrupar_atual : null,
+    'ordem'     => $com_agrupar && ($f['ordem'] ?? 'valor') === 'qtd' ? 'qtd' : null,
     'q'         => $f['busca'] !== '' ? $f['busca'] : null,
 ], static fn ($v): bool => $v !== null);
-$ativos = count(array_intersect_key($base, array_flip(['pdv_id', 'forma', 'categoria', 'agrupar'])));
+$ativos = count(array_intersect_key($base, array_flip(['pdv_id', 'forma', 'categoria', 'agrupar', 'ordem'])));
 ?>
 <div class="cartao filtros-cartao">
     <div class="chips vf-periodos">
@@ -86,6 +87,12 @@ $ativos = count(array_intersect_key($base, array_flip(['pdv_id', 'forma', 'categ
                                 <?php foreach (vendas_agrupamentos() as $chave => [$rot, $_]): ?>
                                     <option value="<?= e($chave) ?>" <?= $agrupar_atual === $chave ? 'selected' : '' ?>><?= e($rot) ?></option>
                                 <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>Ordenar por
+                            <select name="ordem">
+                                <option value="valor" <?= ($f['ordem'] ?? 'valor') !== 'qtd' ? 'selected' : '' ?>>Maior valor</option>
+                                <option value="qtd" <?= ($f['ordem'] ?? '') === 'qtd' ? 'selected' : '' ?>>Mais unidades vendidas</option>
                             </select>
                         </label>
                     <?php endif; ?>

@@ -1396,6 +1396,7 @@ function vendas_filtros_da_url(): array
         'forma'     => (string) ($_GET['forma'] ?? ''),
         'categoria' => trim((string) ($_GET['categoria'] ?? '')),
         'agrupar'   => (string) ($_GET['agrupar'] ?? 'produto'),
+        'ordem'     => ($_GET['ordem'] ?? '') === 'qtd' ? 'qtd' : 'valor',
         'busca'     => trim((string) ($_GET['q'] ?? '')),
     ];
 }

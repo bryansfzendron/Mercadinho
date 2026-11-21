@@ -1346,6 +1346,13 @@ function vendas_relatorio(array $f): array
         $pct_variavel
     );
 
+    // Por padrao o ranking e por valor; 'qtd' poe o mais vendido em unidades
+    // no topo (valor desempata).
+    if (($f['ordem'] ?? '') === 'qtd') {
+        usort($agrupado['linhas'], static fn (array $a, array $b): int
+            => [$b['quantidade'], $b['receita']] <=> [$a['quantidade'], $a['receita']]);
+    }
+
     // O fixo e mensal: cada dia paga 1/dias do mes dele, e nao 1/30.
     $de_iso  = data_iso($f['de'] ?? null);
     $ate_iso = data_iso($f['ate'] ?? null);
@@ -1356,6 +1363,7 @@ function vendas_relatorio(array $f): array
     return [
         'rotulo'       => $rotulo,
         'agrupar'      => $chave,
+        'ordem'        => ($f['ordem'] ?? '') === 'qtd' ? 'qtd' : 'valor',
         'linhas'       => $agrupado['linhas'],
         // A tela mostra por forma de pagamento; a conta e por (PDV, forma).
         'por_forma'    => vendas_juntar_formas($por_pdv_forma, $params_por_pdv),
