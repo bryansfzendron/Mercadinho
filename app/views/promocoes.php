@@ -83,7 +83,7 @@ $hoje = date('Y-m-d');
     <?php if (!$sugeridas): ?>
         <p class="vazio">
             Nada pedindo promoção agora.<br>
-            Só entram aqui os itens com validade cadastrada, estoque e até 60 dias pela frente
+            Só entram aqui os itens com validade cadastrada e até 60 dias pela frente
             que não vão sair a tempo no preço de hoje.
         </p>
     <?php else: ?>

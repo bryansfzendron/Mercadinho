@@ -114,16 +114,16 @@ function promocao_sugerir(array $d): array
                 'motivos' => ['Produto vencido não pode ser vendido, nem em promoção (Código de Defesa do '
                             . 'Consumidor, art. 18, § 6º). Tire da prateleira e zere o estoque no Repor.']] + $saida;
     }
-    if ($estoque <= 0) {
-        return ['acao' => 'sem_estoque',
-                'motivos' => ['O app não tem estoque deste item. Se ele está na prateleira, dá para criar a promoção mesmo assim.']] + $saida;
-    }
-
     $taxa = promocao_taxa_por_dias($dias);
     $motivos = [];
 
     // ---- o ritmo de venda mexe na escada ----
-    if ($venda_dia === null) {
+    // Estoque zerado no app nao trava nada: muitas vezes ele so nao foi
+    // alimentado e o produto esta na prateleira. Sem estoque nao da para medir
+    // quando acaba, entao fica a escada pura, pela data.
+    if ($estoque <= 0) {
+        $motivos[] = 'O app não tem estoque deste item: a sugestão vai só pela data.';
+    } elseif ($venda_dia === null) {
         $motivos[] = 'Sem vendas registradas neste ponto de venda para medir o ritmo: a sugestão vai só pela data.';
     } elseif ($venda_dia <= 0) {
         // Nao vendeu nada no mes: no preco de hoje nao sai nunca, entao ate
@@ -959,8 +959,10 @@ function promocoes_buscar(string $busca, int $limite = 40): array
 }
 
 /**
- * Os itens com validade nos proximos 60 dias (ou ja vencidos) e estoque,
- * cada um ja analisado.
+ * Os itens com validade nos proximos 60 dias, com ou sem estoque no app (que
+ * nem sempre e alimentado), e os ja vencidos que ainda tem estoque — vencido
+ * zerado e lote velho que ja saiu, e encheria o LIMIT antes dos que importam.
+ * Cada um ja analisado.
  *
  * E a lista de trabalho da aba Promocoes: o que pede promocao agora e o que
  * tem de sair da prateleira. Item que ja tem promocao valendo — criada por
@@ -976,10 +978,10 @@ function promocoes_sugeridas(int $usuario_id): array
            JOIN loja_pdvs p ON p.id = li.pdv_id
           WHERE p.ativo = 1 AND p.unificado_para IS NULL AND ' . conta_sql('p.conta_id') . '
             AND li.validade IS NOT NULL AND li.validade <= ?
-            AND li.estoque > 0
+            AND (li.validade >= ? OR li.estoque > 0)
        ORDER BY li.validade, li.descricao
           LIMIT 300',
-        [date('Y-m-d', strtotime('+60 days'))]
+        [date('Y-m-d', strtotime('+60 days')), date('Y-m-d')]
     );
 
     $minimos   = margens_minimos();

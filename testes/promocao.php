@@ -92,7 +92,10 @@ checar('e diz que ja esta na faixa', str_contains(implode(' ', $s['motivos']), '
 // ------------------------------------------------------- casos de parada
 checar('vencido: retirar', sug(['dias' => -1])['acao'], 'retirar');
 checar('vencido nao sugere preco', sug(['dias' => -1])['taxa'], null);
-checar('sem estoque: nada a fazer', sug(['estoque' => 0])['acao'], 'sem_estoque');
+// Estoque zerado no app nao trava: vai pela data (10 dias = 1,6x).
+$s = sug(['estoque' => 0, 'venda_dia' => 2.0]);
+checar('sem estoque: vai so pela data', [$s['acao'], $s['taxa']], ['promocao', 1.6]);
+checar('e diz que e so pela data', str_contains(implode(' ', $s['motivos']), 'só pela data'), true);
 checar('sem validade', sug(['dias' => null])['acao'], 'sem_validade');
 checar('5027 e suspeita', sug(['dias' => 1000000])['acao'], 'suspeita');
 checar('mais de 60 dias: manter', sug(['dias' => 75])['acao'], 'manter');
