@@ -729,10 +729,10 @@ function loja_listar(
     $args = [];
 
     if ($busca !== '') {
-        $ean = ean_normalizado($busca);
-        $onde[] = '(li.descricao LIKE ? OR li.ean = ? OR li.codigo LIKE ? OR li.categoria LIKE ?)';
+        // O codigo de barras vale por um pedaco: "3155" acha 7891000315507.
+        $onde[] = '(li.descricao LIKE ? OR li.ean LIKE ? OR li.codigo LIKE ? OR li.categoria LIKE ?)';
         $args[] = '%' . $busca . '%';
-        $args[] = $ean ?? '__nada__';
+        $args[] = '%' . $busca . '%';
         $args[] = '%' . $busca . '%';
         $args[] = '%' . $busca . '%';
     }
