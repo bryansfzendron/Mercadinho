@@ -409,9 +409,20 @@ function rota_produtos(array $u): void
     $params = ['ok', $u['id']];
     $filtro = '';
     if ($busca !== '') {
-        $filtro = ' AND (p.descricao_norm LIKE ? OR p.ean = ?)';
-        $params[] = '%' . normalizar_texto($busca) . '%';
-        $params[] = ean_normalizado($busca) ?? '__nada__';
+        // Nome: cada palavra vale sozinha e em qualquer ordem ("coca 2l" acha
+        // "COCA COLA 2L"). Codigo de barras: um pedaco basta ("3155" acha
+        // 7891000315507).
+        $palavras = array_values(array_filter(explode(' ', normalizar_texto($busca)), 'strlen'));
+        $nome = $palavras
+            ? '(' . implode(' AND ', array_fill(0, count($palavras), 'p.descricao_norm LIKE ?')) . ')'
+            : '0 = 1';
+        $filtro = ' AND (' . $nome . ' OR p.ean LIKE ?)';
+        foreach ($palavras as $w) {
+            $params[] = '%' . $w . '%';
+        }
+        // So quando a busca e numero: "coca 350" e nome, nao pedaco de EAN.
+        $digitos = preg_match('/^[\d\s.\-]+$/', $busca) ? so_digitos($busca) : '';
+        $params[] = $digitos !== '' ? '%' . $digitos . '%' : '__nada__';
     }
 
     $produtos = q(
