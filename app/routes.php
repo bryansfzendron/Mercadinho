@@ -850,7 +850,11 @@ function rota_promocoes(array $u): void
             static fn ($l) => ($l['fim'] < $hoje || !$l['valido']) && $l['fim'] >= $limite)), 0, 15);
     }
 
+    $busca = trim((string) ($_GET['q'] ?? ''));
+
     ver('promocoes', [
+        'busca'      => $busca,
+        'achados'    => promocoes_buscar($busca),
         'sugeridas'  => $lista['sugeridas'],
         'retirar'    => $lista['retirar'],
         'tp_ok'      => $tp !== null,

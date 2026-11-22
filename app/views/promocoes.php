@@ -6,6 +6,8 @@
  * de sair da prateleira AGORA (vencido), o que pede promocao, e o que ja
  * esta em promocao no TouchPay — criado por aqui ou direto no painel.
  *
+ * @var string $busca     o que foi digitado na busca
+ * @var array  $achados   itens do estoque que casaram com a busca
  * @var array $sugeridas
  * @var array $retirar
  * @var bool  $tp_ok      a lista do TouchPay respondeu
@@ -17,6 +19,44 @@ $hoje = date('Y-m-d');
 ?>
 <?= titulo_loja() ?>
 <?= abas_loja('/promocoes') ?>
+
+<div class="cartao">
+    <?= cartao_cabeca('busca', 'Fazer promoção de um produto', 'Pelo nome ou por um pedaço do código') ?>
+    <form method="get" action="/promocoes">
+        <?= filtro_busca('q', $busca, 'Nome ou código', 'Buscar') ?>
+    </form>
+    <?php if ($busca !== ''): ?>
+        <?php if (!$achados): ?>
+            <p class="vazio">Nenhum produto do estoque com “<?= e($busca) ?>”.</p>
+        <?php else: ?>
+            <ul class="lista">
+                <?php foreach ($achados as $it):
+                    $val = validade_estado($it['validade'] ?? null);
+                    $cod = (string) ($it['ean'] ?: ($it['codigo'] ?? ''));
+                ?>
+                    <li><a href="<?= e(promocao_url((int) $it['pdv_id'], (int) $it['externo_produto_id']) ?? '/promocoes') ?>">
+                        <div class="linha-topo">
+                            <span class="forte"><?= e($it['descricao']) ?></span>
+                            <span class="valor"><?= $it['preco_venda'] !== null ? moeda((float) $it['preco_venda']) : '—' ?></span>
+                        </div>
+                        <div class="linha-baixo">
+                            <span>
+                                <?php if ($val['texto'] !== ''): ?>
+                                    <span class="selo selo-validade <?= e($val['classe']) ?>"><?= e($val['texto']) ?></span> ·
+                                <?php endif; ?>
+                                <?= qtd_fmt($it['estoque']) ?> em estoque · <?= e($it['pdv']) ?>
+                            </span>
+                            <span><?= e($cod) ?></span>
+                        </div>
+                    </a></li>
+                <?php endforeach; ?>
+            </ul>
+            <?php if (count($achados) >= 40): ?>
+                <p class="ajuda">Mostrando os 40 primeiros. Digite mais do nome ou do código para afinar.</p>
+            <?php endif; ?>
+        <?php endif; ?>
+    <?php endif; ?>
+</div>
 
 <?php if ($retirar): ?>
     <div class="cartao cartao-alerta">

@@ -933,6 +933,32 @@ function promocoes_locais(int $limite = 60, bool $so_recusadas = false): array
 }
 
 /**
+ * Itens do estoque pelo nome ou por um pedaco do codigo, para criar promocao
+ * em qualquer produto — nao so nos que a lista sugere.
+ *
+ * O pedaco vale em qualquer parte do codigo ("7891" acha 7891000315507), e o
+ * % e o _ que a pessoa digitar sao letra, nao curinga.
+ */
+function promocoes_buscar(string $busca, int $limite = 40): array
+{
+    $busca = trim($busca);
+    if ($busca === '') {
+        return [];
+    }
+    $curinga = '%' . addcslashes($busca, '\%_') . '%';
+    return q(
+        'SELECT li.*, p.nome AS pdv, p.id AS pdv_id, p.externo_id AS pdv_externo
+           FROM loja_itens li
+           JOIN loja_pdvs p ON p.id = li.pdv_id
+          WHERE p.ativo = 1 AND p.unificado_para IS NULL AND ' . conta_sql('p.conta_id') . '
+            AND (li.descricao LIKE ? OR li.ean LIKE ? OR li.codigo LIKE ?)
+       ORDER BY li.descricao, p.nome
+          LIMIT ' . max(1, min(200, $limite)),
+        [$curinga, $curinga, $curinga]
+    );
+}
+
+/**
  * Os itens com validade nos proximos 60 dias (ou ja vencidos) e estoque,
  * cada um ja analisado.
  *
