@@ -116,7 +116,7 @@ function promocao_sugerir(array $d): array
     }
     if ($estoque <= 0) {
         return ['acao' => 'sem_estoque',
-                'motivos' => ['Não há estoque deste item: não tem o que pôr em promoção.']] + $saida;
+                'motivos' => ['O app não tem estoque deste item. Se ele está na prateleira, dá para criar a promoção mesmo assim.']] + $saida;
     }
 
     $taxa = promocao_taxa_por_dias($dias);

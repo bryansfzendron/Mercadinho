@@ -27,13 +27,15 @@ $taxa_br = static fn (float $t): string => number_format($t, 2, ',', '.');
 $piso    = promocao_piso($minimos['prejuizo'] ?? null);
 
 // Ate quando: a validade, que e quando o produto tem de sair de qualquer
-// jeito. Validade ja passada ou ausente cai numa semana.
+// jeito. Validade ja passada, ausente ou suspeita (ano 5027) cai numa semana.
 $hoje   = date('Y-m-d');
-$fim    = $item['validade'] && $item['validade'] >= $hoje
+$fim    = $item['validade'] && $item['validade'] >= $hoje && $sug['acao'] !== 'suspeita'
     ? $item['validade']
     : date('Y-m-d', strtotime('+7 days'));
-$pode_promover = $preco !== null && $preco > 0
-    && !in_array($sug['acao'], ['retirar', 'sem_estoque', 'suspeita'], true);
+// So o vencido fica de fora: nao se vende, nem com desconto. Sem estoque,
+// sem validade ou com data suspeita pode, porque o estoque do app nem sempre
+// esta alimentado — o aviso continua na tela, mas nao trava.
+$pode_promover = $preco !== null && $preco > 0 && $sug['acao'] !== 'retirar';
 ?>
 <a class="voltar" href="/promocoes">‹ Promoções</a>
 
@@ -118,7 +120,9 @@ $pode_promover = $preco !== null && $preco > 0
             <?php foreach ($sug['motivos'] as $m): ?><li><?= e($m) ?></li><?php endforeach; ?>
         </ul>
     </div>
+<?php endif; ?>
 
+<?php if ($sug['acao'] !== 'retirar'): ?>
     <?php if ($pode_promover): ?>
         <div class="cartao" id="promo-form"
              data-pdv="<?= (int) $item['pdv_id'] ?>"
