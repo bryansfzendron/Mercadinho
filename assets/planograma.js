@@ -454,7 +454,10 @@
         }
 
         function linhaCampo(nome, rotulo, valor, dica) {
-            const v = valor === null || valor === undefined ? '' :
+            // Estoque zerado vem vazio, com o 0 so de dica: e so digitar, sem
+            // apagar antes. Vazio = "nao mexe", entao salvar sem tocar nao zera nada.
+            const zerado = nome === 'estoque' && Number(valor) === 0;
+            const v = valor === null || valor === undefined || zerado ? '' :
                 (nome === 'preco' ? Number(valor).toFixed(2).replace('.', ',') : qtdTexto(valor));
             return '<label>' + rotulo +
                 '<input type="text" inputmode="decimal" data-campo="' + nome + '" ' +

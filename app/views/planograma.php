@@ -152,7 +152,7 @@
 </div>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/planograma.js?v=10"></script>
+<script src="/assets/planograma.js?v=11"></script>
 <script>
 (function () {
     /*
