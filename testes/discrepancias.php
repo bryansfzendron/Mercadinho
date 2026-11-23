@@ -70,6 +70,18 @@ checar('o mais parecido ganha', discrepancia_mais_parecido('CHOC TRENTO DUO DP-1
 checar('uma palavra so nao basta', discrepancia_mais_parecido('LEITE PARMALAT INTEG', $maquina, 59.88), null);
 checar('o parecido mais caro que o item nao conta', discrepancia_mais_parecido('LEITE CONDENSADO ITALAC', $maquina, 10.0), null);
 
+// ------------------------------------------- caixa conhecida que nao bate
+// CHOC.NEUGEBAUER (12 x R$ 65,88) caiu no cadastro da caixa de Stikadinho C/32:
+// repetir a correcao dava R$ 0,17 a unidade, e o Stikadinho custa R$ 0,72.
+checar('Neugebauer como Stikadinho e suspeita',
+    str_contains((string) discrepancia_conhecida_suspeita(0.17, 0.72, 1.50), 'costuma custar R$ 0,72'), true);
+checar('a mesma caixa de sempre passa', discrepancia_conhecida_suspeita(0.72, 0.72, 1.50), null);
+checar('preco variando um pouco passa', discrepancia_conhecida_suspeita(0.41, 0.60, 1.00), null);
+checar('caro demais tambem e suspeita', discrepancia_conhecida_suspeita(3.00, 0.72, null) !== null, true);
+checar('acima do preco de venda e suspeita',
+    str_contains((string) discrepancia_conhecida_suspeita(2.00, null, 1.50), 'mais do que ela vende'), true);
+checar('sem nada para comparar nao acusa', discrepancia_conhecida_suspeita(0.17, null, null), null);
+
 // --------------------------------------------------- quantas vem na caixa
 checar('a conta arredonda para tamanhos de caixa', discrepancia_por_caixa(26.46, 1.47, 'REFR.PO TANG'), [18, 20]);
 checar('o lamen fica entre 48 e 50', discrepancia_por_caixa(114.50, 2.42, 'MAC.NISSIN LAMEN'), [48, 50]);

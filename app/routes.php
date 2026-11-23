@@ -366,7 +366,12 @@ function rota_discrepancias(array $u, string $m): void
             $ok = discrepancia_dispensar($item_id, (int) $u['id']);
             flash($ok ? 'ok' : 'erro', $ok ? 'Item marcado como certo.' : 'Não encontrei esse item.');
         } elseif (($_POST['acao'] ?? '') === 'conhecidas') {
-            [$n, $falhas] = discrepancias_abrir_conhecidas((int) $u['id'], $nota_id);
+            $ids = array_values(array_filter(array_map('intval', (array) ($_POST['itens'] ?? []))));
+            if (!$ids) {
+                flash('erro', 'Nenhuma caixa marcada.');
+                redirecionar($volta);
+            }
+            [$n, $falhas] = discrepancias_abrir_conhecidas((int) $u['id'], $ids, $nota_id);
             flash($falhas ? 'erro' : 'ok', $n . ' caixa(s) aberta(s).'
                 . ($falhas ? ' Não deu em ' . count($falhas) . ': ' . implode(' · ', array_slice($falhas, 0, 3)) : ''));
         } else {

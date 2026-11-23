@@ -54,90 +54,76 @@ $itens = array_values(array_filter($itens, static fn($i) => $i['conhecida'] === 
     </p>
     <p class="disc-motivo"><?= e($i['motivo']) ?></p>
 
-    <form method="post" class="disc-form">
-        <?= csrf_campo() ?>
-        <input type="hidden" name="item" value="<?= $id ?>">
-
-        <fieldset class="disc-unidades">
-            <legend>Qual é a unidade que você vende?</legend>
-            <?php foreach ($i['candidatos'] as $n => $c): ?>
-                <label class="disc-opcao">
-                    <input type="radio" name="ean_unidade" value="<?= e($c['ean']) ?>"
-                           data-venda="<?= $c['venda'] !== null ? e($ponto($c['venda'])) : '' ?>"
-                           <?= $n === 0 ? 'checked' : '' ?>>
-                    <span>
-                        <span class="forte"><?= e($c['nome'] ?: 'sem nome cadastrado') ?></span><br>
-                        <span class="mono"><?= e($c['ean']) ?></span>
-                        <?php if ($c['venda'] !== null): ?> · vende a <?= moeda($c['venda']) ?><?php endif; ?><br>
-                        <span class="selo"><?= e($c['origem']) ?></span>
-                    </span>
-                </label>
-            <?php endforeach; ?>
-            <label class="disc-opcao">
-                <input type="radio" name="ean_unidade" value="" class="disc-outro-radio" data-venda=""
-                       <?= !$i['candidatos'] ? 'checked' : '' ?>>
-                <span class="disc-outro">
-                    Outro código
-                    <span class="duas">
-                        <input type="text" class="disc-outro-ean" inputmode="numeric" placeholder="código de barras da unidade"
-                               autocomplete="off">
-                        <button type="button" class="botao botao-alt disc-bipar">Bipar</button>
-                    </span>
-                </span>
-            </label>
-        </fieldset>
-
-        <label>Quantas unidades vêm em cada <?= e($unidade) ?>?
-            <input type="text" name="por_caixa" class="disc-por" inputmode="numeric"
-                   value="<?= $i['palpites'] ? (int) $i['palpites'][0] : '' ?>">
-        </label>
-        <?php if (count($i['palpites']) > 1): ?>
-            <div class="rn-atalhos">
-                <?php foreach ($i['palpites'] as $p): ?>
-                    <button type="button" class="botao botao-alt disc-palpite" data-n="<?= (int) $p ?>"><?= (int) $p ?></button>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-        <p class="ajuda disc-previa" aria-live="polite"></p>
-
-        <button type="submit" name="acao" value="abrir" class="botao">Abrir a caixa</button>
-        <button type="submit" name="acao" value="ok" class="botao botao-alt disc-certo">Está certo, não é caixa</button>
-    </form>
+    <?php include __DIR__ . '/_disc_form.php'; ?>
 </div>
 <?php endforeach; ?>
 
-<?php if ($conhecidas): ?>
+<?php if ($conhecidas):
+    $suspeitas = count(array_filter($conhecidas, static fn($i) => $i['conhecida']['suspeita'] !== null));
+?>
     <h2>Caixas já conhecidas (<?= count($conhecidas) ?>)</h2>
     <p class="ajuda">
         Esses produtos já foram abertos em unidades noutra nota, mas aqui ficaram fechados. Abrir repete a
-        mesma correção: mesma unidade, mesma quantidade por caixa.
+        mesma correção: mesma unidade, mesma quantidade por caixa. Desmarque o que não bate e use
+        <strong>Conferir à mão</strong> para escolher outra unidade ou outra quantidade.
+        <?php if ($suspeitas): ?>
+            <?= $suspeitas === 1 ? 'Uma ficou desmarcada' : $suspeitas . ' ficaram desmarcadas' ?>
+            porque o custo por unidade sai longe do de sempre.
+        <?php endif; ?>
     </p>
-    <div class="cartao">
+    <div class="cartao disc-conhecidas">
+        <div class="disc-marcar">
+            <button type="button" class="botao botao-alt disc-todas" data-marcar="1">Marcar todas</button>
+            <button type="button" class="botao botao-alt disc-todas" data-marcar="0">Desmarcar todas</button>
+        </div>
         <?php foreach ($conhecidas as $i):
+            $id = (int) $i['id'];
+            $unidade = trim((string) $i['unidade']) ?: 'caixa';
             $c = $i['candidatos'][0] ?? null;
             $por = (float) $i['conhecida']['por_caixa'];
-            $un = (float) $i['valor_total_liquido'] / max(1, (float) $i['quantidade'] * $por);
+            $suspeita = $i['conhecida']['suspeita'];
         ?>
-            <div class="disc-conhecida">
-                <div class="linha-topo">
-                    <span class="forte"><?= e($i['descricao_original']) ?></span>
-                    <span class="valor"><?= moeda($i['valor_total_liquido']) ?></span>
-                </div>
-                <p class="ajuda">
-                    <a href="/notas/<?= (int) $i['nota_id'] ?>#item-<?= (int) $i['id'] ?>"><?= e(data_fmt($i['emissao'])) ?></a> ·
-                    <?= qtd_fmt($i['quantidade']) ?> × <?= qtd_fmt($por) ?> de
-                    <?= e($c['nome'] ?? 'unidade') ?> a <?= moeda($un) ?> cada
-                </p>
+            <div class="disc-conhecida<?= $suspeita ? ' disc-suspeita' : '' ?>">
+                <label class="disc-marca">
+                    <input type="checkbox" form="disc-conhecidas" name="itens[]" value="<?= $id ?>"
+                           <?= $suspeita ? '' : 'checked' ?>>
+                    <span class="disc-marca-texto">
+                        <span class="linha-topo">
+                            <span class="forte"><?= e($i['descricao_original']) ?></span>
+                            <span class="valor"><?= moeda($i['valor_total_liquido']) ?></span>
+                        </span>
+                        <span class="ajuda">
+                            <?= e(data_fmt($i['emissao'])) ?> ·
+                            <?= qtd_fmt($i['quantidade']) ?> × <?= qtd_fmt($por) ?> de
+                            <?= e($c['nome'] ?? 'unidade') ?> a <?= moeda($i['conhecida']['custo_un']) ?> cada
+                        </span>
+                    </span>
+                </label>
+                <?php if ($suspeita): ?>
+                    <p class="disc-motivo"><?= e($suspeita) ?></p>
+                <?php endif; ?>
+                <details class="disc-item disc-conferir" id="disc-<?= $id ?>"
+                         data-total="<?= e($ponto($i['valor_total_liquido'])) ?>" data-qtd="<?= e($ponto($i['quantidade'])) ?>"
+                         <?= $suspeita ? 'open' : '' ?>>
+                    <summary>Conferir à mão</summary>
+                    <p class="ajuda">
+                        <a href="/notas/<?= (int) $i['nota_id'] ?>#item-<?= $id ?>">Ver na nota</a>
+                        <?php if (ean_normalizado($i['ean_original'])): ?>
+                            · <span class="mono">código na nota <?= e($i['ean_original']) ?></span>
+                        <?php endif; ?>
+                    </p>
+                    <?php include __DIR__ . '/_disc_form.php'; ?>
+                </details>
             </div>
         <?php endforeach; ?>
-        <form method="post">
+        <form method="post" id="disc-conhecidas">
             <?= csrf_campo() ?>
-            <button type="submit" name="acao" value="conhecidas" class="botao">
-                Abrir as <?= count($conhecidas) ?> caixas
+            <button type="submit" name="acao" value="conhecidas" class="botao disc-abrir-marcadas">
+                Abrir as marcadas (<span class="disc-n"><?= count($conhecidas) - $suspeitas ?></span>)
             </button>
         </form>
     </div>
 <?php endif; ?>
 
 <script src="/assets/scanner.js?v=3"></script>
-<script src="/assets/discrepancias.js?v=1"></script>
+<script src="/assets/discrepancias.js?v=2"></script>

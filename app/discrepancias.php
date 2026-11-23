@@ -93,6 +93,34 @@ function discrepancia_motivo(float $custo, ?float $venda, ?float $ref, ?float $c
 }
 
 /**
+ * Por que repetir a caixa conhecida parece errado, ou null se parece certo.
+ * Funcao pura.
+ *
+ * A caixa conhecida vem do produto vinculado, e o vinculo pode estar errado:
+ * a nota de outubro trouxe "CHOC.NEUGEBAUER 12 x R$ 65,88", o item caiu no
+ * cadastro da caixa de Stikadinho (C/32), e repetir a correcao dava 384
+ * Stikadinhos a R$ 0,17 — quando o Stikadinho custa R$ 0,72. Muito longe do
+ * custo de sempre, para mais ou para menos, ou acima do preco de venda: nao
+ * marca sozinho, a pessoa confere.
+ *
+ * @param float  $un    quanto cada unidade passaria a custar
+ * @param ?float $ref   custo tipico da unidade nas outras compras
+ * @param ?float $venda preco de venda da unidade na maquina
+ */
+function discrepancia_conhecida_suspeita(float $un, ?float $ref, ?float $venda): ?string
+{
+    if ($venda !== null && $venda > 0 && $un > $venda) {
+        return 'Abrindo assim, cada unidade custa ' . moeda($un) . ', mais do que ela vende ('
+             . moeda($venda) . '). Confira se é o mesmo produto.';
+    }
+    if ($ref !== null && $ref > 0 && $un > 0 && ($un * 2.5 < $ref || $un > $ref * 2.5)) {
+        return 'Abrindo assim, cada unidade custa ' . moeda($un) . ', mas ela costuma custar '
+             . moeda($ref) . '. Confira se é o mesmo produto e a mesma quantidade.';
+    }
+    return null;
+}
+
+/**
  * Quantas unidades devem vir na caixa: palpites para a pessoa tocar. Pura.
  *
  * Primeiro o que ja se sabe (a caixa aberta antes), depois o que a descricao
@@ -287,6 +315,17 @@ function discrepancias_itens(int $usuario_id, ?int $nota_id = null): array
         if ($motivo === null) {
             continue;
         }
+        if ($conhecida !== null) {
+            // Quanto cada unidade custaria repetindo a correcao, contra o que
+            // a unidade costuma custar e vender.
+            $custos_un = array_values($custos[$conhecida['unidade']] ?? []);
+            sort($custos_un);
+            $un = (float) $i['valor_total_liquido'] / max(1, (float) $i['quantidade'] * $conhecida['por_caixa']);
+            $conhecida['custo_un'] = $un;
+            $conhecida['suspeita'] = discrepancia_conhecida_suspeita($un,
+                $custos_un ? $custos_un[intdiv(count($custos_un), 2)] : null,
+                $venda_por_produto[$conhecida['unidade']] ?? null);
+        }
         $saida[] = $i + ['motivo' => $motivo, 'venda' => $venda, 'ref' => $ref, 'conhecida' => $conhecida];
     }
     return $saida;
@@ -356,18 +395,21 @@ function discrepancia_candidatos(array $item, array $por_ean): array
 }
 
 /**
- * Abre de uma vez as caixas que ja foram abertas noutra nota: mesma unidade,
- * mesma quantidade. Nao ha o que decidir — e repetir a correcao que a pessoa
- * ja fez uma vez.
+ * Abre de uma vez as caixas ja abertas noutra nota que a pessoa marcou: mesma
+ * unidade, mesma quantidade. So as marcadas — o vinculo do produto pode estar
+ * errado, e a que nao bate fica para conferir a mao. Os ids passam pela lista
+ * do dono, entao id de outra pessoa nao abre nada.
  *
+ * @param list<int> $ids os itens marcados
  * @return array{0:int,1:list<string>} quantas abriu e as mensagens de falha
  */
-function discrepancias_abrir_conhecidas(int $usuario_id, ?int $nota_id = null): array
+function discrepancias_abrir_conhecidas(int $usuario_id, array $ids, ?int $nota_id = null): array
 {
     $abertas = 0;
     $falhas = [];
+    $marcados = array_flip($ids);
     foreach (discrepancias_itens($usuario_id, $nota_id) as $i) {
-        if ($i['conhecida'] === null) {
+        if ($i['conhecida'] === null || !isset($marcados[(int) $i['id']])) {
             continue;
         }
         $ean = (string) qv('SELECT ean FROM produtos WHERE id = ?', [$i['conhecida']['unidade']]);

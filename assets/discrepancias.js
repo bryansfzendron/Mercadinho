@@ -91,6 +91,29 @@
 
             atualizar();
         });
+
+        // Caixas ja conhecidas: so as marcadas abrem de uma vez.
+        const lista = doc.querySelector('.disc-conhecidas');
+        if (lista) {
+            const marcas = lista.querySelectorAll('input[name="itens[]"]');
+            const n = lista.querySelector('.disc-n');
+            const abrir = lista.querySelector('.disc-abrir-marcadas');
+            const contar = function () {
+                let k = 0;
+                marcas.forEach(function (m) { if (m.checked) k++; });
+                n.textContent = String(k);
+                abrir.disabled = k === 0;
+            };
+            marcas.forEach(function (m) { m.addEventListener('change', contar); });
+            lista.querySelectorAll('.disc-todas').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    const sim = b.getAttribute('data-marcar') === '1';
+                    marcas.forEach(function (m) { m.checked = sim; });
+                    contar();
+                });
+            });
+            contar();
+        }
     }
 
     if (typeof module !== 'undefined' && module.exports) {
