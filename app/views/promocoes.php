@@ -59,7 +59,8 @@ $hoje = date('Y-m-d');
 </div>
 
 <?php if ($retirar): ?>
-    <div class="cartao cartao-alerta">
+    <button type="button" class="botao botao-alt" id="pv-alterna" data-total="<?= count($retirar) ?>">Ocultar vencidos (<?= count($retirar) ?>)</button>
+    <div class="cartao cartao-alerta" id="pv-cartao">
         <?= cartao_cabeca('alerta', 'Vencidos na prateleira', count($retirar) . ' item(ns) · tire da gôndola e zere o estoque', '', true) ?>
         <ul class="lista">
             <?php foreach ($retirar as $a): $it = $a['item']; ?>
@@ -197,3 +198,4 @@ $linha_tp = static function (array $l, string $hoje, bool $extra = false): strin
         </ul>
     </div>
 <?php endif; ?>
+<script src="/assets/promocoes-vencidos.js?v=1" defer></script>
