@@ -1009,7 +1009,11 @@ function margens_listar(string $filtro = '', string $busca = ''): array
         $custo = $pid > 0 && isset($custos[$pid]) ? $custos[$pid] : null;
         $d     = custo_diagnostico((float) $l['venda'], $custo, $minimos);
 
-        if ($filtro !== '' && $filtro !== $d['veredito']) {
+        if ($filtro === 'abaixo2') {
+            if ($d['fator'] === null || $d['fator'] >= 2) {
+                continue;
+            }
+        } elseif ($filtro !== '' && $filtro !== $d['veredito']) {
             continue;
         }
         $itens[] = $l + $d + ['custo' => $custo];
@@ -1054,9 +1058,12 @@ function margens_minimos(): array
 /** Quantos produtos em cada veredito, para os chips da tela. */
 function margens_contagem(string $busca = ''): array
 {
-    $conta = ['prejuizo' => 0, 'aperto' => 0, 'ok' => 0, 'sem_custo' => 0];
+    $conta = ['prejuizo' => 0, 'aperto' => 0, 'ok' => 0, 'sem_custo' => 0, 'abaixo2' => 0];
     foreach (margens_listar('', $busca) as $i) {
         $conta[$i['veredito']]++;
+        if ($i['fator'] !== null && $i['fator'] < 2) {
+            $conta['abaixo2']++;
+        }
     }
     return $conta;
 }
