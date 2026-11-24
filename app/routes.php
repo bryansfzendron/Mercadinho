@@ -1331,7 +1331,14 @@ function rota_margens(array $u): void
     $conta = margens_contagem($busca);
     $min   = margens_minimos();
 
-    ver('margens', compact('itens', 'conta', 'min', 'filtro', 'busca'), 'Margens');
+    // 50 por pagina: com mais de 2000 produtos a lista inteira travava o celular.
+    $por_pagina = 50;
+    $total      = count($itens);
+    $paginas    = max(1, (int) ceil($total / $por_pagina));
+    $pagina     = min($paginas, max(1, (int) ($_GET['p'] ?? 1)));
+    $itens      = array_slice($itens, ($pagina - 1) * $por_pagina, $por_pagina);
+
+    ver('margens', compact('itens', 'conta', 'min', 'filtro', 'busca', 'total', 'pagina', 'paginas'), 'Margens');
 }
 
 /**

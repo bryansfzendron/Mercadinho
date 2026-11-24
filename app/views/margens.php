@@ -64,9 +64,9 @@ $chips = [
             Nada aqui. Sincronize preços e estoque, ou afine a busca.
         <?php endif; ?>
     </p>
-<?php else: $recolhe = count($itens) > LISTA_A_VISTA; ?>
+<?php else: $recolhe = false; ?>
     <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
-        <?= cartao_cabeca('barras', 'Produtos', number_format(count($itens), 0, ',', '.') . ' neste filtro') ?>
+        <?= cartao_cabeca('barras', 'Produtos', number_format($total, 0, ',', '.') . ' neste filtro · página ' . $pagina . ' de ' . $paginas) ?>
         <ul class="lista">
             <?php foreach ($itens as $n => $i): [$rotulo, $classe, $selo] = custo_veredito_rotulo($i['veredito']); ?>
                 <li class="<?= $recolhe && $n >= LISTA_A_VISTA ? 'extra' : '' ?>"><div class="linha-cartao">
@@ -126,7 +126,14 @@ $chips = [
                 </div></li>
             <?php endforeach; ?>
         </ul>
-        <?= $recolhe ? ver_mais_baixo('Ver todos (' . count($itens) . ')') : '' ?>
+        <?php if ($paginas > 1):
+            $link = static fn (int $p): string => '/margens?' . http_build_query(['filtro' => $filtro, 'q' => $busca, 'p' => $p]); ?>
+            <div class="chips vf-periodos">
+                <?php if ($pagina > 1): ?><a class="chip" href="<?= e($link($pagina - 1)) ?>">← Anterior</a><?php endif; ?>
+                <span class="chip ativo"><?= $pagina ?> / <?= $paginas ?></span>
+                <?php if ($pagina < $paginas): ?><a class="chip" href="<?= e($link($pagina + 1)) ?>">Próxima →</a><?php endif; ?>
+            </div>
+        <?php endif; ?>
     </div>
 <?php endif; ?>
 <script src="/assets/margens.js?v=2" defer></script>
