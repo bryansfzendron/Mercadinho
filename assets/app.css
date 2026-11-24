@@ -1694,3 +1694,9 @@ form.enviando { opacity: .6; pointer-events: none; transition: opacity .15s ease
 .recolhivel:not(.cartao) > .ver-mais-baixo { margin-bottom: 1rem; }
 /* Dentro do "Ver custos" nenhum custo leva o negrito do faturamento. */
 .mais .dados-grandes > div:first-child dd { font-weight: 500; }
+
+/* Margens: troca de preco na lista */
+.mg-troca { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; margin-top: .5rem; }
+.mg-troca label { display: flex; flex-direction: column; gap: .2rem; font-size: .8rem; flex: 1 1 6rem; }
+.mg-troca input { width: 100%; }
+.mg-troca .mg-msg { flex-basis: 100%; }

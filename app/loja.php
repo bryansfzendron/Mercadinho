@@ -982,16 +982,20 @@ function margens_listar(string $filtro = '', string $busca = ''): array
 
     $linhas = q(
         'SELECT COALESCE(li.ean, li.codigo, li.descricao) AS chave,
+                li.pdv_id           AS pdv_id,
+                MIN(p.nome)         AS pdv_nome,
                 MIN(li.descricao)   AS descricao,
                 MIN(li.ean)         AS ean,
+                MIN(li.codigo)      AS codigo,
                 MIN(li.categoria)   AS categoria,
                 MAX(li.preco_venda) AS venda,
                 SUM(li.estoque)     AS estoque,
-                MAX(li.produto_id)  AS produto_id
+                MAX(li.produto_id)  AS produto_id,
+                MAX(li.externo_produto_id) AS externo_id
            FROM loja_itens li
            JOIN loja_pdvs p ON p.id = li.pdv_id
           WHERE ' . implode(' AND ', $onde) . '
-       GROUP BY chave
+       GROUP BY li.pdv_id, chave
           LIMIT 5000',
         $args
     );

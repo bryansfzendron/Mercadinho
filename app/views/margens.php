@@ -74,6 +74,9 @@ $chips = [
                         <span class="valor"><?= $i['fator'] === null ? '—' : number_format($i['fator'], 2, ',', '.') . 'x' ?></span>
                     </div>
                     <div class="linha-baixo">
+                        <span class="ajuda"><?= e($i['pdv_nome']) ?></span>
+                    </div>
+                    <div class="linha-baixo">
                         <span>
                             vende <?= moeda($i['venda']) ?>
                             <?php if ($i['custo'] !== null): ?>
@@ -99,6 +102,25 @@ $chips = [
                             </span>
                             <span><?= qtd_fmt($i['estoque']) ?> em estoque</span>
                         </div>
+                        <?php if ($i['externo_id']): ?>
+                        <div class="mg-troca" data-pdv="<?= (int) $i['pdv_id'] ?>"
+                             data-produto="<?= (int) $i['externo_id'] ?>"
+                             data-codigo="<?= e($i['ean'] ?? $i['codigo'] ?? '') ?>"
+                             data-descricao="<?= e($i['descricao']) ?>"
+                             data-custo="<?= e(number_format((float) $i['custo'], 4, '.', '')) ?>"
+                             data-venda="<?= e(number_format((float) $i['venda'], 2, '.', '')) ?>">
+                            <label>Fator (x)
+                                <input type="text" class="mg-fator" inputmode="decimal" placeholder="ex.: 1,90"
+                                       value="<?= $i['fator'] === null ? '' : e(number_format($i['fator'], 2, ',', '')) ?>">
+                            </label>
+                            <label>Preço novo
+                                <input type="text" class="mg-preco" inputmode="decimal"
+                                       value="<?= e(number_format((float) $i['venda'], 2, ',', '')) ?>">
+                            </label>
+                            <button type="button" class="botao botao-alt mg-salvar" disabled>Salvar preço</button>
+                            <span class="ajuda mg-msg" aria-live="polite"></span>
+                        </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div></li>
             <?php endforeach; ?>
@@ -106,3 +128,4 @@ $chips = [
         <?= $recolhe ? ver_mais_baixo('Ver todos (' . count($itens) . ')') : '' ?>
     </div>
 <?php endif; ?>
+<script src="/assets/margens.js?v=1" defer></script>
