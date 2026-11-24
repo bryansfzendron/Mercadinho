@@ -758,12 +758,14 @@ function abas_config(string $atual): string
         '/config/metas'   => 'Metas',
         '/config/taxas'   => 'Taxas',
         '/config/touchpay' => 'TouchPay',
+        '/config/avisos'  => 'Avisos',
     ], $atual, [], [
         '/config'          => icone('sync'),
         '/config/pdvs'     => icone('pdv'),
         '/config/metas'    => icone('alvo'),
         '/config/taxas'    => icone('percentual'),
         '/config/touchpay' => icone('cadeado'),
+        '/config/avisos'   => icone('alerta'),
     ]);
 }
 

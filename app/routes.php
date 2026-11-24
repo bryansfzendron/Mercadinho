@@ -13,6 +13,8 @@ function despachar(string $rota): void
     if ($rota === '/api/callback' && $m === 'POST') { rota_callback(); return; }
     if ($rota === '/api/loja/callback' && $m === 'POST') { rota_loja_callback(); return; }
     if ($rota === '/api/vendas/callback' && $m === 'POST') { rota_vendas_callback(); return; }
+    // O service worker busca aqui o texto do aviso; o hash do endpoint e o segredo.
+    if ($rota === '/api/push/mensagem' && $m === 'GET') { rota_api_push_mensagem(); return; }
     // Skill da Alexa: autenticada pela assinatura da Amazon (app/alexa.php).
     if ($rota === '/alexa' && $m === 'POST') { rota_alexa(); return; }
 
@@ -60,6 +62,9 @@ function despachar(string $rota): void
     if ($rota === '/vendas/transacoes') { rota_vendas_transacoes($u); return; }
     if ($rota === '/vendas/produto') { rota_vendas_produto($u); return; }
     if ($rota === '/metas')     { rota_metas($u); return; }
+    if ($rota === '/config/avisos') { rota_config_avisos($u, $m); return; }
+    if ($rota === '/api/push/inscrever' && $m === 'POST') { rota_api_push_inscrever($u); return; }
+    if ($rota === '/api/push/cancelar' && $m === 'POST') { rota_api_push_cancelar(); return; }
     if ($rota === '/config/touchpay') { rota_config_touchpay($u, $m); return; }
     if ($rota === '/config' || str_starts_with($rota, '/config/')) { rota_config($u, $m); return; }
     if ($rota === '/manual')    { rota_manual($u, $m); return; }
@@ -1951,4 +1956,89 @@ function rota_config_touchpay(array $u, string $m): void
         'erro'           => $erro,
         'email_digitado' => $email_digitado,
     ], 'TouchPay');
+}
+
+// =====================================================================
+// Avisos por notificacao
+// =====================================================================
+
+/** Configuracoes > Avisos: ligar, dias de validade, margem minima, teste. */
+function rota_config_avisos(array $u, string $m): void
+{
+    $ok = avisos_tabelas_ok();
+    if ($m === 'POST') {
+        exigir_csrf();
+        if (!$ok) {
+            flash('erro', 'Falta criar as tabelas dos avisos: rode o setup.php e tente de novo.');
+            redirecionar('/config/avisos');
+        }
+        $acao = (string) ($_POST['acao'] ?? 'salvar');
+        if ($acao === 'testar') {
+            $n = push_notificar(avisos_conta(), 'Alpha Market', 'Teste: as notificações estão funcionando.', '/config/avisos');
+            flash($n > 0 ? 'ok' : 'erro', $n > 0 ? 'Teste enviado a ' . $n . ' aparelho(s).'
+                : 'Nenhum aparelho recebeu. Ative as notificações neste aparelho primeiro.');
+        } elseif ($acao === 'rodar') {
+            $l = avisos_rodar(conta_atual(), true);
+            flash('ok', $l ? implode(' | ', $l) : 'Nada a avisar agora (ou nenhum aparelho inscrito).');
+        } else {
+            avisos_salvar(isset($_POST['ligado']), (int) ($_POST['dias_validade'] ?? 10),
+                (float) str_replace(',', '.', (string) ($_POST['fator_minimo'] ?? '2')));
+            flash('ok', 'Avisos salvos.');
+        }
+        redirecionar('/config/avisos');
+    }
+
+    $cfg = avisos_config();
+    $inscritos = 0;
+    $publica = '';
+    if ($ok) {
+        $inscritos = (int) (q1('SELECT COUNT(*) AS n FROM push_inscricoes WHERE conta_id = ?', [avisos_conta()])['n'] ?? 0);
+        $publica = push_chave()['publica'];
+    }
+    ver('config_avisos', compact('ok', 'cfg', 'inscritos', 'publica'), 'Avisos');
+}
+
+/** Guarda a inscricao de push deste aparelho. */
+function rota_api_push_inscrever(array $u): void
+{
+    exigir_csrf();
+    if (!avisos_tabelas_ok()) {
+        json_resposta(['ok' => false, 'erro' => 'Falta rodar o setup.php.'], 503);
+    }
+    $c = corpo_json();
+    $endpoint = (string) ($c['endpoint'] ?? '');
+    if (!str_starts_with($endpoint, 'https://') || strlen($endpoint) > 700) {
+        json_resposta(['ok' => false, 'erro' => 'Inscrição inválida.'], 422);
+    }
+    exec_sql(
+        'INSERT INTO push_inscricoes (conta_id, usuario_id, endpoint, endpoint_hash, criado_em) VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE conta_id = VALUES(conta_id), usuario_id = VALUES(usuario_id)',
+        [avisos_conta(), (int) $u['id'], $endpoint, hash('sha256', $endpoint), date('Y-m-d H:i:s')]
+    );
+    json_resposta(['ok' => true]);
+}
+
+/** Apaga a inscricao deste aparelho. */
+function rota_api_push_cancelar(): void
+{
+    exigir_csrf();
+    $endpoint = (string) (corpo_json()['endpoint'] ?? '');
+    if ($endpoint !== '' && avisos_tabelas_ok()) {
+        exec_sql('DELETE FROM push_inscricoes WHERE endpoint_hash = ?', [hash('sha256', $endpoint)]);
+    }
+    json_resposta(['ok' => true]);
+}
+
+/** O texto do ultimo aviso deste aparelho, para o service worker mostrar. Publica, por hash. */
+function rota_api_push_mensagem(): void
+{
+    $h = (string) ($_GET['h'] ?? '');
+    $l = preg_match('/^[0-9a-f]{64}$/', $h) && avisos_tabelas_ok()
+        ? q1('SELECT titulo, corpo, url FROM push_inscricoes WHERE endpoint_hash = ?', [$h]) : null;
+    header('Cache-Control: no-store');
+    json_resposta([
+        'titulo' => $l['titulo'] ?? 'Alpha Market',
+        'corpo'  => $l['corpo'] ?? 'Há avisos novos.',
+        'url'    => $l['url'] ?? '/',
+    ]);
 }

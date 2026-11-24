@@ -525,3 +525,45 @@ CREATE TABLE IF NOT EXISTS touchpay_tokens (
     KEY ix_tptoken_expira (expira_em),
     CONSTRAINT fk_tptoken_conta FOREIGN KEY (conta_id) REFERENCES touchpay_contas (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Avisos por notificacao (Web Push). Ver app/avisos.php.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS push_chave (
+    id         TINYINT UNSIGNED NOT NULL,
+    publica    VARCHAR(120) NOT NULL,
+    privada    TEXT         NOT NULL,
+    criado_em  DATETIME     NOT NULL,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS push_inscricoes (
+    id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    conta_id      INT UNSIGNED  NOT NULL DEFAULT 0,
+    usuario_id    INT UNSIGNED  NOT NULL,
+    endpoint      VARCHAR(700)  NOT NULL,
+    endpoint_hash CHAR(64)      NOT NULL,
+    titulo        VARCHAR(160)  NULL,
+    corpo         VARCHAR(400)  NULL,
+    url           VARCHAR(200)  NULL,
+    enviado_em    DATETIME      NULL,
+    criado_em     DATETIME      NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_push_endpoint (endpoint_hash),
+    KEY ix_push_conta (conta_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS aviso_config (
+    conta_id      INT UNSIGNED  NOT NULL DEFAULT 0,
+    ligado        TINYINT(1)    NOT NULL DEFAULT 1,
+    dias_validade SMALLINT UNSIGNED NOT NULL DEFAULT 10,
+    fator_minimo  DECIMAL(5,2)  NOT NULL DEFAULT 2.00,
+    PRIMARY KEY (conta_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS aviso_envios (
+    conta_id  INT UNSIGNED NOT NULL,
+    tipo      VARCHAR(20)  NOT NULL,
+    dia       DATE         NOT NULL,
+    PRIMARY KEY (conta_id, tipo, dia)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

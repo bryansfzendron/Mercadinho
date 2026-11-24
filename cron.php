@@ -92,6 +92,15 @@ foreach ($contas as $conta) {
             $falhou = true;
         }
     }
+
+    // Avisos por notificacao (validade e margem): um por dia, a partir das 8h.
+    try {
+        foreach (avisos_rodar($conta, $forcar && isset($_GET['avisos'])) as $linha) {
+            dizer($quem . $linha);
+        }
+    } catch (Throwable $e) {
+        dizer($quem . 'avisos: ' . $e->getMessage());
+    }
 }
 
 // O batimento fica no banco para a tela poder dizer "o cron passou ha 3 min".
