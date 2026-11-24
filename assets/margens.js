@@ -41,6 +41,12 @@
             marcar();
         });
 
+        // Ja abre com fator 2: so conferir o preco e clicar em salvar.
+        if (custo > 0) {
+            fator.value = '2';
+            fator.dispatchEvent(new Event('input'));
+        }
+
         botao.addEventListener('click', async function () {
             const p = numero(preco.value);
             if (!(p > 0)) return;

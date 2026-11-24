@@ -128,4 +128,4 @@ $chips = [
         <?= $recolhe ? ver_mais_baixo('Ver todos (' . count($itens) . ')') : '' ?>
     </div>
 <?php endif; ?>
-<script src="/assets/margens.js?v=1" defer></script>
+<script src="/assets/margens.js?v=2" defer></script>
