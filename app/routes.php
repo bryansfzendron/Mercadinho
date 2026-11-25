@@ -1342,7 +1342,7 @@ function rota_loja_sincronizar(array $u): void
 function rota_margens(array $u): void
 {
     $filtro = (string) ($_GET['filtro'] ?? '');
-    if (!in_array($filtro, ['', 'prejuizo', 'aperto', 'ok', 'sem_custo', 'abaixo2'], true)) {
+    if (!in_array($filtro, ['', 'prejuizo', 'aperto', 'ok', 'sem_custo', 'abaixo2', 'acima2'], true)) {
         $filtro = '';
     }
     $busca = trim((string) ($_GET['q'] ?? ''));

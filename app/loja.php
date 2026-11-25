@@ -1009,8 +1009,9 @@ function margens_listar(string $filtro = '', string $busca = ''): array
         $custo = $pid > 0 && isset($custos[$pid]) ? $custos[$pid] : null;
         $d     = custo_diagnostico((float) $l['venda'], $custo, $minimos);
 
-        if ($filtro === 'abaixo2') {
-            if ($d['fator'] === null || $d['fator'] >= 2) {
+        // Fator com duas casas: 1,998 (preco arredondado em centavos) conta como 2x.
+        if ($filtro === 'abaixo2' || $filtro === 'acima2') {
+            if ($d['fator'] === null || (round($d['fator'], 2) < 2) !== ($filtro === 'abaixo2')) {
                 continue;
             }
         } elseif ($filtro !== '' && $filtro !== $d['veredito']) {
@@ -1058,11 +1059,11 @@ function margens_minimos(): array
 /** Quantos produtos em cada veredito, para os chips da tela. */
 function margens_contagem(string $busca = ''): array
 {
-    $conta = ['prejuizo' => 0, 'aperto' => 0, 'ok' => 0, 'sem_custo' => 0, 'abaixo2' => 0];
+    $conta = ['prejuizo' => 0, 'aperto' => 0, 'ok' => 0, 'sem_custo' => 0, 'abaixo2' => 0, 'acima2' => 0];
     foreach (margens_listar('', $busca) as $i) {
         $conta[$i['veredito']]++;
-        if ($i['fator'] !== null && $i['fator'] < 2) {
-            $conta['abaixo2']++;
+        if ($i['fator'] !== null) {
+            $conta[round($i['fator'], 2) < 2 ? 'abaixo2' : 'acima2']++;
         }
     }
     return $conta;

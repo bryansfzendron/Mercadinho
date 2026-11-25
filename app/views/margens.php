@@ -35,6 +35,7 @@
 $chips = [
     ''          => 'Todos',
     'abaixo2'   => 'Abaixo de 2x (' . (int) $conta['abaixo2'] . ')',
+    'acima2'    => 'Acima de 2x (' . (int) $conta['acima2'] . ')',
     'prejuizo'  => 'Prejuízo (' . (int) $conta['prejuizo'] . ')',
     'aperto'    => 'No aperto (' . (int) $conta['aperto'] . ')',
     'ok'        => 'Saudáveis (' . (int) $conta['ok'] . ')',
