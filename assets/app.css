@@ -1706,3 +1706,7 @@ form.enviando { opacity: .6; pointer-events: none; transition: opacity .15s ease
 .sp-mercado > summary::-webkit-details-marker { display: none; }
 .sp-mercado > summary::after { content: "Abrir ▾"; float: right; font-size: .8rem; opacity: .7; }
 .sp-mercado[open] > summary::after { content: "Fechar ▴"; }
+
+/* Menu da Loja: duas linhas de quatro botoes. */
+.abas.abas-icones.abas-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.abas-4 .aba { padding-top: .55rem; padding-bottom: .5rem; }

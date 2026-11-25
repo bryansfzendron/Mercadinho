@@ -617,7 +617,8 @@ function abas(array $abas, string $atual, array $extras = [], array $icones = []
 /** Loja: catalogo, o que vendeu e para onde ele quer chegar. */
 function abas_loja(string $atual): string
 {
-    return abas([
+    // Sete abas em duas linhas de quatro (classe abas-4), em vez de uma linha espremida.
+    $nav = abas([
         '/loja'       => 'Catálogo',
         '/planograma' => 'Repor',
         '/sem-planograma' => 'Sem planograma',
@@ -625,7 +626,9 @@ function abas_loja(string $atual): string
         '/margens'    => 'Margens',
         '/vendas'     => 'Vendas',
         '/metas'      => 'Metas',
-    ], $atual, ['/planograma' => ' data-pedir-pdv'], icones_loja()) . conta_aviso_loja() . folha_pedir_pdv();
+    ], $atual, ['/planograma' => ' data-pedir-pdv'], icones_loja());
+    $nav = str_replace('<nav class="abas abas-icones"', '<nav class="abas abas-icones abas-4"', $nav);
+    return $nav . conta_aviso_loja() . folha_pedir_pdv();
 }
 
 /** Os icones das abas da Loja (app/ui.php). */
