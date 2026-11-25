@@ -57,7 +57,8 @@
                             <p class="ajuda">Sem código de barras: não dá para repor por aqui.</p>
                         <?php else: ?>
                             <div class="mg-troca sp-troca" data-pdv="<?= (int) $pdv['id'] ?>"
-                                 data-codigo="<?= e($p['ean']) ?>" data-custo="<?= e(number_format($custo, 4, '.', '')) ?>">
+                                 data-codigo="<?= e($p['ean']) ?>" data-custo="<?= e(number_format($custo, 4, '.', '')) ?>"
+                                 data-ref="<?= $p['ref_preco'] !== null ? e(number_format((float) $p['ref_preco'], 2, '.', '')) : '' ?>">
                                 <label>Fator (x)
                                     <input type="text" class="mg-fator" inputmode="decimal" placeholder="2">
                                 </label>
@@ -67,6 +68,9 @@
                                 <label>Quantidade
                                     <input type="text" class="sp-qtd" inputmode="numeric" value="<?= $qtd ?>">
                                 </label>
+                                <?php if ($p['ref_preco'] !== null): ?>
+                                    <span class="ajuda sp-ref">igual ao <?= e($p['ref_pdv']) ?> (<?= moeda((float) $p['ref_preco']) ?>)</span>
+                                <?php endif; ?>
                                 <button type="button" class="botao mg-salvar">Repor</button>
                                 <span class="ajuda mg-msg" aria-live="polite"></span>
                             </div>
@@ -80,4 +84,4 @@
         <?php endif; ?>
     </details>
 <?php endforeach; ?>
-<script src="/assets/sem-planograma.js?v=1" defer></script>
+<script src="/assets/sem-planograma.js?v=2" defer></script>

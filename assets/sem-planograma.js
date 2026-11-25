@@ -33,7 +33,15 @@
             if (p > 0 && custo > 0) fator.value = br(p / custo);
             msg.textContent = ''; marcar();
         });
-        if (custo > 0) { fator.value = '2'; fator.dispatchEvent(new Event('input')); }
+        // Ja vende em outro mercado: mesmo preco de la. Primeira vez em todos: custo x 2.
+        const ref = parseFloat(bloco.dataset.ref);
+        if (ref > 0) {
+            preco.value = br(ref);
+            preco.dispatchEvent(new Event('input'));
+        } else if (custo > 0) {
+            fator.value = '2';
+            fator.dispatchEvent(new Event('input'));
+        }
         marcar();
 
         botao.addEventListener('click', async function () {

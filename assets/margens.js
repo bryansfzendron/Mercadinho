@@ -41,8 +41,9 @@
             marcar();
         });
 
-        // Ja abre com fator 2: so conferir o preco e clicar em salvar.
-        if (custo > 0) {
+        // Ja abre com fator 2 para conferir e salvar, mas so quando 2x SOBE o
+        // preco: abaixar o que ja vende nao e sugestao que se faca.
+        if (custo > 0 && Math.round(custo * 2 * 100) / 100 > venda + 0.004) {
             fator.value = '2';
             fator.dispatchEvent(new Event('input'));
         }

@@ -139,4 +139,4 @@ $chips = [
         <?php endif; ?>
     </div>
 <?php endif; ?>
-<script src="/assets/margens.js?v=2" defer></script>
+<script src="/assets/margens.js?v=3" defer></script>

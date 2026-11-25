@@ -1111,32 +1111,53 @@ function sem_planograma_listar(string $busca = ''): array
     );
 
     $saida = [];
-    foreach (planograma_pdvs() as $pdv) {
-        $no_plano_id = $no_plano_ean = [];
+    // Primeiro o que cada mercado tem no planograma, com o preco: quem falta
+    // num mercado e ja vende em outro entra pelo preco de la, nao por 2x.
+    $pdvs = planograma_pdvs();
+    $mapa = [];
+    foreach ($pdvs as $pdv) {
+        $mapa[$pdv['id']] = ['id' => [], 'ean' => []];
         $linhas = q(
-            'SELECT produto_id, ean FROM loja_itens WHERE pdv_id = ? AND preco_venda IS NOT NULL',
+            'SELECT produto_id, ean, preco_venda FROM loja_itens WHERE pdv_id = ? AND preco_venda IS NOT NULL',
             [$pdv['id']]
         );
         foreach ($linhas as $l) {
             if ($l['produto_id'] !== null) {
-                $no_plano_id[(int) $l['produto_id']] = true;
+                $mapa[$pdv['id']]['id'][(int) $l['produto_id']] = (float) $l['preco_venda'];
             }
             if ($l['ean'] !== null && $l['ean'] !== '') {
-                $no_plano_ean[(string) $l['ean']] = true;
+                $mapa[$pdv['id']]['ean'][(string) $l['ean']] = (float) $l['preco_venda'];
             }
         }
+    }
+    $preco_em = static function (array $m, array $p): ?float {
+        return $m['id'][(int) $p['id']] ?? ($p['ean'] !== null ? ($m['ean'][(string) $p['ean']] ?? null) : null);
+    };
+
+    foreach ($pdvs as $pdv) {
+        $m = $mapa[$pdv['id']];
         $itens = [];
         // Sem nenhuma linha com preco o espelho deste PDV nao foi lido: listar
         // tudo como "fora" seria mentira.
-        if ($linhas) {
+        if ($m['id'] || $m['ean']) {
             foreach ($produtos as $p) {
-                if (isset($no_plano_id[(int) $p['id']]) || ($p['ean'] !== null && isset($no_plano_ean[(string) $p['ean']]))) {
+                if ($preco_em($m, $p) !== null) {
                     continue;
+                }
+                // O maior preco entre os mercados que ja vendem: igualar sem perder margem.
+                $p['ref_preco'] = null;
+                $p['ref_pdv'] = null;
+                foreach ($pdvs as $outro) {
+                    $v = $outro['id'] === $pdv['id'] ? null : $preco_em($mapa[$outro['id']], $p);
+                    if ($v !== null && ($p['ref_preco'] === null || $v > $p['ref_preco'])) {
+                        $p['ref_preco'] = $v;
+                        $p['ref_pdv'] = $outro['nome'];
+                    }
                 }
                 $itens[] = $p;
             }
         }
-        $saida[] = ['pdv' => $pdv, 'sincronizado' => (bool) $linhas, 'total' => count($itens), 'itens' => $itens];
+        $saida[] = ['pdv' => $pdv, 'sincronizado' => (bool) ($m['id'] || $m['ean']), 'total' => count($itens), 'itens' => $itens];
     }
     return $saida;
 }
