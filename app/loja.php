@@ -1011,7 +1011,9 @@ function margens_listar(string $filtro = '', string $busca = ''): array
 
         // Fator com duas casas: 1,998 (preco arredondado em centavos) conta como 2x.
         if ($filtro === 'abaixo2' || $filtro === 'acima2') {
-            if ($d['fator'] === null || (round($d['fator'], 2) < 2) !== ($filtro === 'abaixo2')) {
+            // Abaixo: menor que 2. Acima: maior que 2. Exatamente 2x fica fora dos dois.
+            $f = $d['fator'] === null ? null : round($d['fator'], 2);
+            if ($f === null || ($filtro === 'abaixo2' ? $f >= 2 : $f <= 2)) {
                 continue;
             }
         } elseif ($filtro !== '' && $filtro !== $d['veredito']) {
@@ -1063,7 +1065,12 @@ function margens_contagem(string $busca = ''): array
     foreach (margens_listar('', $busca) as $i) {
         $conta[$i['veredito']]++;
         if ($i['fator'] !== null) {
-            $conta[round($i['fator'], 2) < 2 ? 'abaixo2' : 'acima2']++;
+            $f = round($i['fator'], 2);
+            if ($f < 2) {
+                $conta['abaixo2']++;
+            } elseif ($f > 2) {
+                $conta['acima2']++;
+            }
         }
     }
     return $conta;
