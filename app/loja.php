@@ -1067,3 +1067,67 @@ function margens_contagem(string $busca = ''): array
     }
     return $conta;
 }
+
+/**
+ * Produtos que ja vieram em nota fiscal e NAO estao no planograma de cada PDV.
+ *
+ * "No planograma" quer dizer: o espelho do PDV tem a linha COM preco de venda
+ * (sem preco o produto so esta no inventario). O casamento e pelo produto
+ * (EAN conhecido) ou pelo EAN da linha. Item de nota sem produto cadastrado
+ * (sem GTIN) nao da para casar e fica de fora.
+ *
+ * @return array<int,array{pdv:array, sincronizado:bool, total:int, itens:array}>
+ */
+function sem_planograma_listar(string $busca = ''): array
+{
+    $onde = ["n.status = 'ok'", conta_notas_sql('n.usuario_id')];
+    $args = [];
+    if ($busca !== '') {
+        $onde[] = '(pr.descricao LIKE ? OR pr.ean = ?)';
+        $args[] = '%' . $busca . '%';
+        $args[] = ean_normalizado($busca) ?? '__nada__';
+    }
+    $produtos = q(
+        'SELECT pr.id, pr.ean, pr.descricao,
+                COUNT(*)            AS vezes,
+                MAX(n.emissao)      AS ultima,
+                SUBSTRING_INDEX(GROUP_CONCAT(i.valor_unitario_liquido ORDER BY n.emissao DESC, i.id DESC), \',\', 1) AS custo
+           FROM itens i
+           JOIN notas n    ON n.id = i.nota_id
+           JOIN produtos pr ON pr.id = i.produto_id
+          WHERE ' . implode(' AND ', $onde) . '
+       GROUP BY pr.id, pr.ean, pr.descricao
+       ORDER BY pr.descricao',
+        $args
+    );
+
+    $saida = [];
+    foreach (planograma_pdvs() as $pdv) {
+        $no_plano_id = $no_plano_ean = [];
+        $linhas = q(
+            'SELECT produto_id, ean FROM loja_itens WHERE pdv_id = ? AND preco_venda IS NOT NULL',
+            [$pdv['id']]
+        );
+        foreach ($linhas as $l) {
+            if ($l['produto_id'] !== null) {
+                $no_plano_id[(int) $l['produto_id']] = true;
+            }
+            if ($l['ean'] !== null && $l['ean'] !== '') {
+                $no_plano_ean[(string) $l['ean']] = true;
+            }
+        }
+        $itens = [];
+        // Sem nenhuma linha com preco o espelho deste PDV nao foi lido: listar
+        // tudo como "fora" seria mentira.
+        if ($linhas) {
+            foreach ($produtos as $p) {
+                if (isset($no_plano_id[(int) $p['id']]) || ($p['ean'] !== null && isset($no_plano_ean[(string) $p['ean']]))) {
+                    continue;
+                }
+                $itens[] = $p;
+            }
+        }
+        $saida[] = ['pdv' => $pdv, 'sincronizado' => (bool) $linhas, 'total' => count($itens), 'itens' => $itens];
+    }
+    return $saida;
+}

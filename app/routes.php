@@ -56,6 +56,10 @@ function despachar(string $rota): void
         rota_api_repor_linha($u, (int) $mm[1], $mm[2], (int) $mm[3]);
         return;
     }
+    if ($rota === '/sem-planograma') {
+        $busca = trim((string) ($_GET['q'] ?? ''));
+        ver('sem_planograma', ['grupos' => sem_planograma_listar($busca), 'busca' => $busca], 'Sem planograma');
+    }
     if ($rota === '/promocoes') { rota_promocoes($u); return; }
     if ($rota === '/margens')   { rota_margens($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }

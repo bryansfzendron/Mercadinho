@@ -620,6 +620,7 @@ function abas_loja(string $atual): string
     return abas([
         '/loja'       => 'Catálogo',
         '/planograma' => 'Repor',
+        '/sem-planograma' => 'Sem planograma',
         '/promocoes'  => 'Promoções',
         '/margens'    => 'Margens',
         '/vendas'     => 'Vendas',
@@ -633,6 +634,7 @@ function icones_loja(): array
     return [
         '/loja'       => icone('caixa'),
         '/planograma' => icone('repor'),
+        '/sem-planograma' => icone('alerta'),
         '/promocoes'  => icone('etiqueta'),
         '/margens'    => icone('barras'),
         '/vendas'     => icone('carrinho'),
