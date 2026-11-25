@@ -130,9 +130,11 @@ $chips = [
         <?php if ($paginas > 1):
             $link = static fn (int $p): string => '/margens?' . http_build_query(['filtro' => $filtro, 'q' => $busca, 'p' => $p]); ?>
             <div class="chips vf-periodos">
+                <?php if ($pagina > 1): ?><a class="chip" href="<?= e($link(1)) ?>">« Primeira</a><?php endif; ?>
                 <?php if ($pagina > 1): ?><a class="chip" href="<?= e($link($pagina - 1)) ?>">← Anterior</a><?php endif; ?>
                 <span class="chip ativo"><?= $pagina ?> / <?= $paginas ?></span>
                 <?php if ($pagina < $paginas): ?><a class="chip" href="<?= e($link($pagina + 1)) ?>">Próxima →</a><?php endif; ?>
+                <?php if ($pagina < $paginas): ?><a class="chip" href="<?= e($link($paginas)) ?>">Última »</a><?php endif; ?>
             </div>
         <?php endif; ?>
     </div>
