@@ -1700,3 +1700,9 @@ form.enviando { opacity: .6; pointer-events: none; transition: opacity .15s ease
 .mg-troca label { display: flex; flex-direction: column; gap: .2rem; font-size: .8rem; flex: 1 1 6rem; }
 .mg-troca input { width: 100%; }
 .mg-troca .mg-msg { flex-basis: 100%; }
+
+/* Sem planograma: mercado recolhivel */
+.sp-mercado > summary { cursor: pointer; list-style: none; }
+.sp-mercado > summary::-webkit-details-marker { display: none; }
+.sp-mercado > summary::after { content: "Abrir ▾"; float: right; font-size: .8rem; opacity: .7; }
+.sp-mercado[open] > summary::after { content: "Fechar ▴"; }

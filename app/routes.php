@@ -60,6 +60,17 @@ function despachar(string $rota): void
         $busca = trim((string) ($_GET['q'] ?? ''));
         ver('sem_planograma', ['grupos' => sem_planograma_listar($busca), 'busca' => $busca], 'Sem planograma');
     }
+    if ($rota === '/api/sem-planograma/repor' && $m === 'POST') {
+        exigir_csrf();
+        $c = corpo_json();
+        try {
+            $r = sem_planograma_repor($u, (int) ($c['pdv'] ?? 0), (string) ($c['codigo'] ?? ''),
+                (float) ($c['preco'] ?? 0), (float) ($c['entrada'] ?? 0));
+            json_resposta($r, $r['ok'] ? 200 : 422);
+        } catch (TouchPayErro $e) {
+            json_resposta(['ok' => false, 'msg' => $e->getMessage()], 502);
+        }
+    }
     if ($rota === '/promocoes') { rota_promocoes($u); return; }
     if ($rota === '/margens')   { rota_margens($u); return; }
     if ($rota === '/vendas')    { rota_vendas($u); return; }

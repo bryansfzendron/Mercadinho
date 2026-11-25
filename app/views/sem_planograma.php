@@ -1,6 +1,7 @@
 <?php
 /**
- * Produtos das notas fiscais que nao estao no planograma, um cartao por mercado.
+ * Produtos das notas fiscais que nao estao no planograma, um bloco recolhido por mercado.
+ * Cada produto ja vem com fator 2, o preco e a quantidade da ultima nota: so conferir e repor.
  *
  * @var array  $grupos sem_planograma_listar()
  * @var string $busca
@@ -15,7 +16,7 @@
     </form>
     <p class="ajuda">
         Produtos que já vieram em nota fiscal e não têm preço no planograma do mercado.
-        Toque num produto para colocá-lo no planograma.
+        Abra um mercado, confira o preço e a quantidade e toque em Repor.
     </p>
 </div>
 
@@ -27,36 +28,56 @@
     $pdv = $g['pdv'];
     $teto = 300;
     $itens = array_slice($g['itens'], 0, $teto);
-    $recolhe = count($itens) > LISTA_A_VISTA;
 ?>
-    <div class="cartao<?= $recolhe ? ' recolhivel' : '' ?>">
-        <?= cartao_cabeca('caixa', $pdv['nome'],
-            !$g['sincronizado'] ? 'planograma ainda não lido' : number_format($g['total'], 0, ',', '.') . ' produto(s) fora do planograma') ?>
+    <details class="cartao sp-mercado"<?= $busca !== '' && $itens ? ' open' : '' ?>>
+        <summary>
+            <?= cartao_cabeca('caixa', $pdv['nome'],
+                !$g['sincronizado'] ? 'planograma ainda não lido' : number_format($g['total'], 0, ',', '.') . ' produto(s) fora do planograma') ?>
+        </summary>
         <?php if (!$g['sincronizado']): ?>
             <p class="vazio">O planograma deste mercado ainda não foi sincronizado. Arraste a tela para baixo para atualizar.</p>
         <?php elseif (!$itens): ?>
             <p class="vazio">Tudo o que veio em nota está no planograma. Bom sinal.</p>
         <?php else: ?>
             <ul class="lista">
-                <?php foreach ($itens as $n => $p): ?>
-                    <li class="<?= $recolhe && $n >= LISTA_A_VISTA ? 'extra' : '' ?>">
-                        <a href="/planograma?<?= e(http_build_query(['pdv' => $pdv['id'], 'codigo' => $p['ean'] ?? ''])) ?>">
-                            <div class="linha-topo">
-                                <span class="forte"><?= e($p['descricao']) ?></span>
-                                <span class="valor"><?= $p['custo'] !== null ? moeda((float) $p['custo']) : '—' ?></span>
+                <?php foreach ($itens as $p):
+                    $custo = $p['custo'] !== null ? (float) $p['custo'] : 0.0;
+                    $qtd = (int) round((float) $p['qtd']);
+                ?>
+                    <li><div class="linha-cartao">
+                        <div class="linha-topo">
+                            <span class="forte"><?= e($p['descricao']) ?></span>
+                            <span class="valor"><?= $custo > 0 ? moeda($custo) : '—' ?></span>
+                        </div>
+                        <div class="linha-baixo">
+                            <span><?= (int) $p['vezes'] ?>× em nota · última <?= e(data_fmt($p['ultima'])) ?> (<?= $qtd ?> un.)</span>
+                            <span class="mono"><?= e($p['ean'] ?? 'sem GTIN') ?></span>
+                        </div>
+                        <?php if ($p['ean'] === null || $p['ean'] === ''): ?>
+                            <p class="ajuda">Sem código de barras: não dá para repor por aqui.</p>
+                        <?php else: ?>
+                            <div class="mg-troca sp-troca" data-pdv="<?= (int) $pdv['id'] ?>"
+                                 data-codigo="<?= e($p['ean']) ?>" data-custo="<?= e(number_format($custo, 4, '.', '')) ?>">
+                                <label>Fator (x)
+                                    <input type="text" class="mg-fator" inputmode="decimal" placeholder="2">
+                                </label>
+                                <label>Preço
+                                    <input type="text" class="mg-preco" inputmode="decimal">
+                                </label>
+                                <label>Quantidade
+                                    <input type="text" class="sp-qtd" inputmode="numeric" value="<?= $qtd ?>">
+                                </label>
+                                <button type="button" class="botao mg-salvar">Repor</button>
+                                <span class="ajuda mg-msg" aria-live="polite"></span>
                             </div>
-                            <div class="linha-baixo">
-                                <span><?= (int) $p['vezes'] ?>× em nota · última <?= e(data_fmt($p['ultima'])) ?></span>
-                                <span class="mono"><?= e($p['ean'] ?? 'sem GTIN') ?></span>
-                            </div>
-                        </a>
-                    </li>
+                        <?php endif; ?>
+                    </div></li>
                 <?php endforeach; ?>
             </ul>
             <?php if ($g['total'] > $teto): ?>
                 <p class="ajuda">Mostrando os <?= $teto ?> primeiros de <?= number_format($g['total'], 0, ',', '.') ?>. Use a busca para afinar.</p>
             <?php endif; ?>
-            <?= $recolhe ? ver_mais_baixo('Ver todos (' . count($itens) . ')') : '' ?>
         <?php endif; ?>
-    </div>
+    </details>
 <?php endforeach; ?>
+<script src="/assets/sem-planograma.js?v=1" defer></script>

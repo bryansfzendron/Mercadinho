@@ -1091,7 +1091,8 @@ function sem_planograma_listar(string $busca = ''): array
         'SELECT pr.id, pr.ean, pr.descricao,
                 COUNT(*)            AS vezes,
                 MAX(n.emissao)      AS ultima,
-                SUBSTRING_INDEX(GROUP_CONCAT(i.valor_unitario_liquido ORDER BY n.emissao DESC, i.id DESC), \',\', 1) AS custo
+                SUBSTRING_INDEX(GROUP_CONCAT(i.valor_unitario_liquido ORDER BY n.emissao DESC, i.id DESC), \',\', 1) AS custo,
+                SUBSTRING_INDEX(GROUP_CONCAT(i.quantidade ORDER BY n.emissao DESC, i.id DESC), ',', 1) AS qtd
            FROM itens i
            JOIN notas n    ON n.id = i.nota_id
            JOIN produtos pr ON pr.id = i.produto_id
@@ -1130,4 +1131,35 @@ function sem_planograma_listar(string $busca = ''): array
         $saida[] = ['pdv' => $pdv, 'sincronizado' => (bool) $linhas, 'total' => count($itens), 'itens' => $itens];
     }
     return $saida;
+}
+
+/**
+ * Poe no planograma um produto que veio em nota: preco e estoque inicial.
+ * Mesmo caminho do Repor em lote (planograma_procurar -> repor_plano ->
+ * planograma_salvar), so que de um produto por vez.
+ *
+ * @return array{ok:bool, msg:string}
+ * @throws TouchPayErro
+ */
+function sem_planograma_repor(array $u, int $pdv_id, string $codigo, float $preco, float $entrada): array
+{
+    if ($preco <= 0) {
+        return ['ok' => false, 'msg' => 'Informe um preço maior que zero.'];
+    }
+    $achado = planograma_procurar($pdv_id, $codigo);
+    if ($achado['onde'] === 'planograma') {
+        return ['ok' => false, 'msg' => 'Este produto já está no planograma. Atualize a página.'];
+    }
+    if ($achado['onde'] !== 'cadastro') {
+        return ['ok' => false, 'msg' => 'O TouchPay não tem este produto no cadastro.'];
+    }
+    $item = [
+        'pdv_id' => $pdv_id, 'codigo' => $achado['codigo'], 'descricao' => (string) ($achado['produto']['descricao'] ?? ''),
+        'preco' => round($preco, 2), 'entrada' => max(0.0, round($entrada)),
+        'necessaria' => null, 'critico' => null, 'validade' => null,
+    ];
+    $plano = repor_plano($achado, $item);
+    $m = repor_dados_salvar($plano, $item);
+    $r = planograma_salvar($u, $pdv_id, $m['dados']);
+    return ['ok' => !empty($r['ok']), 'msg' => !empty($r['ok']) ? 'Reposto no planograma.' : 'O TouchPay não aceitou.'];
 }
