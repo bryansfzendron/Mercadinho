@@ -1092,7 +1092,7 @@ function sem_planograma_listar(string $busca = ''): array
                 COUNT(*)            AS vezes,
                 MAX(n.emissao)      AS ultima,
                 SUBSTRING_INDEX(GROUP_CONCAT(i.valor_unitario_liquido ORDER BY n.emissao DESC, i.id DESC), \',\', 1) AS custo,
-                SUBSTRING_INDEX(GROUP_CONCAT(i.quantidade ORDER BY n.emissao DESC, i.id DESC), ',', 1) AS qtd
+                SUBSTRING_INDEX(GROUP_CONCAT(i.quantidade ORDER BY n.emissao DESC, i.id DESC), \',\', 1) AS qtd
            FROM itens i
            JOIN notas n    ON n.id = i.nota_id
            JOIN produtos pr ON pr.id = i.produto_id
